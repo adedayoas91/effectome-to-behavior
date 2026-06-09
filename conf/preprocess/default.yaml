@@ -1,0 +1,6 @@
+# Stage 0 preprocessing.
+detrend: true
+zscore: true
+deconvolve: false        # set true to estimate spike rates (requires '.[deconv]')
+smooth_window: 0
+drop_low_variance: 0.0

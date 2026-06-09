@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# uv
+.uv/
+
+# Hydra / experiment outputs
+outputs/
+multirun/
+.hydra/
+*.log
+
+# Data (never commit raw or processed neural data)
+data/
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.mat
+
+# Caching / artifacts
+artifacts/
+checkpoints/
+*.ckpt
+*.pt
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Testing / tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Secrets
+.env
+.env.*
+settings.json
+*.pem
+*.key

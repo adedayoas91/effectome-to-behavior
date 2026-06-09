@@ -1,0 +1,8 @@
+# Multi-scale community detection via a Markov-stability proxy.
+name: markov_stability
+resolution: 1.0
+symmetrize: true
+weight_threshold: 0.0
+seed: 42
+extra:
+  markov_time: 2       # random-walk steps; larger -> coarser communities

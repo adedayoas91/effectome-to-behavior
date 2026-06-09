@@ -1,0 +1,8 @@
+# Correlation / partial-correlation functional connectivity (non-causal baseline).
+name: correlation
+max_lag: 1
+alpha: 0.05
+partial: true        # partial correlation (condition out other neurons)
+ridge: 1.0
+absolute: false
+threshold: 0.0

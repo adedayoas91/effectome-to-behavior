@@ -1,0 +1,6 @@
+# CEBRA joint behaviour-neural embedding (requires '.[manifold]').
+name: cebra
+n_dims: 3
+behavior_key: continuous
+max_iter: 2000
+seed: 42

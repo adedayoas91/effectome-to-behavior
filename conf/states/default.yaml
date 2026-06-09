@@ -1,0 +1,12 @@
+# Stage 3: connectivity-state clustering + Markov transition modeling.
+graph_states:
+  n_states: 3
+  select_k: false      # set true to pick K by silhouette over [k_min, k_max]
+  k_min: 2
+  k_max: 8
+  standardize: true
+  seed: 42
+transitions:
+  laplace: 1.0
+  n_null: 500
+  seed: 42

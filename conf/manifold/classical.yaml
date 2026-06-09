@@ -1,0 +1,6 @@
+# Classical manifold (PCA default; set method: umap with '.[manifold]').
+name: classical
+n_dims: 3
+method: pca          # pca | umap
+behavior_key: continuous
+seed: 42

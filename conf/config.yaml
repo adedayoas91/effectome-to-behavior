@@ -1,0 +1,30 @@
+# Root Hydra config for the effectome pipeline.
+defaults:
+  - data: synthetic
+  - preprocess: default
+  - connectivity: granger
+  - states: default
+  - community: leiden
+  - manifold: classical
+  - linking: default
+  - _self_
+
+seed: 42
+
+# Window definition (Stage 1). Shared so connectivity sees the same segmentation everywhere.
+windowing:
+  length: 100
+  stride: 25
+  mode: sliding        # sliding | behavior
+  align_event: motif
+  min_event_gap: 10
+  behavior_summary: mean
+
+# Where pipeline artifacts are written/read (relative to the Hydra run dir's project root).
+paths:
+  artifacts: outputs/artifacts
+  figures: outputs/figures
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}

@@ -1,0 +1,8 @@
+# Multivariate (conditional) Granger causality from a ridge-VAR fit ("causalised Granger").
+name: granger
+max_lag: 2
+alpha: 0.05
+partial: false
+ridge: 1.0
+absolute: true       # report influence magnitude
+threshold: 0.0

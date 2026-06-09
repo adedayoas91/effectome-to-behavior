@@ -1,0 +1,6 @@
+# Static Leiden community detection (falls back to greedy modularity without '.[community]').
+name: leiden
+resolution: 1.0
+symmetrize: true
+weight_threshold: 0.0
+seed: 42

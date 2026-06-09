@@ -1,0 +1,8 @@
+# PCMCI+ constraint-based causal discovery (requires '.[csl]' -> tigramite).
+name: pcmci
+max_lag: 3
+alpha: 0.05
+partial: false
+ridge: 1.0
+absolute: true
+threshold: 0.0

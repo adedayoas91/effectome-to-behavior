@@ -1,0 +1,6 @@
+# Evolving community tracking: per-window Leiden + cross-time label alignment.
+name: temporal
+resolution: 1.0
+symmetrize: true
+weight_threshold: 0.0
+seed: 42
