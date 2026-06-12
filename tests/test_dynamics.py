@@ -21,12 +21,12 @@ from effectome.dynamics import (
 
 
 def _series(windows):
-    return ConnectivityFactory(ConnectivityConfig(name="granger", absolute=True)).run(windows)
+    return ConnectivityFactory(ConnectivityConfig(name="granger")).run(windows)
 
 
 def test_graph_states_recover_regimes(windows):
     series = _series(windows)
-    states = fit_graph_states(series, GraphStateConfig(n_states=3, seed=0))
+    states = fit_graph_states(series, GraphStateConfig(n_states=3, metric="causal_kernel", seed=0))
     assert states.labels.shape[0] == series.n_windows
     assert states.centroids.shape == (3, series.n_neurons, series.n_neurons)
     # The synthetic data has contiguous regimes -> states should be temporally blocky,
@@ -37,7 +37,7 @@ def test_graph_states_recover_regimes(windows):
 
 def test_transitions_beat_shuffle_null(windows):
     series = _series(windows)
-    states = fit_graph_states(series, GraphStateConfig(n_states=3, seed=0))
+    states = fit_graph_states(series, GraphStateConfig(n_states=3, metric="causal_kernel", seed=0))
     tm = fit_transitions(states.labels, states.n_states, TransitionConfig(n_null=200, seed=0))
     assert tm.transition_matrix.shape == (3, 3)
     assert np.allclose(tm.transition_matrix.sum(axis=1), 1.0)
@@ -91,7 +91,7 @@ def test_pairwise_distances_shape_symmetry(windows):
     assert np.allclose(np.diag(d), 0.0, atol=1e-6)
 
 
-@pytest.mark.parametrize("metric", ["cosine", "log_euclidean", "affine_invariant"])
+@pytest.mark.parametrize("metric", ["causal_kernel", "cosine", "log_euclidean", "affine_invariant"])
 def test_graph_states_metric_paths_blocky(windows, metric):
     series = _series(windows)
     states = fit_graph_states(series, GraphStateConfig(n_states=3, metric=metric, seed=0))

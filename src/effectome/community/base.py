@@ -21,6 +21,9 @@ class CommunityConfig:
         name: Registry key ('leiden', 'markov_stability', 'temporal').
         resolution: Resolution parameter (higher -> more, smaller communities).
         symmetrize: Symmetrize directed matrices before detection.
+        use_absolute: Use absolute weights before detection. This preserves the
+            current modularity-style magnitude baseline while allowing signed
+            community experiments.
         weight_threshold: Drop edges below this absolute weight before detection.
         seed: Random seed for stochastic detectors.
         extra: Method-specific options (e.g. temporal interlayer coupling).
@@ -29,6 +32,7 @@ class CommunityConfig:
     name: str = "leiden"
     resolution: float = 1.0
     symmetrize: bool = True
+    use_absolute: bool = True
     weight_threshold: float = 0.0
     seed: int = 42
     extra: dict = field(default_factory=dict)
@@ -41,11 +45,11 @@ class CommunityDetector(ABC):
         self.cfg = cfg
 
     def _prepare(self, w: np.ndarray) -> np.ndarray:
-        a = np.abs(w) if True else w
+        a = np.abs(w) if self.cfg.use_absolute else np.array(w, copy=True)
         if self.cfg.symmetrize:
             a = 0.5 * (a + a.T)
         if self.cfg.weight_threshold > 0:
-            a = np.where(a >= self.cfg.weight_threshold, a, 0.0)
+            a = np.where(np.abs(a) >= self.cfg.weight_threshold, a, 0.0)
         np.fill_diagonal(a, 0.0)
         return a
 

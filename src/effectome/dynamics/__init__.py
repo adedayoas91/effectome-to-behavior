@@ -3,6 +3,7 @@
 from .graph_states import (
     DISTANCE_METRICS,
     FEATURE_METRICS,
+    KERNEL_METRICS,
     GraphStateConfig,
     GraphStateModel,
     fit_graph_states,
@@ -25,6 +26,7 @@ __all__ = [
     "GraphStateModel",
     "fit_graph_states",
     "FEATURE_METRICS",
+    "KERNEL_METRICS",
     "DISTANCE_METRICS",
     "TransitionConfig",
     "TransitionModel",

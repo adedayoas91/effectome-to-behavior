@@ -60,6 +60,7 @@ class TemporalCommunity(CommunityDetector):
             name="leiden",
             resolution=cfg.resolution,
             symmetrize=cfg.symmetrize,
+            use_absolute=cfg.use_absolute,
             weight_threshold=cfg.weight_threshold,
             seed=cfg.seed,
         )

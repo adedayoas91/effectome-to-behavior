@@ -9,7 +9,7 @@ from effectome.connectivity import ConnectivityConfig, ConnectivityFactory
 
 
 def _series(windows):
-    return ConnectivityFactory(ConnectivityConfig(name="granger", absolute=True)).run(windows)
+    return ConnectivityFactory(ConnectivityConfig(name="granger")).run(windows)
 
 
 def test_registry_has_methods():

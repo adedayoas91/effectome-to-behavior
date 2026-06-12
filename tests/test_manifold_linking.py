@@ -25,7 +25,7 @@ def test_classical_manifold_shape(synthetic_recording):
 
 def test_connectivity_decodes_regime_behavior(windows):
     """The dynamic effectome should decode the regime-linked 'motif' behavior above chance."""
-    series = ConnectivityFactory(ConnectivityConfig(name="granger", absolute=True)).run(windows)
+    series = ConnectivityFactory(ConnectivityConfig(name="granger")).run(windows)
     beh = series.behavior_per_window["motif"]
     res = decode_behavior(connectivity_features(series), beh, "connectivity", "motif", n_folds=4)
     assert res.task == "classification"
@@ -35,8 +35,8 @@ def test_connectivity_decodes_regime_behavior(windows):
 
 def test_state_behavior_association_and_leadlag(windows):
     """Inferred connectivity states should carry information about the regime-linked behavior."""
-    series = ConnectivityFactory(ConnectivityConfig(name="granger", absolute=True)).run(windows)
-    states = fit_graph_states(series, GraphStateConfig(n_states=3, seed=0))
+    series = ConnectivityFactory(ConnectivityConfig(name="granger")).run(windows)
+    states = fit_graph_states(series, GraphStateConfig(n_states=3, metric="causal_kernel", seed=0))
     beh = series.behavior_per_window["motif"]
 
     assoc = association_with_null(states.labels, beh, n_null=300, seed=0)
@@ -49,8 +49,8 @@ def test_state_behavior_association_and_leadlag(windows):
 
 
 def test_state_features_one_hot(windows):
-    series = ConnectivityFactory(ConnectivityConfig(name="granger", absolute=True)).run(windows)
-    states = fit_graph_states(series, GraphStateConfig(n_states=3, seed=0))
+    series = ConnectivityFactory(ConnectivityConfig(name="granger")).run(windows)
+    states = fit_graph_states(series, GraphStateConfig(n_states=3, metric="causal_kernel", seed=0))
     feats = state_features(states.labels, states.n_states)
     assert feats.shape == (series.n_windows, 3)
     assert np.allclose(feats.sum(axis=1), 1.0)

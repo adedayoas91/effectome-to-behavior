@@ -6,12 +6,14 @@ graph_states:
   k_max: 8
   standardize: true
   # Graph-space geometry for Fréchet quantization of the effectome:
-  #   feature metrics (KMeans):     frobenius | cosine | log_euclidean
-  #   distance metrics (k-medoids): affine_invariant | gromov_wasserstein
-  metric: frobenius
+  #   feature metrics (KMeans):        frobenius | cosine | log_euclidean
+  #   signed kernel metric (spectral): causal_kernel
+  #   distance metrics (k-medoids):    affine_invariant | gromov_wasserstein
+  metric: causal_kernel
   eps: 1.0e-6           # eigenvalue floor for SPD projection (log_euclidean/affine_invariant)
   gw_epsilon: 0.05      # entropic regularization for gromov_wasserstein
   gw_max_iter: 200
+  kernel_gamma: 1.0
   seed: 42
 transitions:
   laplace: 1.0

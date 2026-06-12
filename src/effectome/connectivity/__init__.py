@@ -1,4 +1,4 @@
-"""Connectivity estimation (Stage 2): correlation, Granger, PCMCI+.
+"""Connectivity estimation (Stage 2): correlation, c-GC/c-GC*, PCMCI+, JPCMCI+.
 
 Importing this package registers all shipped estimators in the registry.
 """

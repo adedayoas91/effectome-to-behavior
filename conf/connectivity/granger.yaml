@@ -4,5 +4,5 @@ max_lag: 2
 alpha: 0.05
 partial: false
 ridge: 1.0
-absolute: true       # report influence magnitude
+absolute: false      # preserve signed effective influence
 threshold: 0.0

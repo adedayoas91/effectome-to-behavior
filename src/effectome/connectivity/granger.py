@@ -1,59 +1,67 @@
-"""Conditional / multivariate Granger causality via a regularized VAR fit.
-
-For each window we fit a single multivariate vector-autoregression
-    x_t = sum_{l=1..p} A_l x_{t-l} + e_t
-with ridge regularization, then read directed influence i -> j as the aggregated magnitude
-of the lagged coefficients from source i into target j's equation. This is the "causalised
-Granger" estimator: a multivariate (conditional) Granger measure that conditions every pairwise
-influence on all other neurons simultaneously, rather than running bivariate tests.
-"""
+"""Registry wrappers for causalised Granger estimators."""
 
 from __future__ import annotations
 
 import numpy as np
 
+from effectome.core import CausalisedGC
+
 from .base import ConnectivityEstimator
 from .registry import register_connectivity
 
 
-def _design_matrix(x: np.ndarray, p: int) -> tuple[np.ndarray, np.ndarray]:
-    """Build lagged predictors. x: (L, N) -> (X: (L-p, N*p), Y: (L-p, N))."""
-    length, _ = x.shape
-    cols = []
-    for lag in range(1, p + 1):
-        cols.append(x[p - lag : length - lag])  # (rows, N)
-    X = np.concatenate(cols, axis=1)  # (rows, N*p)
-    Y = x[p:length]  # (rows, N)
-    return X, Y
+def _run_causalised_gc(
+    segment: np.ndarray,
+    *,
+    max_lag: int,
+    alpha: float,
+    extra: dict,
+    method: str,
+) -> np.ndarray:
+    estimator = CausalisedGC(
+        n_perm=int(extra.get("n_perm", 0)),
+        n_pasts=max(1, max_lag),
+        n_lags=int(extra.get("n_lags", 1)),
+        temporal=bool(extra.get("temporal", True)),
+        method=method,
+        parallel=bool(extra.get("parallel", False)),
+        signed=not bool(extra.get("unsigned", False)),
+    )
+    estimator.fit(np.asarray(segment, dtype=np.float64).T, verbose=int(extra.get("verbose", 0)))
+    return estimator.get_connectivity_matrix(
+        simulation=bool(extra.get("simulation", True)),
+        alpha=float(extra.get("alpha", alpha)),
+        beta=float(extra.get("beta", min(alpha, 1e-3))),
+    )
 
 
 @register_connectivity("granger")
 class GrangerConnectivity(ConnectivityEstimator):
-    """Multivariate (conditional) Granger causality from a ridge-VAR fit.
-
-    Returns a directed N x N matrix; entry [i, j] aggregates |A_l[j, i]| over lags l,
-    i.e. how much source i's past helps predict target j given all others.
-    """
+    """Windowed c-GC wrapper over the notebook-oriented core estimator."""
 
     directed = True
 
     def estimate(self, segment: np.ndarray) -> np.ndarray:
-        x = np.asarray(segment, dtype=np.float64)
-        n = x.shape[1]
-        p = max(1, self.cfg.max_lag)
-        X, Y = _design_matrix(x, p)
-        if X.shape[0] <= X.shape[1]:
-            # Underdetermined window; ridge still solves but warn via heavier regularization.
-            pass
+        return _run_causalised_gc(
+            segment,
+            max_lag=self.cfg.max_lag,
+            alpha=self.cfg.alpha,
+            extra=self.cfg.extra,
+            method="cgc",
+        )
 
-        # Ridge solution: B = (X'X + lambda I)^-1 X'Y, B shape (N*p, N).
-        lam = self.cfg.ridge
-        gram = X.T @ X + lam * np.eye(X.shape[1])
-        B = np.linalg.solve(gram, X.T @ Y)  # (N*p, N)
 
-        # B rows are stacked by lag: [lag1 (N), lag2 (N), ...]; column j is target j's equation.
-        influence = np.zeros((n, n))  # [source i, target j]
-        for lag in range(p):
-            A_l = B[lag * n : (lag + 1) * n, :]  # (N sources, N targets)
-            influence += np.abs(A_l)
-        return influence
+@register_connectivity("granger_star")
+class GrangerStarConnectivity(ConnectivityEstimator):
+    """Windowed c-GC* wrapper over the notebook-oriented core estimator."""
+
+    directed = True
+
+    def estimate(self, segment: np.ndarray) -> np.ndarray:
+        return _run_causalised_gc(
+            segment,
+            max_lag=self.cfg.max_lag,
+            alpha=self.cfg.alpha,
+            extra=self.cfg.extra,
+            method="fcgc",
+        )
