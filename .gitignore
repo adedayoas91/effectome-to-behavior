@@ -48,7 +48,6 @@ htmlcov/
 
 # Secrets
 .env
-.env.*
 settings.json
 *.pem
 *.key

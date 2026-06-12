@@ -1,12 +1,13 @@
 # effectome
 
 **From dynamic effectomes to behavior.** Infer time-varying causal/effective connectivity from
-larval-zebrafish whole-brain calcium imaging, model how the connectivity matrices transition as
-a Markov process over recurring states, detect evolving neural communities, and link them to a
-behavioral manifold to find the connectivity dynamics that drive behavior.
+larval-zebrafish calcium imaging of the mesencephalic locomotor region and identified V2a
+reticulospinal neurons, model how the connectivity matrices transition as a Markov process over
+recurring states, detect evolving neural communities, and link them to a behavioral manifold to
+find the connectivity dynamics that drive behavior.
 
-See the parent workspace `../goals.md` for the scientific goals and `../manuscript/draft.md`
-for the manuscript.
+See the parent workspace `../goals.md` for the scientific goals and `../manuscript/main.tex`
+for the LaTeX manuscript.
 
 ## Pipeline
 
