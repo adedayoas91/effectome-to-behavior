@@ -1,6 +1,15 @@
-# Evolving community tracking: per-window Leiden + cross-time label alignment.
+# Joint temporally regularized communities on signed directed node-role features.
 name: temporal
 resolution: 1.0
-symmetrize: true
+symmetrize: false
+use_absolute: false
 weight_threshold: 0.0
 seed: 42
+extra:
+  n_communities: 3
+  mode: retrospective   # retrospective | prospective
+  temporal_penalty: 1.5
+  n_runs: 5
+  max_iter: 20
+  init_window_count: 4
+  online_learning_rate: 0.25

@@ -1,23 +1,15 @@
-"""Cluster the sequence of connectivity matrices into recurring 'connectivity states'.
+"""Cluster the sequence of connectivity matrices into recurring dataset-global states.
 
 The dynamic effectome {W_1..W_K} is treated as a trajectory in graph space, and clustering it
 into recurring states (regimes) is *Fréchet quantization*: pick a codebook and assignment that
-minimize summed squared distance under a chosen graph metric (see ``metrics.py``). The metric
-choice is not cosmetic:
+minimize summed squared distance under a chosen graph metric (see ``metrics.py``).
 
-* ``frobenius`` / ``cosine`` -- flat geometry, vectorized matrices, arithmetic-mean centroids
-  (the original behavior; Frobenius k-means is the special case in the manuscript).
-* ``causal_kernel`` -- signed graph signatures clustered by spectral clustering on an
-  RBF affinity. This is the current default because it respects sign-preserving
-  effectome structure better than plain Euclidean k-means.
-* ``log_euclidean`` -- Riemannian SPD geometry with a closed-form barycenter (expm of the mean
-  matrix-log), avoiding the determinant "swelling" bias of Euclidean averaging.
-* ``affine_invariant`` / ``gromov_wasserstein`` -- distance-matrix clustering via k-medoids,
-  whose centroids are discrete Fréchet barycenters (medoid graphs); Gromov-Wasserstein compares
-  graphs relationally, without assuming node correspondence.
+This implementation is dataset-global and fit/transform-aware:
 
-The state label sequence becomes the input to the transition model (Stage 3b). Model selection
-over the number of states K is supported via silhouette score in the active geometry.
+* fit-time standardization is learned only on the fit subset and reused for held-out assignment;
+* state centroids/medoids are learned once and reused by :meth:`GraphStateModel.transform`;
+* recording/gap boundaries are inferred from anchor metadata or window starts and carried into
+  downstream transition modeling.
 """
 
 from __future__ import annotations
@@ -26,20 +18,12 @@ import logging
 from dataclasses import dataclass
 
 import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.cluster import SpectralClustering
+from sklearn.cluster import KMeans, SpectralClustering
 from sklearn.metrics import silhouette_score
 
 from effectome.data_module.schema import ConnectivitySeries
 
-from .metrics import (
-    expm_sym,
-    kmedoids,
-    log_euclidean_features,
-    logm_spd,
-    pairwise_distances,
-    vectorize,
-)
+from .metrics import expm_sym, kmedoids, log_euclidean_features, logm_spd, pairwise_distances, vectorize
 
 logger = logging.getLogger(__name__)
 
@@ -57,13 +41,15 @@ class GraphStateConfig:
         select_k: If True, pick K in [k_min, k_max] by best silhouette score.
         k_min: Minimum K when selecting.
         k_max: Maximum K when selecting.
-        standardize: Z-score features before clustering (feature-metric path only).
-        metric: Graph-space geometry. One of FEATURE_METRICS, KERNEL_METRICS, or DISTANCE_METRICS.
+        standardize: Z-score features before clustering (fit subset only).
+        metric: Graph-space geometry. One of FEATURE_METRICS, KERNEL_METRICS, DISTANCE_METRICS.
         eps: Eigenvalue floor for SPD projection (log_euclidean / affine_invariant).
         gw_epsilon: Entropic regularization for Gromov-Wasserstein.
         gw_max_iter: Outer iterations for Gromov-Wasserstein.
         kernel_gamma: RBF bandwidth multiplier for the causal-kernel affinity.
-        seed: Random seed for KMeans / k-medoids.
+        boundary_gap_factor: Gaps larger than this multiple of the nominal stride start a new
+            transition segment when explicit recording ids are unavailable.
+        seed: Random seed for KMeans / spectral clustering / k-medoids.
     """
 
     n_states: int = 3
@@ -76,21 +62,27 @@ class GraphStateConfig:
     gw_epsilon: float = 0.05
     gw_max_iter: int = 200
     kernel_gamma: float = 1.0
+    boundary_gap_factor: float = 3.0
     seed: int = 42
 
 
 @dataclass
 class GraphStateModel:
-    """Result of connectivity-state clustering.
+    """Result of dataset-global connectivity-state clustering.
 
     Attributes:
         labels: State label per window, shape (K_windows,).
-        centroids: State centroid matrices, shape (n_states, N, N). Fréchet means
-            (arithmetic / log-Euclidean) or medoid graphs, depending on metric.
+        centroids: State centroid/medoid matrices, shape (n_states, N, N).
         n_states: Number of states.
-        silhouette: Silhouette-like score of the chosen clustering (in the active geometry).
+        silhouette: Silhouette-like score of the chosen clustering on the fit subset.
         metric: Graph metric used for clustering.
-        window_starts: Window start indices (carried through for alignment).
+        window_starts: Window start indices for the series labels.
+        feature_centroids: Optional centroids in feature space used for held-out assignment.
+        feature_mean: Fit-time feature mean for held-out standardization.
+        feature_scale: Fit-time feature std for held-out standardization.
+        medoid_matrices: Optional medoid graphs used for distance-based assignment.
+        fit_indices: Indices used to fit the state model.
+        boundary_indices: Start indices of independent transition segments.
     """
 
     labels: np.ndarray
@@ -99,27 +91,95 @@ class GraphStateModel:
     silhouette: float
     metric: str
     window_starts: np.ndarray
+    feature_centroids: np.ndarray | None = None
+    feature_mean: np.ndarray | None = None
+    feature_scale: np.ndarray | None = None
+    medoid_matrices: np.ndarray | None = None
+    fit_indices: np.ndarray | None = None
+    boundary_indices: np.ndarray | None = None
+    eps: float = 1e-6
+    gw_epsilon: float = 0.05
+    gw_max_iter: int = 200
+
+    def transform(
+        self,
+        series: ConnectivitySeries | np.ndarray,
+        *,
+        window_starts: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Assign labels to new matrices without refitting the state model."""
+        matrices = series.matrices if isinstance(series, ConnectivitySeries) else np.asarray(series)
+        starts = series.window_starts if isinstance(series, ConnectivitySeries) else window_starts
+        labels = assign_graph_states(self, matrices)
+        if starts is not None:
+            self.window_starts = np.asarray(starts, dtype=int)
+        return labels
 
 
-def _prepare(features: np.ndarray, standardize: bool) -> np.ndarray:
+@dataclass(frozen=True)
+class _Standardizer:
+    mean: np.ndarray | None
+    scale: np.ndarray | None
+
+    def transform(self, features: np.ndarray) -> np.ndarray:
+        if self.mean is None or self.scale is None:
+            return features
+        return (features - self.mean) / self.scale
+
+
+def _series_metadata(series: ConnectivitySeries) -> dict:
+    metadata = getattr(series, "metadata", None)
+    if isinstance(metadata, dict):
+        return metadata
+    return {}
+
+
+def infer_boundary_indices(
+    window_starts: np.ndarray,
+    *,
+    recording_ids: np.ndarray | None = None,
+    gap_factor: float = 3.0,
+) -> np.ndarray:
+    """Infer independent transition segments from pooled window starts / recording ids."""
+    starts = np.asarray(window_starts, dtype=int)
+    if starts.ndim != 1:
+        raise ValueError("window_starts must be a 1D array")
+    boundaries = [0]
+    if starts.size <= 1:
+        return np.asarray(boundaries, dtype=int)
+
+    if recording_ids is not None:
+        rec = np.asarray(recording_ids)
+        if rec.shape[0] != starts.shape[0]:
+            raise ValueError("recording_ids must match window_starts length")
+        for idx in range(1, len(starts)):
+            if rec[idx] != rec[idx - 1]:
+                boundaries.append(idx)
+        return np.asarray(boundaries, dtype=int)
+
+    diffs = np.diff(starts)
+    positive = diffs[diffs > 0]
+    nominal_stride = float(np.median(positive)) if positive.size else 1.0
+    gap_threshold = max(gap_factor * nominal_stride, nominal_stride + 1.0)
+    for idx, delta in enumerate(diffs, start=1):
+        if delta <= 0 or delta > gap_threshold:
+            boundaries.append(idx)
+    return np.asarray(boundaries, dtype=int)
+
+
+def _fit_standardizer(features: np.ndarray, standardize: bool) -> tuple[np.ndarray, _Standardizer]:
     if not standardize:
-        return features
-    mu = features.mean(axis=0, keepdims=True)
-    sd = features.std(axis=0, keepdims=True)
-    sd[sd == 0] = 1.0
-    return (features - mu) / sd
+        return features, _Standardizer(None, None)
+    mean = features.mean(axis=0, keepdims=True)
+    scale = features.std(axis=0, keepdims=True)
+    scale[scale == 0] = 1.0
+    return (features - mean) / scale, _Standardizer(mean=mean, scale=scale)
 
 
-def _causal_kernel_features(matrices: np.ndarray, standardize: bool) -> np.ndarray:
-    """Signed effectome signatures used by the causal-kernel clustering path.
-
-    The signature keeps edge sign plus source/target summaries so two windows
-    that share similar signed causal organization stay close even if their raw
-    matrix entries differ in scale.
-    """
+def _causal_kernel_raw_features(matrices: np.ndarray) -> np.ndarray:
     pos = np.maximum(matrices, 0.0)
     neg = np.maximum(-matrices, 0.0)
-    feats = np.concatenate(
+    return np.concatenate(
         [
             vectorize(matrices),
             vectorize(pos),
@@ -131,7 +191,6 @@ def _causal_kernel_features(matrices: np.ndarray, standardize: bool) -> np.ndarr
         ],
         axis=1,
     )
-    return _prepare(feats, standardize)
 
 
 def _rbf_affinity(features: np.ndarray, gamma: float) -> np.ndarray:
@@ -144,24 +203,59 @@ def _rbf_affinity(features: np.ndarray, gamma: float) -> np.ndarray:
     return affinity
 
 
-def _features_for(matrices: np.ndarray, metric: str, cfg: GraphStateConfig) -> np.ndarray:
-    """Build the feature matrix whose Euclidean geometry equals the requested metric."""
+def _raw_features_for(matrices: np.ndarray, metric: str, cfg: GraphStateConfig) -> np.ndarray:
     if metric == "log_euclidean":
-        feats = log_euclidean_features(matrices, cfg.eps)
-    elif metric == "cosine":
+        return log_euclidean_features(matrices, cfg.eps)
+    if metric == "cosine":
         feats = vectorize(matrices)
         norms = np.linalg.norm(feats, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
-        feats = feats / norms
-    else:  # frobenius
-        feats = vectorize(matrices)
-    return _prepare(feats, cfg.standardize)
+        return feats / norms
+    if metric == "frobenius":
+        return vectorize(matrices)
+    if metric == "causal_kernel":
+        return _causal_kernel_raw_features(matrices)
+    raise ValueError(f"metric '{metric}' does not use direct features")
 
 
-def _fit_kernel_path(matrices: np.ndarray, cfg: GraphStateConfig) -> tuple[np.ndarray, int, float]:
-    """Spectral clustering on a signed effectome affinity kernel."""
-    n = matrices.shape[0]
-    feats = _causal_kernel_features(matrices, cfg.standardize)
+def _assign_feature_labels(features: np.ndarray, centroids: np.ndarray) -> np.ndarray:
+    d2 = np.sum((features[:, None, :] - centroids[None, :, :]) ** 2, axis=2)
+    return np.argmin(d2, axis=1).astype(np.int64)
+
+
+def _centroids(
+    matrices: np.ndarray,
+    labels: np.ndarray,
+    n_states: int,
+    metric: str,
+    eps: float,
+    medoid_matrices: np.ndarray | None = None,
+) -> np.ndarray:
+    """Per-state centroid graph: arithmetic/log-Euclidean mean or medoid graph."""
+    n_neurons = matrices.shape[1]
+    out = []
+    for state in range(n_states):
+        members = matrices[labels == state]
+        if medoid_matrices is not None:
+            out.append(medoid_matrices[state])
+        elif members.shape[0] == 0:
+            out.append(np.zeros((n_neurons, n_neurons)))
+        elif metric == "log_euclidean":
+            mean_log = np.mean([logm_spd(w, eps) for w in members], axis=0)
+            out.append(expm_sym(mean_log))
+        else:
+            out.append(members.mean(axis=0))
+    return np.stack(out).reshape(n_states, n_neurons, n_neurons)
+
+
+def _fit_kernel_path(
+    train_matrices: np.ndarray,
+    cfg: GraphStateConfig,
+) -> tuple[np.ndarray, np.ndarray, _Standardizer, int, float]:
+    """Spectral clustering on signed directed effectome features."""
+    n = train_matrices.shape[0]
+    raw = _raw_features_for(train_matrices, "causal_kernel", cfg)
+    feats, standardizer = _fit_standardizer(raw, cfg.standardize)
     affinity = _rbf_affinity(feats, cfg.kernel_gamma)
     ks = range(cfg.k_min, min(cfg.k_max, n - 1) + 1) if cfg.select_k else [cfg.n_states]
     best = None
@@ -176,33 +270,20 @@ def _fit_kernel_path(matrices: np.ndarray, cfg: GraphStateConfig) -> tuple[np.nd
         score = silhouette_score(feats, labels) if 1 < len(np.unique(labels)) < n else 0.0
         logger.info("metric=%s K=%d silhouette=%.3f", cfg.metric, k, score)
         if best is None or score > best[0]:
-            best = (score, k, labels)
-    score, k, labels = best  # type: ignore[misc]
-    return labels, k, float(score)
+            centroids = np.stack([feats[labels == state].mean(axis=0) for state in range(k)])
+            best = (score, k, labels, centroids)
+    score, k, labels, centroids = best  # type: ignore[misc]
+    return labels, centroids, standardizer, int(k), float(score)
 
 
-def _centroids(
-    matrices: np.ndarray, labels: np.ndarray, n_states: int, metric: str, eps: float
-) -> np.ndarray:
-    """Per-state centroid graph: log-Euclidean / arithmetic Fréchet mean."""
-    n_neurons = matrices.shape[1]
-    out = []
-    for s in range(n_states):
-        members = matrices[labels == s]
-        if members.shape[0] == 0:
-            out.append(np.zeros((n_neurons, n_neurons)))
-        elif metric == "log_euclidean":
-            mean_log = np.mean([logm_spd(w, eps) for w in members], axis=0)
-            out.append(expm_sym(mean_log))
-        else:
-            out.append(members.mean(axis=0))
-    return np.stack(out).reshape(n_states, n_neurons, n_neurons)
-
-
-def _fit_feature_path(matrices: np.ndarray, cfg: GraphStateConfig) -> tuple[np.ndarray, int, float]:
+def _fit_feature_path(
+    train_matrices: np.ndarray,
+    cfg: GraphStateConfig,
+) -> tuple[np.ndarray, np.ndarray, _Standardizer, int, float]:
     """KMeans in a Euclidean feature space (frobenius / cosine / log_euclidean)."""
-    n = matrices.shape[0]
-    feats = _features_for(matrices, cfg.metric, cfg)
+    n = train_matrices.shape[0]
+    raw = _raw_features_for(train_matrices, cfg.metric, cfg)
+    feats, standardizer = _fit_standardizer(raw, cfg.standardize)
     ks = range(cfg.k_min, min(cfg.k_max, n - 1) + 1) if cfg.select_k else [cfg.n_states]
     best = None
     for k in ks:
@@ -210,58 +291,162 @@ def _fit_feature_path(matrices: np.ndarray, cfg: GraphStateConfig) -> tuple[np.n
         score = silhouette_score(feats, km.labels_) if 1 < k < n else 0.0
         logger.info("metric=%s K=%d silhouette=%.3f", cfg.metric, k, score)
         if best is None or score > best[0]:
-            best = (score, k, km.labels_.astype(np.int64))
-    score, k, labels = best  # type: ignore[misc]
-    return labels, k, float(score)
+            best = (score, k, km.labels_.astype(np.int64), km.cluster_centers_)
+    score, k, labels, feature_centroids = best  # type: ignore[misc]
+    return labels, feature_centroids, standardizer, int(k), float(score)
 
 
-def _fit_distance_path(matrices: np.ndarray, cfg: GraphStateConfig) -> tuple[np.ndarray, int, float]:
+def _fit_distance_path(
+    train_matrices: np.ndarray,
+    cfg: GraphStateConfig,
+) -> tuple[np.ndarray, np.ndarray, int, float]:
     """K-medoids on a precomputed distance matrix (affine_invariant / gromov_wasserstein)."""
-    n = matrices.shape[0]
+    n = train_matrices.shape[0]
     dist = pairwise_distances(
-        matrices, cfg.metric, eps=cfg.eps, gw_epsilon=cfg.gw_epsilon, gw_max_iter=cfg.gw_max_iter
+        train_matrices,
+        cfg.metric,
+        eps=cfg.eps,
+        gw_epsilon=cfg.gw_epsilon,
+        gw_max_iter=cfg.gw_max_iter,
     )
     ks = range(cfg.k_min, min(cfg.k_max, n - 1) + 1) if cfg.select_k else [cfg.n_states]
     best = None
     for k in ks:
-        labels, _ = kmedoids(dist, k, seed=cfg.seed)
+        labels, medoid_indices = kmedoids(dist, k, seed=cfg.seed)
         valid = 1 < len(np.unique(labels)) < n
         score = silhouette_score(dist, labels, metric="precomputed") if valid else 0.0
         logger.info("metric=%s K=%d silhouette=%.3f", cfg.metric, k, score)
         if best is None or score > best[0]:
-            best = (score, k, labels.astype(np.int64))
-    score, k, labels = best  # type: ignore[misc]
-    return labels, k, float(score)
+            best = (score, k, labels.astype(np.int64), train_matrices[medoid_indices])
+    score, k, labels, medoid_matrices = best  # type: ignore[misc]
+    return labels, medoid_matrices, int(k), float(score)
 
 
-def fit_graph_states(series: ConnectivitySeries, cfg: GraphStateConfig) -> GraphStateModel:
-    """Cluster connectivity matrices into states; return labels + centroid graphs.
+def assign_graph_states(model: GraphStateModel, matrices: np.ndarray) -> np.ndarray:
+    """Assign matrices to the nearest learned state without refitting."""
+    matrices = np.asarray(matrices, dtype=np.float64)
+    if model.metric in FEATURE_METRICS or model.metric in KERNEL_METRICS:
+        raw = _raw_features_for(
+            matrices,
+            model.metric,
+            GraphStateConfig(
+                metric=model.metric,
+                eps=model.eps,
+                gw_epsilon=model.gw_epsilon,
+                gw_max_iter=model.gw_max_iter,
+            ),
+        )
+        standardizer = _Standardizer(model.feature_mean, model.feature_scale)
+        feats = standardizer.transform(raw)
+        if model.feature_centroids is None:
+            raise ValueError("feature_centroids are required for feature/kernel state assignment")
+        return _assign_feature_labels(feats, model.feature_centroids)
 
-    Dispatches on ``cfg.metric`` between a Euclidean feature path (KMeans), a
-    signed-kernel path (spectral clustering), and a distance-matrix path
-    (k-medoids). See module docstring for the geometries.
-    """
-    matrices = series.matrices
+    if model.metric in DISTANCE_METRICS:
+        if model.medoid_matrices is None:
+            raise ValueError("medoid_matrices are required for distance-based state assignment")
+        dist = np.zeros((matrices.shape[0], model.medoid_matrices.shape[0]))
+        for i, matrix in enumerate(matrices):
+            for state, medoid in enumerate(model.medoid_matrices):
+                dist[i, state] = pairwise_distances(
+                    np.stack([matrix, medoid]),
+                    model.metric,
+                    eps=model.eps,
+                    gw_epsilon=model.gw_epsilon,
+                    gw_max_iter=model.gw_max_iter,
+                )[0, 1]
+        return np.argmin(dist, axis=1).astype(np.int64)
+
+    raise ValueError(f"unknown metric '{model.metric}'")
+
+
+def fit_graph_states(
+    series: ConnectivitySeries,
+    cfg: GraphStateConfig,
+    *,
+    fit_indices: np.ndarray | None = None,
+) -> GraphStateModel:
+    """Fit dataset-global connectivity states and assign held-out windows without refitting."""
+    matrices = np.asarray(series.matrices, dtype=np.float64)
+    n_windows = matrices.shape[0]
+    train_idx = np.arange(n_windows, dtype=int) if fit_indices is None else np.asarray(fit_indices, dtype=int)
+    train_matrices = matrices[train_idx]
+
+    metadata = _series_metadata(series)
+    recording_ids = metadata.get("recording_ids")
+    boundary_indices = infer_boundary_indices(
+        series.window_starts,
+        recording_ids=None if recording_ids is None else np.asarray(recording_ids),
+        gap_factor=cfg.boundary_gap_factor,
+    )
+
+    feature_centroids = None
+    feature_mean = None
+    feature_scale = None
+    medoid_matrices = None
+
     if cfg.metric in FEATURE_METRICS:
-        labels, n_states, silhouette = _fit_feature_path(matrices, cfg)
+        train_labels, feature_centroids, standardizer, n_states, silhouette = _fit_feature_path(
+            train_matrices, cfg
+        )
+        all_feats = standardizer.transform(_raw_features_for(matrices, cfg.metric, cfg))
+        labels = _assign_feature_labels(all_feats, feature_centroids)
+        labels[train_idx] = train_labels
+        feature_mean, feature_scale = standardizer.mean, standardizer.scale
     elif cfg.metric in KERNEL_METRICS:
-        labels, n_states, silhouette = _fit_kernel_path(matrices, cfg)
+        train_labels, feature_centroids, standardizer, n_states, silhouette = _fit_kernel_path(
+            train_matrices, cfg
+        )
+        all_feats = standardizer.transform(_raw_features_for(matrices, cfg.metric, cfg))
+        labels = _assign_feature_labels(all_feats, feature_centroids)
+        labels[train_idx] = train_labels
+        feature_mean, feature_scale = standardizer.mean, standardizer.scale
     elif cfg.metric in DISTANCE_METRICS:
-        labels, n_states, silhouette = _fit_distance_path(matrices, cfg)
+        train_labels, medoid_matrices, n_states, silhouette = _fit_distance_path(train_matrices, cfg)
+        temp_model = GraphStateModel(
+            labels=train_labels,
+            centroids=medoid_matrices,
+            n_states=n_states,
+            silhouette=silhouette,
+            metric=cfg.metric,
+            window_starts=series.window_starts[train_idx],
+            medoid_matrices=medoid_matrices,
+            eps=cfg.eps,
+            gw_epsilon=cfg.gw_epsilon,
+            gw_max_iter=cfg.gw_max_iter,
+        )
+        labels = assign_graph_states(temp_model, matrices)
+        labels[train_idx] = train_labels
     else:
         raise ValueError(
             f"unknown metric '{cfg.metric}'; choices: {FEATURE_METRICS + KERNEL_METRICS + DISTANCE_METRICS}"
         )
 
-    centroids = _centroids(matrices, labels, n_states, cfg.metric, cfg.eps)
+    centroids = _centroids(matrices, labels, n_states, cfg.metric, cfg.eps, medoid_matrices=medoid_matrices)
     logger.info(
-        "Fit %d connectivity states (metric=%s, silhouette=%.3f)", n_states, cfg.metric, silhouette
+        "Fit %d dataset-global connectivity states (metric=%s, silhouette=%.3f, fit_windows=%d/%d)",
+        n_states,
+        cfg.metric,
+        silhouette,
+        len(train_idx),
+        n_windows,
     )
     return GraphStateModel(
-        labels=labels,
+        labels=labels.astype(np.int64),
         centroids=centroids,
         n_states=n_states,
         silhouette=float(silhouette),
         metric=cfg.metric,
-        window_starts=series.window_starts,
+        window_starts=np.asarray(series.window_starts, dtype=int),
+        feature_centroids=(
+            None if feature_centroids is None else np.asarray(feature_centroids, dtype=np.float64)
+        ),
+        feature_mean=None if feature_mean is None else np.asarray(feature_mean, dtype=np.float64),
+        feature_scale=None if feature_scale is None else np.asarray(feature_scale, dtype=np.float64),
+        medoid_matrices=None if medoid_matrices is None else np.asarray(medoid_matrices, dtype=np.float64),
+        fit_indices=train_idx,
+        boundary_indices=boundary_indices,
+        eps=cfg.eps,
+        gw_epsilon=cfg.gw_epsilon,
+        gw_max_iter=cfg.gw_max_iter,
     )

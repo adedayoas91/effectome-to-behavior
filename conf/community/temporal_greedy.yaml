@@ -1,0 +1,7 @@
+# Legacy baseline: per-window Leiden + greedy overlap relabeling.
+name: temporal_greedy
+resolution: 1.0
+symmetrize: true
+use_absolute: true
+weight_threshold: 0.0
+seed: 42
