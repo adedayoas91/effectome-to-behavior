@@ -6,7 +6,9 @@ import numpy as np
 
 from effectome.data_module import (
     CalciumSegmentationConfig,
+    NeuralRecording,
     PreprocessConfig,
+    RecordingIdentity,
     WindowConfig,
     get_loader,
     make_overlapping_calcium_windows,
@@ -18,10 +20,20 @@ from effectome.data_module import (
 
 
 def test_synthetic_loader_shapes():
-    rec = get_loader("synthetic")({"name": "synthetic", "n_neurons": 10, "n_timepoints": 500})
+    rec = get_loader("synthetic")(
+        {
+            "name": "synthetic",
+            "dataset_id": "synthetic-benchmark",
+            "recording_id": "synthetic-recording-0",
+            "n_neurons": 10,
+            "n_timepoints": 500,
+        }
+    )
     assert rec.traces.shape == (10, 500)
     assert rec.time.shape == (500,)
     assert "true_graphs" in rec.metadata
+    assert rec.identity.dataset_id == "synthetic-benchmark"
+    assert rec.identity.recording_id == "synthetic-recording-0"
 
 
 def test_preprocess_zscore(synthetic_recording):
@@ -30,6 +42,7 @@ def test_preprocess_zscore(synthetic_recording):
     assert np.allclose(pre.traces.std(axis=1), 1.0, atol=0.2)
     # input is not mutated.
     assert pre.traces is not synthetic_recording.traces
+    assert pre.identity == synthetic_recording.identity
 
 
 def test_sliding_windows_shapes(synthetic_recording):
@@ -37,6 +50,7 @@ def test_sliding_windows_shapes(synthetic_recording):
     assert w.segments.shape[1] == 100
     assert w.segments.shape[2] == synthetic_recording.n_neurons
     assert w.n_windows == len(w.windows)
+    assert len(w.anchors) == w.n_windows
     for name in synthetic_recording.behavior:
         assert w.behavior_per_window[name].shape[0] == w.n_windows
 
@@ -48,6 +62,113 @@ def test_behavior_aligned_windows(synthetic_recording):
     )
     assert w.n_windows > 0
     assert w.segments.shape[1] == 60
+
+
+def test_temporal_reference_windows_match_goal_contract():
+    rec = get_loader(
+        "synthetic"
+    )(
+        {
+            "name": "synthetic",
+            "dataset_id": "synthetic-benchmark",
+            "recording_id": "synthetic-3000",
+            "n_neurons": 8,
+            "n_timepoints": 3000,
+            "seed": 1,
+        }
+    )
+    windows = make_windows(
+        rec,
+        WindowConfig(mode="temporal", history_length=500, target_length=15, stride=15),
+    )
+
+    assert windows.n_windows == 167
+    assert windows.windows[0].start == 0
+    assert windows.windows[0].stop == 500
+    assert windows.anchors[0].target_start == 485
+    assert windows.anchors[0].target_stop == 500
+    assert windows.anchors[0].anchor_sample == 499
+    assert windows.windows[1].start == 15
+    assert windows.windows[1].stop == 515
+    assert windows.anchors[1].target_start == 500
+    assert windows.anchors[1].target_stop == 515
+    assert windows.anchors[1].anchor_sample == 514
+    assert windows.metadata["reference_profile"] == {
+        "history_length": 500,
+        "target_length": 15,
+        "stride": 15,
+    }
+
+
+def test_temporal_windows_respect_gap_boundaries():
+    t = 120
+    traces = np.arange(3 * t, dtype=np.float32).reshape(3, t)
+    time = np.arange(t, dtype=np.float64) / 10.0
+    recording = NeuralRecording(
+        traces=traces,
+        time=time,
+        coords=None,
+        neuron_ids=np.arange(3),
+        behavior={"motif": np.zeros(t, dtype=np.int64)},
+        fps=10.0,
+        metadata={"gap_intervals": [(40, 60)]},
+        identity=RecordingIdentity(dataset="synthetic", dataset_id="gap-test", recording_id="rec-0"),
+    )
+    windows = make_windows(
+        recording,
+        WindowConfig(mode="temporal", history_length=20, target_length=5, stride=5),
+    )
+
+    assert [(w.start, w.stop) for w in windows.windows] == [
+        (0, 20),
+        (5, 25),
+        (10, 30),
+        (15, 35),
+        (20, 40),
+        (60, 80),
+        (65, 85),
+        (70, 90),
+        (75, 95),
+        (80, 100),
+        (85, 105),
+        (90, 110),
+        (95, 115),
+        (100, 120),
+    ]
+    assert all(not (window.start < 60 and window.stop > 40) for window in windows.windows)
+
+
+def test_c_elegans_loader_contract(tmp_path):
+    path = tmp_path / "elegans_fixture.npz"
+    traces = np.arange(24, dtype=np.float32).reshape(4, 6)
+    np.savez(
+        path,
+        traces=traces,
+        time=np.arange(6, dtype=np.float64) / 2.0,
+        neuron_ids=np.array([11, 12, 13, 14]),
+        behavior_motif=np.array([0, 0, 1, 1, 0, 0], dtype=np.int64),
+        behavior_continuous=np.linspace(0.0, 1.0, 6, dtype=np.float32),
+    )
+
+    rec = get_loader("c_elegans")(
+        {
+            "name": "c_elegans",
+            "path": str(path),
+            "dataset_id": "elegans-ds",
+            "recording_id": "animal-1",
+            "behavior_keys": {
+                "motif": "behavior_motif",
+                "continuous": "behavior_continuous",
+            },
+            "keys": {"traces": "traces", "time": "time", "neuron_ids": "neuron_ids"},
+        }
+    )
+
+    assert rec.identity.dataset_id == "elegans-ds"
+    assert rec.identity.recording_id == "animal-1"
+    assert rec.neuron_ids.tolist() == [11, 12, 13, 14]
+    assert rec.metadata["source"] == "c_elegans"
+    assert rec.behavior["motif"].tolist() == [0, 0, 1, 1, 0, 0]
 
 
 def test_overlapping_calcium_segmentation_preserves_context_and_centers():

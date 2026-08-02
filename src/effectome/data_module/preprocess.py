@@ -41,7 +41,7 @@ def _moving_average(x: np.ndarray, w: int) -> np.ndarray:
 
 def _deconvolve(traces: np.ndarray) -> np.ndarray:
     try:
-        from oasis.functions import deconvolve  # type: ignore
+        from oasis.functions import deconvolve
     except ImportError:
         logger.warning("oasis not installed; skipping deconvolution. Install extra 'deconv'.")
         return traces
@@ -83,7 +83,18 @@ def preprocess(recording: NeuralRecording, cfg: PreprocessConfig) -> NeuralRecor
         neuron_ids=recording.neuron_ids[keep],
         behavior=dict(recording.behavior),
         fps=recording.fps,
-        metadata={**recording.metadata, "preprocessed": True},
+        metadata={
+            **recording.metadata,
+            "preprocessed": True,
+            "preprocess_config": {
+                "detrend": cfg.detrend,
+                "zscore": cfg.zscore,
+                "deconvolve": cfg.deconvolve,
+                "smooth_window": cfg.smooth_window,
+                "drop_low_variance": cfg.drop_low_variance,
+            },
+        },
+        identity=recording.identity,
     )
     out.validate()
     return out

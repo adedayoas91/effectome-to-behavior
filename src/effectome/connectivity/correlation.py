@@ -17,6 +17,7 @@ class CorrelationConnectivity(ConnectivityEstimator):
     """
 
     directed = False
+    weight_semantics = "functional_association"
 
     def estimate(self, segment: np.ndarray) -> np.ndarray:
         # segment: (L, N) -> N x N

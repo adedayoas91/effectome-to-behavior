@@ -1,0 +1,18 @@
+# Larval-zebrafish FLFM whole-brain calcium imaging (PMC10545542).
+# Confirm `path`, keys, and behavior mappings against the local export before biological runs.
+name: zebrafish
+dataset_id: zebrafish-flfm
+recording_id: zebrafish-session-0
+path: ../data/raw/zebrafish.h5
+fps: 10.0
+signal_type: dff
+valid_ranges: []
+gap_intervals: []
+keys:
+  traces: traces
+  # time: time
+  # coords: coords
+behavior_keys:
+  motif: behavior_motif
+  continuous: tail_angle
+  stimulus: stimulus

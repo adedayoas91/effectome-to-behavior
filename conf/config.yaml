@@ -11,14 +11,19 @@ defaults:
 
 seed: 42
 
-# Window definition (Stage 1). Shared so connectivity sees the same segmentation everywhere.
+# Window definition (Stage 1). Default goal-aligned profile keeps a 500-sample history,
+# aligns each effectome matrix to the trailing 15-sample target interval, and reports every 15 samples.
 windowing:
-  length: 100
-  stride: 25
-  mode: sliding        # sliding | behavior
+  length: 100                # legacy fallback for sliding / behavior modes
+  history_length: 500
+  target_length: 15
+  stride: 15
+  mode: temporal             # temporal | sliding | behavior
   align_event: motif
   min_event_gap: 10
   behavior_summary: mean
+  respect_boundaries: true
+  drop_incomplete_tail: true
 
 # Where pipeline artifacts are written/read (relative to the Hydra run dir's project root).
 paths:

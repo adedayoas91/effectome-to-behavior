@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -23,7 +24,8 @@ def main(cfg: DictConfig) -> None:
     fig = Path(cfg.paths.figures)
 
     windows = load_artifact(art / "windows.pkl")
-    conn_cfg = ConnectivityConfig(**OmegaConf.to_container(cfg.connectivity, resolve=True))
+    connectivity_cfg = cast(dict[str, Any], OmegaConf.to_container(cfg.connectivity, resolve=True))
+    conn_cfg = ConnectivityConfig(**connectivity_cfg)
     estimator = ConnectivityFactory(conn_cfg)
     series = estimator.run(windows)
 
@@ -33,7 +35,15 @@ def main(cfg: DictConfig) -> None:
         f"mean effectome ({series.method})",
         fig / f"mean_connectivity_{series.method}.png",
     )
-    logger.info("Stage 2 done: %d %s matrices", series.n_windows, series.method)
+    logger.info(
+        "Stage 2 done: %d %s matrices (directed=%s signed=%s weighted=%s mode=%s)",
+        series.n_windows,
+        series.method,
+        series.directed,
+        series.signed,
+        series.weighted,
+        series.diagnostics.get("estimation_mode"),
+    )
 
 
 if __name__ == "__main__":
