@@ -14,24 +14,32 @@ logger = logging.getLogger(__name__)
 
 @register_manifold("classical")
 class ClassicalManifold(ManifoldEmbedder):
-    """PCA or UMAP embedding of neural activity (unsupervised baseline).
+    """PCA or UMAP embedding of neural activity (unsupervised baseline)."""
 
-    PCA is the dependency-light default. UMAP (via the optional `manifold` extra) captures
-    nonlinear structure; if it is unavailable the embedder falls back to PCA with a warning.
-    """
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self._model = None
 
-    def embed(self, neural: np.ndarray, behavior: dict[str, np.ndarray]) -> np.ndarray:
+    def fit(self, neural: np.ndarray, behavior: dict[str, np.ndarray]) -> ClassicalManifold:
         x = np.asarray(neural, dtype=np.float64)
         if self.cfg.method == "umap":
             try:
                 import umap
 
-                reducer = umap.UMAP(
-                    n_components=self.cfg.n_dims, random_state=self.cfg.seed
-                )
-                return reducer.fit_transform(x).astype(np.float32)
+                self._model = umap.UMAP(n_components=self.cfg.n_dims, random_state=self.cfg.seed)
+                self._model.fit(x)
+                self._is_fitted = True
+                return self
             except ImportError:
                 logger.warning("umap-learn not installed; falling back to PCA. Install '.[manifold]'.")
 
-        pca = PCA(n_components=self.cfg.n_dims, random_state=self.cfg.seed)
-        return pca.fit_transform(x).astype(np.float32)
+        self._model = PCA(n_components=self.cfg.n_dims, random_state=self.cfg.seed)
+        self._model.fit(x)
+        self._is_fitted = True
+        return self
+
+    def transform(self, neural: np.ndarray) -> np.ndarray:
+        if not self._is_fitted or self._model is None:
+            raise RuntimeError("ClassicalManifold must be fitted before transform()")
+        x = np.asarray(neural, dtype=np.float64)
+        return np.asarray(self._model.transform(x), dtype=np.float32)

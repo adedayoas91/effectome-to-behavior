@@ -4,3 +4,4 @@ n_dims: 3
 behavior_key: continuous
 max_iter: 2000
 seed: 42
+target_length: 15

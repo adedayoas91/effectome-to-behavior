@@ -1,30 +1,21 @@
-"""CEBRA joint behaviour-neural embedding (Schneider, Lee & Mathis, Nature 2023).
-
-CEBRA learns a latent embedding by contrastive learning that can be conditioned on behavior
-labels, producing a behavior-aligned neural manifold. We wrap it behind the `ManifoldEmbedder`
-interface; CEBRA (the `manifold` extra) is imported lazily so the package installs without it.
-"""
+"""CEBRA joint behaviour-neural embedding (Schneider, Lee & Mathis, Nature 2023)."""
 
 from __future__ import annotations
-
-import logging
 
 import numpy as np
 
 from .base import ManifoldEmbedder, register_manifold
 
-logger = logging.getLogger(__name__)
-
 
 @register_manifold("cebra")
 class CebraManifold(ManifoldEmbedder):
-    """Contrastive behaviour-conditioned neural embedding via CEBRA.
+    """Contrastive behaviour-conditioned neural embedding via CEBRA."""
 
-    Uses behavior variable `cfg.behavior_key` as the auxiliary/label signal. Requires the
-    `manifold` extra (`uv pip install -e '.[manifold]'`).
-    """
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self._model = None
 
-    def embed(self, neural: np.ndarray, behavior: dict[str, np.ndarray]) -> np.ndarray:
+    def fit(self, neural: np.ndarray, behavior: dict[str, np.ndarray]) -> CebraManifold:
         try:
             import cebra
         except ImportError as exc:
@@ -47,4 +38,12 @@ class CebraManifold(ManifoldEmbedder):
             model.fit(x, np.asarray(aux))
         else:
             model.fit(x)
-        return np.asarray(model.transform(x), dtype=np.float32)
+        self._model = model
+        self._is_fitted = True
+        return self
+
+    def transform(self, neural: np.ndarray) -> np.ndarray:
+        if not self._is_fitted or self._model is None:
+            raise RuntimeError("CebraManifold must be fitted before transform()")
+        x = np.asarray(neural, dtype=np.float32)
+        return np.asarray(self._model.transform(x), dtype=np.float32)

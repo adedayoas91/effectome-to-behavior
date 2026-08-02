@@ -1,7 +1,10 @@
 # Stage 6: linking effectome dynamics to behavior.
-behavior_keys: [continuous, motif]   # which behavior variables to test/decode
+behavior_keys: [continuous, motif]
 n_null: 1000
 n_bins: 5
 max_lag: 10
 n_folds: 5
+embargo: 4
+null_kind: circular_shift
+block_length: 8
 seed: 42
