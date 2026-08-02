@@ -6,6 +6,8 @@ from .schema import (
     CommunitySeries,
     ConnectivitySeries,
     NeuralRecording,
+    RecordingIdentity,
+    TemporalAnchor,
     Window,
     WindowedSegments,
 )
@@ -19,6 +21,8 @@ from .windowing import WindowConfig, make_windows
 
 __all__ = [
     "NeuralRecording",
+    "RecordingIdentity",
+    "TemporalAnchor",
     "Window",
     "WindowedSegments",
     "ConnectivitySeries",

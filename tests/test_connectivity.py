@@ -5,7 +5,12 @@ from __future__ import annotations
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-from effectome.connectivity import CONNECTIVITY_REGISTRY, ConnectivityConfig, ConnectivityFactory
+from effectome.connectivity import (
+    CONNECTIVITY_REGISTRY,
+    ConnectivityConfig,
+    ConnectivityEstimator,
+    ConnectivityFactory,
+)
 from effectome.experiments import analyze_with_cgc, analyze_with_cgc_star
 
 
@@ -18,6 +23,11 @@ def test_correlation_runs(windows):
     series = est.run(windows)
     assert series.matrices.shape == (windows.n_windows, windows.n_neurons, windows.n_neurons)
     assert not series.directed
+    assert series.weighted
+    assert series.signed
+    assert series.weight_semantics == "functional_association"
+    assert len(series.anchors) == windows.n_windows
+    assert series.diagnostics["window_mode"] == windows.metadata.get("window_mode")
 
 
 def test_granger_recovers_ground_truth(windows, true_graph):
@@ -32,6 +42,8 @@ def test_granger_recovers_ground_truth(windows, true_graph):
     labels = true_graph[off]
     auroc = roc_auc_score(labels, scores)
     assert auroc > 0.6, f"Granger AUROC too low: {auroc:.3f}"
+    assert series.weight_semantics == "effective_influence"
+    assert series.diagnostics["estimation_mode"] == "rolling_window"
 
 
 def test_granger_preserves_sign(windows):
@@ -40,6 +52,27 @@ def test_granger_preserves_sign(windows):
     mats = series.matrices[:, ~np.eye(series.n_neurons, dtype=bool)]
     assert np.any(mats > 0.0)
     assert np.any(mats < 0.0)
+
+
+def test_sequence_level_estimator_hook_runs_once_for_full_series(windows):
+    class DummySequenceEstimator(ConnectivityEstimator):
+        directed = True
+        estimation_mode = "sequence_regularized"
+
+        def estimate(self, segment: np.ndarray) -> np.ndarray:  # pragma: no cover - should not run
+            raise AssertionError("estimate should not be called when estimate_sequence is overridden")
+
+        def estimate_sequence(self, segments):
+            n = segments.n_neurons
+            base = np.eye(n, dtype=np.float32)
+            return np.repeat(base[None, :, :], segments.n_windows, axis=0)
+
+    est = DummySequenceEstimator(ConnectivityConfig(name="dummy"))
+    series = est.run(windows)
+
+    assert series.matrices.shape == (windows.n_windows, windows.n_neurons, windows.n_neurons)
+    assert series.diagnostics["estimation_mode"] == "sequence_regularized"
+    assert np.allclose(series.matrices[:, np.arange(windows.n_neurons), np.arange(windows.n_neurons)], 0.0)
 
 
 def test_notebook_cgc_adapters_return_weighted_matrices(synthetic_recording):

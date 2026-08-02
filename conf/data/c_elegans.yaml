@@ -1,0 +1,17 @@
+# C. elegans whole-brain calcium imaging contract.
+name: c_elegans
+dataset_id: c_elegans-whole_brain
+recording_id: elegans-session-0
+path: ../data/raw/c_elegans.npz
+fps: 2.0
+signal_type: dff
+valid_ranges: []
+gap_intervals: []
+keys:
+  traces: traces
+  # time: time
+  # coords: coords
+  # neuron_ids: neuron_ids
+behavior_keys:
+  motif: behavior_motif
+  continuous: behavior_continuous

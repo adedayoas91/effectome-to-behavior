@@ -1,0 +1,17 @@
+# Synthetic dataset with a known causal graph (no files needed).
+name: synthetic
+dataset_id: synthetic-benchmark
+recording_id: synthetic-recording-0
+n_neurons: 20
+n_timepoints: 3000
+density: 0.15
+max_lag: 1
+coupling: 0.35
+noise_std: 1.0
+n_states: 3
+behavior_drivers: 4
+fps: 10.0
+signal_type: synthetic
+seed: 42
+valid_ranges: []
+gap_intervals: []
