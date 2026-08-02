@@ -1,0 +1,7 @@
+# Stage 7a: attribution and candidate-driver qualification.
+behavior_keys: [continuous, motif]
+lag: 1
+n_folds: 5
+embargo: 4
+matched_control_percentile: 95.0
+seed: 42

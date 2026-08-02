@@ -1,10 +1,4 @@
-"""Lead-lag alignment between connectivity dynamics and behavior (tests H4).
-
-Tests whether connectivity-state transitions *precede* behavioral transitions by computing the
-cross-correlation between the connectivity-state-change signal and the behavior-change signal as
-a function of lag, and reporting the lag of peak association. A positive optimal lag means
-connectivity changes lead behavior.
-"""
+"""Lead-lag alignment between connectivity dynamics, manifold dynamics, and behavior."""
 
 from __future__ import annotations
 
@@ -19,6 +13,20 @@ def change_signal(labels: np.ndarray) -> np.ndarray:
     """Binary signal marking where a (discrete) label sequence changes value."""
     lab = np.asarray(labels)
     return np.concatenate([[0], (np.diff(lab) != 0).astype(float)])
+
+
+def manifold_velocity(embedding: np.ndarray) -> np.ndarray:
+    """Per-window latent displacement vectors."""
+    emb = np.asarray(embedding, dtype=float)
+    vel = np.zeros_like(emb)
+    vel[1:] = np.diff(emb, axis=0)
+    return vel
+
+
+def manifold_speed(embedding: np.ndarray) -> np.ndarray:
+    """Euclidean speed of the window-aligned manifold trajectory."""
+    vel = manifold_velocity(embedding)
+    return np.linalg.norm(vel, axis=1)
 
 
 def _normalized_xcorr(a: np.ndarray, b: np.ndarray, max_lag: int) -> tuple[np.ndarray, np.ndarray]:
@@ -39,25 +47,22 @@ def _normalized_xcorr(a: np.ndarray, b: np.ndarray, max_lag: int) -> tuple[np.nd
 
 @dataclass
 class LeadLagResult:
-    """Result of a connectivity-leads-behavior cross-correlation analysis.
-
-    Attributes:
-        lags: Lag axis in windows (positive = connectivity leads behavior).
-        xcorr: Cross-correlation value per lag.
-        best_lag: Lag of maximum |cross-correlation|.
-        best_value: Cross-correlation at `best_lag`.
-        connectivity_leads: True if best_lag > 0 (connectivity change precedes behavior change).
-    """
+    """Result of a connectivity-leads-target cross-correlation analysis."""
 
     lags: np.ndarray
     xcorr: np.ndarray
     best_lag: int
     best_value: float
     connectivity_leads: bool
+    target_name: str = "behavior"
 
 
 def lead_lag(
-    state_labels: np.ndarray, behavior: np.ndarray, max_lag: int = 10, n_bins: int = 5
+    state_labels: np.ndarray,
+    behavior: np.ndarray,
+    max_lag: int = 10,
+    n_bins: int = 5,
+    target_name: str = "behavior",
 ) -> LeadLagResult:
     """Cross-correlate connectivity-state changes against behavior changes over lags."""
     conn_change = change_signal(state_labels)
@@ -71,4 +76,5 @@ def lead_lag(
         best_lag=best_lag,
         best_value=float(xc[best_idx]),
         connectivity_leads=best_lag > 0,
+        target_name=target_name,
     )

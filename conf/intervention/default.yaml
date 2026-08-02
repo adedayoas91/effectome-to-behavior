@@ -1,0 +1,12 @@
+# Stage 7b: validated in-silico counterfactual perturbations.
+behavior_keys: [continuous, motif]
+lag: 1
+n_folds: 5
+embargo: 4
+ridge_alpha: 1.0
+min_skill: 0.0
+top_k: 2
+scale: 0.0
+n_controls: 16
+endpoint: behavior
+seed: 42

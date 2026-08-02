@@ -4,3 +4,4 @@ n_dims: 3
 behavior_key: motif        # discrete behavior works well for the behavior-decoder loss
 max_iter: 1500
 seed: 42
+target_length: 15

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import pickle
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
@@ -22,6 +24,7 @@ class ManifoldConfig:
         behavior_key: Behavior variable used for supervised/contrastive embedders.
         max_iter: Training iterations for learned embedders.
         seed: Random seed.
+        target_length: Length of the target window aligned to each connectivity anchor.
         extra: Method-specific options.
     """
 
@@ -31,7 +34,35 @@ class ManifoldConfig:
     behavior_key: str = "continuous"
     max_iter: int = 2000
     seed: int = 42
+    target_length: int = 15
     extra: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class TargetSlice:
+    """Half-open [start, stop) interval used to align latent codes to anchors."""
+
+    start: int
+    stop: int
+
+    @property
+    def length(self) -> int:
+        return self.stop - self.start
+
+
+@dataclass
+class ManifoldArtifact:
+    """Serialized Stage-5 output aligned to downstream Stage-6/7 windows."""
+
+    method: str
+    behavior_key: str
+    full_embedding: np.ndarray
+    window_embedding: np.ndarray
+    target_slices: list[TargetSlice]
+    target_length: int
+    model_path: str | None = None
+    window_starts: np.ndarray | None = None
+    metadata: dict = field(default_factory=dict)
 
 
 class ManifoldEmbedder(ABC):
@@ -39,10 +70,57 @@ class ManifoldEmbedder(ABC):
 
     def __init__(self, cfg: ManifoldConfig) -> None:
         self.cfg = cfg
+        self._is_fitted = False
 
     @abstractmethod
+    def fit(self, neural: np.ndarray, behavior: dict[str, np.ndarray]) -> ManifoldEmbedder:
+        """Fit the manifold model from neural (T, N) and aligned behavior arrays."""
+
+    @abstractmethod
+    def transform(self, neural: np.ndarray) -> np.ndarray:
+        """Transform neural activity into latent coordinates."""
+
+    def fit_transform(self, neural: np.ndarray, behavior: dict[str, np.ndarray]) -> np.ndarray:
+        """Fit the model and return latent coordinates for the provided inputs."""
+        return self.fit(neural, behavior).transform(neural)
+
     def embed(self, neural: np.ndarray, behavior: dict[str, np.ndarray]) -> np.ndarray:
-        """Return an embedding of shape (T, n_dims) from neural (T, N) and behavior arrays."""
+        """Backward-compatible one-shot API."""
+        return self.fit_transform(neural, behavior)
+
+    def transform_targets(
+        self,
+        neural: np.ndarray,
+        target_slices: list[TargetSlice],
+        behavior: dict[str, np.ndarray] | None = None,
+    ) -> np.ndarray:
+        """Return one latent code per target slice.
+
+        Default behavior averages sample-level embeddings across each target interval.
+        Window-aware embedders (e.g. BundDLe-Net) can override this.
+        """
+        embedding = self.transform(neural)
+        if embedding.shape[0] < max(ts.stop for ts in target_slices):
+            raise ValueError("sample-level embedding is shorter than one or more target slices")
+        return np.stack([embedding[ts.start : ts.stop].mean(axis=0) for ts in target_slices])
+
+    def save(self, path: str | Path) -> Path:
+        """Persist the fitted embedder via pickle."""
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "wb") as f:
+            pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
+        logger.info("Saved manifold model -> %s", p)
+        return p
+
+    @staticmethod
+    def load(path: str | Path) -> ManifoldEmbedder:
+        """Load a pickled embedder."""
+        with open(path, "rb") as f:
+            obj = pickle.load(f)
+        if not isinstance(obj, ManifoldEmbedder):
+            raise TypeError(f"Loaded object from {path} is not a ManifoldEmbedder")
+        return obj
 
 
 MANIFOLD_REGISTRY: dict[str, type[ManifoldEmbedder]] = {}
