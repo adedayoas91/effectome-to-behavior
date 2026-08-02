@@ -9,6 +9,12 @@ from .schema import (
     Window,
     WindowedSegments,
 )
+from .segmentation import (
+    CalciumSegmentationConfig,
+    make_overlapping_calcium_windows,
+    make_taper,
+    segment_calcium_traces,
+)
 from .windowing import WindowConfig, make_windows
 
 __all__ = [
@@ -21,6 +27,10 @@ __all__ = [
     "register_loader",
     "PreprocessConfig",
     "preprocess",
+    "CalciumSegmentationConfig",
+    "make_overlapping_calcium_windows",
+    "make_taper",
+    "segment_calcium_traces",
     "WindowConfig",
     "make_windows",
 ]

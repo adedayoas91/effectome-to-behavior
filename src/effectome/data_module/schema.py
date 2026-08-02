@@ -81,6 +81,8 @@ class WindowedSegments:
         behavior_per_window: Mapping behavior name -> array (K,) summarizing each window.
         n_neurons: Number of neurons (N).
         fps: Sampling rate (Hz).
+        metadata: Optional segmentation metadata. Overlapping calcium windows use
+            this for core windows, center samples, sample weights, and overlap.
     """
 
     segments: np.ndarray
@@ -88,6 +90,7 @@ class WindowedSegments:
     behavior_per_window: dict[str, np.ndarray]
     n_neurons: int
     fps: float
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def n_windows(self) -> int:
