@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -28,11 +29,19 @@ def main(cfg: DictConfig) -> None:
     fig = Path(cfg.paths.figures)
 
     series = load_artifact(art / "connectivity.pkl")
-    gs_cfg = GraphStateConfig(**OmegaConf.to_container(cfg.states.graph_states, resolve=True))
+    gs_cfg_data = cast(dict[str, Any], OmegaConf.to_container(cfg.states.graph_states, resolve=True))
+    gs_cfg = GraphStateConfig(**gs_cfg_data)
     states = fit_graph_states(series, gs_cfg)
 
-    tr_cfg = TransitionConfig(**OmegaConf.to_container(cfg.states.transitions, resolve=True))
-    transitions = fit_transitions(states.labels, states.n_states, tr_cfg)
+    tr_cfg_data = cast(dict[str, Any], OmegaConf.to_container(cfg.states.transitions, resolve=True))
+    tr_cfg = TransitionConfig(**tr_cfg_data)
+    transitions = fit_transitions(
+        states.labels,
+        states.n_states,
+        tr_cfg,
+        window_starts=states.window_starts,
+        boundary_indices=states.boundary_indices,
+    )
 
     save_artifact(states, art / "graph_states.pkl")
     save_artifact(transitions, art / "transitions.pkl")

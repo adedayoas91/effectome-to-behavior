@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -21,7 +22,8 @@ def main(cfg: DictConfig) -> None:
     art = Path(cfg.paths.artifacts)
 
     series = load_artifact(art / "connectivity.pkl")
-    com_cfg = CommunityConfig(**OmegaConf.to_container(cfg.community, resolve=True))
+    com_cfg_data = cast(dict[str, Any], OmegaConf.to_container(cfg.community, resolve=True))
+    com_cfg = CommunityConfig(**com_cfg_data)
     detector = CommunityFactory(com_cfg)
     communities = detector.run(series)
 

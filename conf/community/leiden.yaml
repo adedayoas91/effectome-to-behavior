@@ -2,5 +2,6 @@
 name: leiden
 resolution: 1.0
 symmetrize: true
+use_absolute: true
 weight_threshold: 0.0
 seed: 42
