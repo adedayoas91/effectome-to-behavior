@@ -45,6 +45,7 @@ htmlcov/
 # Agent instructions (local only)
 CLAUDE.md
 AGENTS.md
+.omx/
 
 # OS / editors
 .DS_Store
