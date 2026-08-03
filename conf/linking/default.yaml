@@ -4,7 +4,8 @@ n_null: 1000
 n_bins: 5
 max_lag: 10
 n_folds: 5
-embargo: 4
+embargo: 4    # additional same-group window-index buffer after raw-history overlap purging
+group_by: recording
 null_kind: circular_shift
 block_length: 8
 seed: 42

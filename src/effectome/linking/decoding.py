@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import accuracy_score, r2_score
 
-from effectome.data_module.schema import CommunitySeries, ConnectivitySeries
+from effectome.data_module.schema import CommunitySeries, ConnectivitySeries, TemporalAnchor
 
 
 def connectivity_features(series: ConnectivitySeries) -> np.ndarray:
@@ -34,25 +35,132 @@ def community_features(series: CommunitySeries) -> np.ndarray:
     return np.asarray(feats)
 
 
+def _anchor_source_key(anchor: TemporalAnchor) -> tuple[str, str | None, str | None, str, str | None]:
+    return (
+        anchor.dataset_id,
+        anchor.animal_id,
+        anchor.session_id,
+        anchor.recording_id,
+        anchor.segment_id,
+    )
+
+
+def _anchor_group_key(
+    anchor: TemporalAnchor, group_by: str
+) -> tuple[str, str | None, str | None, str, str | None]:
+    if group_by == "segment":
+        return _anchor_source_key(anchor)
+    if group_by == "animal":
+        return (
+            anchor.dataset_id,
+            anchor.animal_id or anchor.recording_id,
+            None,
+            "",
+            None,
+        )
+    if group_by == "recording":
+        return (
+            anchor.dataset_id,
+            anchor.animal_id,
+            anchor.session_id,
+            anchor.recording_id,
+            None,
+        )
+    raise ValueError(f"unknown group_by '{group_by}'")
+
+
+def anchor_group_labels(
+    anchors: Sequence[TemporalAnchor], group_by: str = "recording"
+) -> np.ndarray:
+    """Return stable group labels for grouped CV from typed temporal anchors."""
+    labels = []
+    for anchor in anchors:
+        labels.append(
+            "|".join("" if part is None else str(part) for part in _anchor_group_key(anchor, group_by))
+        )
+    return np.asarray(labels, dtype=object)
+
+
+def _histories_overlap(left: TemporalAnchor, right: TemporalAnchor) -> bool:
+    return max(left.context_start, right.context_start) < min(left.context_stop, right.context_stop)
+
+
+def _apply_anchor_overlap_purge(
+    train: np.ndarray,
+    test: np.ndarray,
+    anchors: Sequence[TemporalAnchor],
+) -> np.ndarray:
+    test_by_source: dict[tuple[str, str | None, str | None, str, str | None], list[TemporalAnchor]] = {}
+    for idx in test:
+        anchor = anchors[int(idx)]
+        test_by_source.setdefault(_anchor_source_key(anchor), []).append(anchor)
+
+    kept: list[int] = []
+    for idx in train:
+        anchor = anchors[int(idx)]
+        overlaps = any(
+            _histories_overlap(anchor, test_anchor)
+            for test_anchor in test_by_source.get(_anchor_source_key(anchor), [])
+        )
+        if not overlaps:
+            kept.append(int(idx))
+    return np.asarray(kept, dtype=int)
+
+
+def _apply_group_embargo(
+    train: np.ndarray,
+    test: np.ndarray,
+    embargo: int,
+    groups: np.ndarray,
+) -> np.ndarray:
+    if embargo <= 0:
+        return train
+    test_by_group: dict[object, np.ndarray] = {}
+    for group in np.unique(groups[test]):
+        test_by_group[group] = test[groups[test] == group]
+    kept: list[int] = []
+    for idx in train:
+        same_group_test = test_by_group.get(groups[int(idx)])
+        if same_group_test is None or np.min(np.abs(same_group_test - idx)) > embargo:
+            kept.append(int(idx))
+    return np.asarray(kept, dtype=int)
+
+
 def purged_blocked_splits(
-    n_samples: int, n_splits: int, embargo: int = 0
+    n_samples: int,
+    n_splits: int,
+    embargo: int = 0,
+    anchors: Sequence[TemporalAnchor] | None = None,
+    groups: Sequence[object] | None = None,
 ) -> list[tuple[np.ndarray, np.ndarray]]:
     """Return contiguous test blocks with neighboring train samples purged by `embargo`."""
     if n_samples < 4:
         raise ValueError("need at least 4 samples for blocked CV")
-    effective_splits = max(2, min(n_splits, n_samples // 2))
     indices = np.arange(n_samples)
-    blocks = np.array_split(indices, effective_splits)
+    if anchors is not None and len(anchors) != n_samples:
+        raise ValueError("anchors must align 1:1 with samples")
+
+    groups_arr = np.asarray(groups if groups is not None else np.zeros(n_samples, dtype=int), dtype=object)
+    if groups_arr.shape[0] != n_samples:
+        raise ValueError("groups must align 1:1 with samples")
+
+    unique_groups = list(dict.fromkeys(groups_arr.tolist()))
+    if len(unique_groups) > 1:
+        effective_splits = max(2, min(n_splits, len(unique_groups)))
+        group_blocks = np.array_split(np.asarray(unique_groups, dtype=object), effective_splits)
+        test_blocks = [indices[np.isin(groups_arr, block)] for block in group_blocks if len(block) > 0]
+    else:
+        effective_splits = max(2, min(n_splits, n_samples // 2))
+        test_blocks = [block for block in np.array_split(indices, effective_splits) if len(block) > 0]
+
     splits: list[tuple[np.ndarray, np.ndarray]] = []
-    for block in blocks:
-        if len(block) == 0:
-            continue
-        lo = max(0, int(block[0]) - embargo)
-        hi = min(n_samples, int(block[-1]) + embargo + 1)
+    for test in test_blocks:
         mask = np.ones(n_samples, dtype=bool)
-        mask[lo:hi] = False
+        mask[test] = False
         train = indices[mask]
-        test = block
+        if anchors is not None:
+            train = _apply_anchor_overlap_purge(train, test, anchors)
+        train = _apply_group_embargo(train, test, embargo, groups_arr)
         if len(train) >= max(2, len(np.unique(test))):
             splits.append((train, test))
     if len(splits) < 2:
@@ -117,11 +225,19 @@ def decode_behavior(
     n_folds: int = 5,
     seed: int = 42,
     embargo: int = 0,
+    anchors: Sequence[TemporalAnchor] | None = None,
+    groups: Sequence[object] | None = None,
 ) -> DecodeResult:
     """Cross-validate a decoder of `behavior` from `features` with purged blocked splits."""
     model, y, task = _model_for(behavior, seed)
     scores = []
-    for train, test in purged_blocked_splits(len(y), n_folds, embargo=embargo):
+    for train, test in purged_blocked_splits(
+        len(y),
+        n_folds,
+        embargo=embargo,
+        anchors=anchors,
+        groups=groups,
+    ):
         pred = _fit_predict(model, features[train], y[train], features[test], task)
         scores.append(_score_predictions(task, y[test], pred))
     arr = np.asarray(scores, dtype=float)
@@ -143,13 +259,21 @@ def incremental_decode_behavior(
     n_folds: int = 5,
     seed: int = 42,
     embargo: int = 0,
+    anchors: Sequence[TemporalAnchor] | None = None,
+    groups: Sequence[object] | None = None,
 ) -> IncrementalDecodeResult:
     """Quantify gain from `extra_features` over autoregressive baseline features."""
     model, y, task = _model_for(behavior, seed)
     baseline_scores: list[float] = []
     full_scores: list[float] = []
     full = np.concatenate([baseline_features, extra_features], axis=1)
-    for train, test in purged_blocked_splits(len(y), n_folds, embargo=embargo):
+    for train, test in purged_blocked_splits(
+        len(y),
+        n_folds,
+        embargo=embargo,
+        anchors=anchors,
+        groups=groups,
+    ):
         baseline_pred = _fit_predict(
             model,
             baseline_features[train],

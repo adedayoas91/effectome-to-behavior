@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 import hydra
 import numpy as np
@@ -24,6 +25,22 @@ def _target_slices(window_starts: np.ndarray, history_length: int, target_length
     ]
 
 
+def _target_slices_for_connectivity(
+    connectivity,
+    history_length: int,
+    target_length: int,
+) -> list[TargetSlice]:
+    if connectivity.anchors:
+        target_slices = [
+            TargetSlice(int(anchor.target_start), int(anchor.target_stop))
+            for anchor in connectivity.anchors
+        ]
+        if any(ts.length != target_length for ts in target_slices):
+            raise ValueError("connectivity anchors do not match manifold target_length")
+        return target_slices
+    return _target_slices(connectivity.window_starts, history_length, target_length)
+
+
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
 def main(cfg: DictConfig) -> None:
     set_seed(cfg.seed)
@@ -31,17 +48,19 @@ def main(cfg: DictConfig) -> None:
     fig = Path(cfg.paths.figures)
 
     recording = load_artifact(art / "recording.pkl")
-    man_cfg = ManifoldConfig(**OmegaConf.to_container(cfg.manifold, resolve=True))
+    man_cfg_data = cast(dict[str, Any], OmegaConf.to_container(cfg.manifold, resolve=True))
+    man_cfg = ManifoldConfig(**man_cfg_data)
     embedder = ManifoldFactory(man_cfg)
     embedder.fit(recording.traces.T, recording.behavior)
     full_embedding = embedder.transform(recording.traces.T)
 
     connectivity = load_artifact(art / "connectivity.pkl")
-    target_slices = _target_slices(
-        connectivity.window_starts,
-        int(cfg.windowing.length),
-        man_cfg.target_length,
+    history_length = int(
+        cfg.windowing.history_length
+        if cfg.windowing.mode == "temporal" and cfg.windowing.history_length is not None
+        else cfg.windowing.length
     )
+    target_slices = _target_slices_for_connectivity(connectivity, history_length, man_cfg.target_length)
     window_embedding = embedder.transform_targets(recording.traces.T, target_slices, recording.behavior)
 
     model_path = embedder.save(art / "manifold_model.pkl")
@@ -57,9 +76,12 @@ def main(cfg: DictConfig) -> None:
         metadata={
             "n_timepoints": int(recording.n_timepoints),
             "window_count": int(len(target_slices)),
-            "history_length": int(cfg.windowing.length),
+            "history_length": history_length,
+            "anchors": list(connectivity.anchors),
+            "target_alignment": "anchor_target_interval" if connectivity.anchors else "window_start_fallback",
         },
     )
+    artifact.__dict__["anchors"] = list(connectivity.anchors)
     save_artifact(artifact, art / "manifold.pkl")
 
     color = recording.behavior.get(man_cfg.behavior_key, np.zeros(full_embedding.shape[0]))

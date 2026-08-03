@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
+
 import numpy as np
+from omegaconf import OmegaConf
 
 from effectome.connectivity import ConnectivityConfig, ConnectivityFactory
+from effectome.data_module.schema import ConnectivitySeries, TemporalAnchor
 from effectome.dynamics import GraphStateConfig, fit_graph_states
 from effectome.linking import (
+    anchor_group_labels,
     association_with_null,
     connectivity_features,
     decode_behavior,
@@ -15,12 +21,47 @@ from effectome.linking import (
     state_features,
 )
 from effectome.manifold import (
+    ManifoldArtifact,
     ManifoldConfig,
     ManifoldEmbedder,
     ManifoldFactory,
     TargetSlice,
     build_bundle_training_batch,
 )
+
+
+def _load_pipeline_module(filename: str, module_name: str):
+    path = Path(__file__).resolve().parents[1] / "pipeline" / filename
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _anchor(
+    recording_id: str,
+    context_start: int,
+    context_stop: int,
+    target_start: int,
+    target_stop: int,
+    *,
+    animal_id: str | None = None,
+) -> TemporalAnchor:
+    return TemporalAnchor(
+        dataset_id="toy-dataset",
+        recording_id=recording_id,
+        animal_id=animal_id,
+        session_id=None,
+        segment_id=None,
+        context_start=context_start,
+        context_stop=context_stop,
+        target_start=target_start,
+        target_stop=target_stop,
+        anchor_sample=target_stop - 1,
+        anchor_time_seconds=float(target_stop - 1),
+        sampling_rate_hz=1.0,
+    )
 
 
 def test_classical_manifold_fit_transform_and_roundtrip(synthetic_recording, tmp_path):
@@ -77,6 +118,112 @@ def test_purged_blocked_splits_apply_embargo():
         hi = min(20, test[-1] + 3)
         purged = np.arange(lo, hi)
         assert len(np.intersect1d(train, purged)) == 0
+
+
+def test_anchor_aware_splits_purge_overlapping_histories_within_recording():
+    anchors = [
+        _anchor("rec-a", 0, 4, 2, 4),
+        _anchor("rec-a", 2, 6, 4, 6),
+        _anchor("rec-a", 4, 8, 6, 8),
+        _anchor("rec-a", 6, 10, 8, 10),
+        _anchor("rec-a", 8, 12, 10, 12),
+        _anchor("rec-a", 10, 14, 12, 14),
+    ]
+    splits = purged_blocked_splits(
+        len(anchors),
+        n_splits=3,
+        embargo=0,
+        anchors=anchors,
+        groups=anchor_group_labels(anchors, group_by="recording"),
+    )
+    assert len(splits) >= 2
+    for train, test in splits:
+        for train_idx in train:
+            for test_idx in test:
+                train_anchor = anchors[int(train_idx)]
+                test_anchor = anchors[int(test_idx)]
+                assert max(train_anchor.context_start, test_anchor.context_start) >= min(
+                    train_anchor.context_stop, test_anchor.context_stop
+                )
+
+
+def test_anchor_aware_splits_keep_other_recordings_when_sample_ranges_match():
+    anchors = [
+        _anchor("rec-a", 0, 500, 485, 500, animal_id="animal-a"),
+        _anchor("rec-a", 15, 515, 500, 515, animal_id="animal-a"),
+        _anchor("rec-a", 30, 530, 515, 530, animal_id="animal-a"),
+        _anchor("rec-b", 0, 500, 485, 500, animal_id="animal-b"),
+        _anchor("rec-b", 15, 515, 500, 515, animal_id="animal-b"),
+        _anchor("rec-b", 30, 530, 515, 530, animal_id="animal-b"),
+    ]
+    groups = anchor_group_labels(anchors, group_by="recording")
+    splits = purged_blocked_splits(len(anchors), n_splits=2, embargo=0, anchors=anchors, groups=groups)
+    assert len(splits) == 2
+    for train, test in splits:
+        assert set(groups[train]) != set(groups[test])
+        assert len(set(groups[test])) == 1
+        assert len(train) == 3
+
+
+def test_manifold_stage_uses_target_intervals_from_connectivity_anchors():
+    stage04 = _load_pipeline_module("04_manifold.py", "stage04_manifold")
+    anchors = [
+        _anchor("rec-a", 0, 8, 5, 8),
+        _anchor("rec-a", 3, 11, 8, 11),
+    ]
+    series = ConnectivitySeries(
+        matrices=np.zeros((2, 2, 2), dtype=np.float32),
+        window_starts=np.array([100, 200], dtype=int),
+        method="toy",
+        directed=True,
+        anchors=anchors,
+    )
+    target_slices = stage04._target_slices_for_connectivity(series, history_length=80, target_length=3)
+    assert [(ts.start, ts.stop) for ts in target_slices] == [(5, 8), (8, 11)]
+
+
+def test_linking_stage_uses_anchor_groups_and_validates_handoff():
+    stage05 = _load_pipeline_module("05_linking.py", "stage05_linking")
+    anchors = [
+        _anchor("rec-a", 0, 500, 485, 500, animal_id="animal-a"),
+        _anchor("rec-a", 15, 515, 500, 515, animal_id="animal-a"),
+    ]
+    series = ConnectivitySeries(
+        matrices=np.zeros((2, 2, 2), dtype=np.float32),
+        window_starts=np.array([0, 15], dtype=int),
+        method="toy",
+        directed=True,
+        behavior_per_window={"continuous": np.array([0.0, 1.0], dtype=np.float32)},
+        anchors=anchors,
+    )
+    manifold = ManifoldArtifact(
+        method="toy",
+        behavior_key="continuous",
+        full_embedding=np.zeros((20, 2), dtype=np.float32),
+        window_embedding=np.zeros((2, 2), dtype=np.float32),
+        target_slices=[TargetSlice(485, 500), TargetSlice(500, 515)],
+        target_length=15,
+        window_starts=np.array([0, 15], dtype=int),
+        metadata={"anchors": list(anchors)},
+    )
+    split_anchors, groups = stage05._split_inputs_for_linking(series, manifold, group_by="recording")
+    assert split_anchors == anchors
+    assert groups.tolist() == anchor_group_labels(anchors, group_by="recording").tolist()
+
+
+def test_default_temporal_config_uses_signed_temporal_communities_and_grouped_linking():
+    repo_root = Path(__file__).resolve().parents[1]
+    cfg = OmegaConf.load(repo_root / "conf" / "config.yaml")
+    defaults = OmegaConf.to_container(cfg.defaults, resolve=False)
+    linking_cfg = OmegaConf.load(repo_root / "conf" / "linking" / "default.yaml")
+
+    assert {"community": "temporal"} in defaults
+    assert cfg.windowing.mode == "temporal"
+    assert cfg.windowing.history_length == 500
+    assert cfg.windowing.target_length == 15
+    assert cfg.windowing.stride == 15
+    assert linking_cfg.group_by == "recording"
+    assert linking_cfg.embargo == 4
 
 
 def test_state_behavior_association_and_leadlag(windows):
