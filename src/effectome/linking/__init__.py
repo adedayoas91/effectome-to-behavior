@@ -4,6 +4,7 @@ from .alignment import LeadLagResult, change_signal, lead_lag, manifold_speed, m
 from .decoding import (
     DecodeResult,
     IncrementalDecodeResult,
+    anchor_group_labels,
     community_features,
     connectivity_features,
     decode_behavior,
@@ -29,6 +30,7 @@ __all__ = [
     "DecodeResult",
     "IncrementalDecodeResult",
     "LeadLagResult",
+    "anchor_group_labels",
     "association_with_null",
     "benjamini_hochberg",
     "block_shuffle_null",

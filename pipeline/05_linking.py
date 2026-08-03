@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from effectome.linking import (
+    anchor_group_labels,
     association_with_null,
     community_features,
     connectivity_features,
@@ -25,23 +27,70 @@ from effectome.utils.io import load_artifact, save_artifact
 logger = logging.getLogger(__name__)
 
 
+def _manifold_anchor_metadata(manifold):
+    anchors = getattr(manifold, "anchors", None)
+    if anchors:
+        return anchors
+    return manifold.metadata.get("anchors")
+
+
+def _validate_manifold_handoff(series, manifold) -> None:
+    if not series.anchors:
+        return
+    if len(manifold.target_slices) != len(series.anchors):
+        raise ValueError("manifold target slices do not align 1:1 with connectivity anchors")
+    expected_slices = [(int(anchor.target_start), int(anchor.target_stop)) for anchor in series.anchors]
+    observed_slices = [(int(ts.start), int(ts.stop)) for ts in manifold.target_slices]
+    if observed_slices != expected_slices:
+        raise ValueError("manifold target slices are not aligned to connectivity target anchors")
+    manifold_anchors = _manifold_anchor_metadata(manifold)
+    if manifold_anchors is not None:
+        if len(manifold_anchors) != len(series.anchors):
+            raise ValueError("manifold anchor metadata does not align 1:1 with connectivity anchors")
+        for series_anchor, manifold_anchor in zip(series.anchors, manifold_anchors, strict=True):
+            if (
+                series_anchor.recording_id != manifold_anchor.recording_id
+                or series_anchor.target_start != manifold_anchor.target_start
+                or series_anchor.target_stop != manifold_anchor.target_stop
+            ):
+                raise ValueError("manifold anchor metadata no longer matches connectivity anchors")
+
+
+def _split_inputs_for_linking(series, manifold, group_by: str):
+    _validate_manifold_handoff(series, manifold)
+    if not series.anchors:
+        return None, None
+    return series.anchors, anchor_group_labels(series.anchors, group_by=group_by)
+
+
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
 def main(cfg: DictConfig) -> None:
     set_seed(cfg.seed)
     art = Path(cfg.paths.artifacts)
-    lk = OmegaConf.to_container(cfg.linking, resolve=True)
+    lk = cast(dict[str, Any], OmegaConf.to_container(cfg.linking, resolve=True))
 
     series = load_artifact(art / "connectivity.pkl")
     states = load_artifact(art / "graph_states.pkl")
     community = load_artifact(art / "community.pkl")
     manifold = load_artifact(art / "manifold.pkl")
+    anchors, groups = _split_inputs_for_linking(series, manifold, str(lk.get("group_by", "recording")))
 
     conn_feat = connectivity_features(series)
     state_feat = state_features(states.labels, states.n_states)
     com_feat = community_features(community)
     manifold_dyn = manifold_speed(manifold.window_embedding).reshape(-1, 1)
 
-    report: dict = {"decoding": [], "association": {}, "lead_lag": {}, "incremental": {}}
+    report: dict = {
+        "decoding": [],
+        "association": {},
+        "lead_lag": {},
+        "incremental": {},
+        "splitter": {
+            "mode": "anchor_aware_grouped_purged" if anchors is not None else "purged_blocked",
+            "group_by": str(lk.get("group_by", "recording")) if anchors is not None else None,
+            "embargo": int(lk["embargo"]),
+        },
+    }
     for bkey in lk["behavior_keys"]:
         if bkey not in series.behavior_per_window:
             logger.warning("behavior '%s' missing from windows; skipping", bkey)
@@ -64,6 +113,8 @@ def main(cfg: DictConfig) -> None:
                 n_folds=lk["n_folds"],
                 seed=lk["seed"],
                 embargo=lk["embargo"],
+                anchors=anchors,
+                groups=groups,
             )
             report["decoding"].append(res)
 
@@ -89,6 +140,8 @@ def main(cfg: DictConfig) -> None:
             n_folds=lk["n_folds"],
             seed=lk["seed"],
             embargo=lk["embargo"],
+            anchors=anchors,
+            groups=groups,
         )
         report["incremental"][bkey] = inc
 
