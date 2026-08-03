@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from effectome.connectivity import ConnectivityConfig, ConnectivityFactory
-from effectome.data_module.schema import ConnectivitySeries
+from effectome.data_module.schema import ConnectivitySeries, TemporalAnchor
 from effectome.dynamics import (
     GraphStateConfig,
     TransitionConfig,
@@ -91,6 +91,38 @@ def test_transitions_do_not_cross_recording_boundaries():
     assert np.allclose(tm.transition_matrix[1], [0.0, 1.0])
     assert np.array_equal(tm.boundary_indices, np.array([0, 4]))
     assert np.array_equal(tm.segment_lengths, np.array([4, 4]))
+
+
+def test_graph_states_use_typed_anchor_recording_boundaries():
+    matrices = np.zeros((8, 3, 3), dtype=np.float32)
+    matrices[:4, 0, 1] = 1.0
+    matrices[4:, 1, 2] = 1.0
+    anchors = [
+        TemporalAnchor(
+            dataset_id="ds",
+            recording_id="rec-a" if idx < 4 else "rec-b",
+            animal_id=None,
+            session_id=None,
+            segment_id=None,
+            context_start=idx * 20,
+            context_stop=idx * 20 + 20,
+            target_start=idx * 20,
+            target_stop=idx * 20 + 20,
+            anchor_sample=idx * 20 + 19,
+            anchor_time_seconds=float(idx),
+            sampling_rate_hz=10.0,
+        )
+        for idx in range(8)
+    ]
+    series = ConnectivitySeries(
+        matrices=matrices,
+        window_starts=np.arange(8) * 20,
+        method="manual",
+        directed=True,
+        anchors=anchors,
+    )
+    states = fit_graph_states(series, GraphStateConfig(n_states=2, metric="frobenius", seed=0))
+    assert np.array_equal(states.boundary_indices, np.array([0, 4]))
 
 
 # --------------------------------------------------------------------------- #
