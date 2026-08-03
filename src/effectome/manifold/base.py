@@ -7,8 +7,11 @@ import pickle
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+
+from effectome.data_module.schema import ArtifactProvenance, TemporalAnchor
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,12 @@ class TargetSlice:
     start: int
     stop: int
 
+    def __post_init__(self) -> None:
+        if self.start < 0:
+            raise ValueError("target slices must start at a non-negative sample index")
+        if self.start >= self.stop:
+            raise ValueError("target slices must be ordered half-open intervals")
+
     @property
     def length(self) -> int:
         return self.stop - self.start
@@ -62,7 +71,40 @@ class ManifoldArtifact:
     target_length: int
     model_path: str | None = None
     window_starts: np.ndarray | None = None
-    metadata: dict = field(default_factory=dict)
+    anchors: list[TemporalAnchor] = field(default_factory=list)
+    provenance: ArtifactProvenance = field(default_factory=ArtifactProvenance)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.full_embedding.ndim != 2:
+            raise ValueError(
+                f"full_embedding must be 2D (T, D), got shape {self.full_embedding.shape}"
+            )
+        if self.window_embedding.ndim != 2:
+            raise ValueError(
+                f"window_embedding must be 2D (K, D), got shape {self.window_embedding.shape}"
+            )
+        if self.full_embedding.shape[1] != self.window_embedding.shape[1]:
+            raise ValueError("full_embedding and window_embedding must share the same latent dimension")
+        n_windows = self.window_embedding.shape[0]
+        if len(self.target_slices) != n_windows:
+            raise ValueError(f"target_slices length {len(self.target_slices)} != K {n_windows}")
+        if self.target_length <= 0:
+            raise ValueError("target_length must be positive")
+        if any(ts.length != self.target_length for ts in self.target_slices):
+            raise ValueError("every target slice must have length == target_length")
+        if self.target_slices and self.full_embedding.shape[0] < max(ts.stop for ts in self.target_slices):
+            raise ValueError("full_embedding is shorter than one or more target slices")
+        if self.window_starts is not None and self.window_starts.shape[0] != n_windows:
+            raise ValueError(f"window_starts length {self.window_starts.shape[0]} != K {n_windows}")
+        if self.anchors and len(self.anchors) != n_windows:
+            raise ValueError(f"anchors length {len(self.anchors)} != K {n_windows}")
+        for idx, anchor in enumerate(self.anchors):
+            ts = self.target_slices[idx]
+            if anchor.target_start != ts.start or anchor.target_stop != ts.stop:
+                raise ValueError("target_slices must align with anchor target intervals")
+            if self.window_starts is not None and int(self.window_starts[idx]) != anchor.context_start:
+                raise ValueError("window_starts must align with anchor.context_start")
 
 
 class ManifoldEmbedder(ABC):

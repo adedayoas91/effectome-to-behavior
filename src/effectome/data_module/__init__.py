@@ -3,6 +3,7 @@
 from .loaders import get_loader, register_loader
 from .preprocess import PreprocessConfig, preprocess
 from .schema import (
+    ArtifactProvenance,
     CommunitySeries,
     ConnectivitySeries,
     NeuralRecording,
@@ -22,6 +23,7 @@ from .windowing import WindowConfig, make_windows
 __all__ = [
     "NeuralRecording",
     "RecordingIdentity",
+    "ArtifactProvenance",
     "TemporalAnchor",
     "Window",
     "WindowedSegments",

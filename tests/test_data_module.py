@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from effectome.data_module import (
+    ArtifactProvenance,
     CalciumSegmentationConfig,
+    CommunitySeries,
+    ConnectivitySeries,
     NeuralRecording,
     PreprocessConfig,
     RecordingIdentity,
+    TemporalAnchor,
     WindowConfig,
     get_loader,
     make_overlapping_calcium_windows,
@@ -17,6 +22,7 @@ from effectome.data_module import (
     preprocess,
     segment_calcium_traces,
 )
+from effectome.manifold import ManifoldArtifact, TargetSlice
 
 
 def test_synthetic_loader_shapes():
@@ -230,3 +236,116 @@ def test_make_overlapping_calcium_windows_from_recording(synthetic_recording):
 def test_taper_variants():
     assert np.allclose(make_taper(5, "none"), 1.0)
     assert make_taper(5, "gaussian").shape == (5,)
+
+
+def test_schema_artifacts_carry_typed_provenance_and_alignment():
+    provenance = ArtifactProvenance(
+        identity=RecordingIdentity(dataset="synthetic", dataset_id="ds", recording_id="rec"),
+        stage="stage-4",
+        source="unit-test",
+    )
+    anchors = [
+        TemporalAnchor(
+            dataset_id="ds",
+            recording_id="rec",
+            animal_id=None,
+            session_id=None,
+            segment_id="seg-0",
+            context_start=0,
+            context_stop=20,
+            target_start=15,
+            target_stop=20,
+            anchor_sample=19,
+            anchor_time_seconds=1.9,
+            sampling_rate_hz=10.0,
+        ),
+        TemporalAnchor(
+            dataset_id="ds",
+            recording_id="rec",
+            animal_id=None,
+            session_id=None,
+            segment_id="seg-0",
+            context_start=5,
+            context_stop=25,
+            target_start=20,
+            target_stop=25,
+            anchor_sample=24,
+            anchor_time_seconds=2.4,
+            sampling_rate_hz=10.0,
+        ),
+    ]
+    series = ConnectivitySeries(
+        matrices=np.zeros((2, 3, 3), dtype=np.float32),
+        window_starts=np.array([0, 5], dtype=np.int64),
+        method="manual",
+        directed=True,
+        anchors=anchors,
+        provenance=provenance,
+    )
+    community = CommunitySeries(
+        labels=np.array([[0, 0, 1], [0, 1, 1]], dtype=np.int64),
+        method="temporal",
+        n_communities_per_window=np.array([2, 2], dtype=np.int64),
+        window_starts=np.array([0, 5], dtype=np.int64),
+        anchors=anchors,
+        signed=True,
+        directed=True,
+        resolution=1.0,
+        interlayer_coupling=0.5,
+        boundary_indices=np.array([0, 2], dtype=np.int64),
+        provenance=provenance,
+    )
+
+    assert series.provenance.identity.recording_id == "rec"
+    assert anchors[0].history_seconds == 2.0
+    assert anchors[0].target_seconds == 0.5
+    assert np.array_equal(community.consensus_labels, community.labels)
+    assert community.boundary_indices.tolist() == [0, 2]
+
+
+def test_schema_alignment_validation_rejects_mismatched_lengths():
+    anchor = TemporalAnchor(
+        dataset_id="ds",
+        recording_id="rec",
+        animal_id=None,
+        session_id=None,
+        segment_id=None,
+        context_start=0,
+        context_stop=20,
+        target_start=15,
+        target_stop=20,
+        anchor_sample=19,
+        anchor_time_seconds=1.9,
+        sampling_rate_hz=10.0,
+    )
+
+    with pytest.raises(ValueError, match="window_starts must align"):
+        ConnectivitySeries(
+            matrices=np.zeros((1, 2, 2), dtype=np.float32),
+            window_starts=np.array([3], dtype=np.int64),
+            method="manual",
+            directed=True,
+            anchors=[anchor],
+        )
+
+    with pytest.raises(ValueError, match="target_slices length"):
+        ManifoldArtifact(
+            method="classical",
+            behavior_key="motif",
+            full_embedding=np.zeros((25, 2), dtype=np.float32),
+            window_embedding=np.zeros((2, 2), dtype=np.float32),
+            target_slices=[TargetSlice(15, 20)],
+            target_length=5,
+        )
+
+    with pytest.raises(ValueError, match="target_slices must align"):
+        ManifoldArtifact(
+            method="classical",
+            behavior_key="motif",
+            full_embedding=np.zeros((25, 2), dtype=np.float32),
+            window_embedding=np.zeros((1, 2), dtype=np.float32),
+            target_slices=[TargetSlice(10, 15)],
+            target_length=5,
+            window_starts=np.array([0], dtype=np.int64),
+            anchors=[anchor],
+        )
