@@ -16,7 +16,7 @@ import numpy as np
 try:
     from numba import jit
 except Exception:  # pragma: no cover - optional runtime speedup
-    def jit(*_args, **_kwargs):  # type: ignore[misc]
+    def jit(*_args, **_kwargs):
         def decorator(func):
             return func
 
@@ -177,7 +177,12 @@ class CausalisedGC:
         beta: float = 0.001,
     ) -> np.ndarray:
         """Construct a weighted connectivity matrix from significance masks."""
-        if self.corr_ is None or self.inv_corr_ is None:
+        if (
+            self.corr_ is None
+            or self.inv_corr_ is None
+            or self.pval_corr_ is None
+            or self.pval_inv_corr_ is None
+        ):
             raise RuntimeError("fit must be called before get_connectivity_matrix.")
 
         sig_corr = np.multiply(self.corr_, self.pval_corr_ <= alpha)
