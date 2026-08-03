@@ -1,4 +1,4 @@
-# Stage 7a: attribution and candidate-driver qualification.
+# Stage 7a: attribution and preliminary predictive-candidate screening.
 behavior_keys: [continuous, motif]
 lag: 1
 n_folds: 5

@@ -1,4 +1,4 @@
-"""Stage 7b: validate a surrogate and run virtual perturbations on candidate drivers."""
+"""Stage 7b: validate a surrogate and perturb preliminary predictive candidates."""
 
 from __future__ import annotations
 
@@ -39,7 +39,8 @@ def main(cfg: DictConfig) -> None:
             embargo=iv["embargo"],
             min_skill=iv["min_skill"],
         )
-        top_nodes = [s.node for s in attribution[bkey].scores[: iv["top_k"]]]
+        preliminary_scores = [score for score in attribution[bkey].scores if score.is_candidate]
+        top_nodes = [score.node for score in preliminary_scores[: iv["top_k"]]]
         perturb = run_virtual_perturbation(
             surrogate,
             series,
@@ -50,8 +51,13 @@ def main(cfg: DictConfig) -> None:
             n_controls=iv["n_controls"],
             endpoint=iv["endpoint"],
             seed=iv["seed"],
+            dose_scales=iv.get("dose_scales"),
         )
-        report[bkey] = {"surrogate": surrogate, "perturbation": perturb}
+        report[bkey] = {
+            "surrogate": surrogate,
+            "perturbation": perturb,
+            "preliminary_candidate_nodes": top_nodes,
+        }
     save_artifact(report, art / "intervention.pkl")
     logger.info("Stage 7b done: intervention reports for %d behavior targets", len(report))
 
