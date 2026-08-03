@@ -83,13 +83,17 @@ def test_candidate_driver_requires_predictive_gain_not_just_switching():
     )
     best = result.scores[0]
     by_node = {score.node: score for score in result.scores}
+    assert result.status == "preliminary_predictive_screen"
     assert best.node == 0
     assert by_node[0].is_candidate
+    assert by_node[0].candidate_stage == "preliminary_predictive_candidate"
+    assert not by_node[0].is_validated_driver
+    assert by_node[0].provenance["claim_boundary"] == "screening_only_not_a_validated_driver"
     assert not by_node[2].is_candidate  # switches communities but carries no predictive outgoing effect
     assert by_node[0].predictive_gain > by_node[2].predictive_gain
 
 
-def test_surrogate_validation_and_virtual_perturbation():
+def test_surrogate_validation_and_graded_virtual_perturbation():
     series, _, manifold, behavior = _toy_lane_artifacts()
     surrogate = fit_linear_surrogate(
         series,
@@ -114,10 +118,15 @@ def test_surrogate_validation_and_virtual_perturbation():
         n_controls=8,
         endpoint="behavior",
         seed=0,
+        dose_scales=[0.75, 0.5, 0.25, 0.0],
     )
     assert perturb.status == "valid"
     assert len(perturb.control_effects) == 8
     assert perturb.effect_size != 0.0
+    assert len(perturb.dose_response) == 4
+    assert perturb.provenance["claim_boundary"] == "model_based_counterfactual_not_biological_causation"
+    assert all(point.sham_effect == 0.0 for point in perturb.dose_response)
+    assert {point.scale for point in perturb.dose_response} == {0.75, 0.5, 0.25, 0.0}
 
 
 def test_invalid_surrogate_fails_safe():
@@ -136,3 +145,5 @@ def test_invalid_surrogate_fails_safe():
     perturb = run_virtual_perturbation(surrogate, series, manifold, behavior, node_indices=[0])
     assert perturb.status == "invalid"
     assert perturb.control_pvalue == 1.0
+    assert perturb.validation_status == "unvalidated_counterfactual"
+    assert perturb.fail_safe_reason == "surrogate_validation_failed"

@@ -1,8 +1,8 @@
-"""Signed node/group attribution and candidate-driver qualification."""
+"""Signed attribution and preliminary predictive-candidate screening for Stage 6/7."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -41,7 +41,11 @@ class DriverScore:
     outgoing_sign: float
     switch_rate: float
     control_pvalue: float
+    matched_control_threshold: float
     is_candidate: bool
+    candidate_stage: str = "screened_out"
+    is_validated_driver: bool = False
+    provenance: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -51,6 +55,8 @@ class CandidateDriverResult:
     target_name: str
     matched_control_percentile: float
     n_controls: int
+    status: str = "preliminary_predictive_screen"
+    provenance: dict[str, object] = field(default_factory=dict)
 
 
 def _baseline_features(behavior: np.ndarray, manifold_window: np.ndarray) -> np.ndarray:
@@ -70,7 +76,7 @@ def qualify_candidate_drivers(
     seed: int = 42,
     matched_control_percentile: float = 95.0,
 ) -> CandidateDriverResult:
-    """Score neurons by incremental predictive value of their signed outgoing influence."""
+    """Screen neurons for preliminary predictive-candidate status."""
     if lag <= 0:
         raise ValueError("lag must be positive for candidate-driver qualification")
     roles = signed_node_roles(series)
@@ -93,11 +99,13 @@ def qualify_candidate_drivers(
             seed=seed,
             embargo=embargo,
         )
-        control_gains = []
+        control_gains: list[float] = []
+        sampled_controls: list[int] = []
         others = np.array([i for i in range(n_nodes) if i != node], dtype=int)
         draw_count = min(max(8, n_folds), len(others)) if len(others) else 0
         if draw_count > 0:
             sampled = rng.choice(others, size=draw_count, replace=False)
+            sampled_controls = sampled.tolist()
             for other in sampled:
                 ctrl = incremental_decode_behavior(
                     baseline,
@@ -110,6 +118,7 @@ def qualify_candidate_drivers(
                 control_gains.append(ctrl.gain)
         percentile = np.percentile(control_gains, matched_control_percentile) if control_gains else 0.0
         pvalue = float((np.asarray(control_gains) >= inc.gain).mean()) if control_gains else 1.0
+        is_preliminary = bool(inc.gain > percentile and inc.gain > 0)
         scores.append(
             DriverScore(
                 node=node,
@@ -117,7 +126,17 @@ def qualify_candidate_drivers(
                 outgoing_sign=float(np.sign(net_out[:, node].mean())),
                 switch_rate=float(switch_rate[node]),
                 control_pvalue=pvalue,
-                is_candidate=bool(inc.gain > percentile and inc.gain > 0),
+                matched_control_threshold=float(percentile),
+                is_candidate=is_preliminary,
+                candidate_stage=(
+                    "preliminary_predictive_candidate" if is_preliminary else "screened_out"
+                ),
+                is_validated_driver=False,
+                provenance={
+                    "screen": "predictive_gain_vs_matched_controls",
+                    "matched_control_nodes": sampled_controls,
+                    "claim_boundary": "screening_only_not_a_validated_driver",
+                },
             )
         )
 
@@ -128,4 +147,12 @@ def qualify_candidate_drivers(
         target_name="future_behavior",
         matched_control_percentile=float(matched_control_percentile),
         n_controls=max(0, len(scores) - 1),
+        status="preliminary_predictive_screen",
+        provenance={
+            "lag": int(lag),
+            "n_folds": int(n_folds),
+            "embargo": int(embargo),
+            "seed": int(seed),
+            "claim_boundary": "candidate labels here are preliminary predictive screens",
+        },
     )
