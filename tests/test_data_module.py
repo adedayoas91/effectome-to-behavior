@@ -71,9 +71,7 @@ def test_behavior_aligned_windows(synthetic_recording):
 
 
 def test_temporal_reference_windows_match_goal_contract():
-    rec = get_loader(
-        "synthetic"
-    )(
+    rec = get_loader("synthetic")(
         {
             "name": "synthetic",
             "dataset_id": "synthetic-benchmark",
@@ -142,6 +140,13 @@ def test_temporal_windows_respect_gap_boundaries():
         (100, 120),
     ]
     assert all(not (window.start < 60 and window.stop > 40) for window in windows.windows)
+    assert [idx for idx, anchor in enumerate(windows.anchors) if anchor.gap_before] == [5]
+    assert [idx for idx, anchor in enumerate(windows.anchors) if anchor.gap_after] == [4]
+
+
+def test_artifact_schema_rejects_unknown_version():
+    with pytest.raises(ValueError, match="unsupported artifact schema version"):
+        ArtifactProvenance(schema_version="999")
 
 
 def test_c_elegans_loader_contract(tmp_path):

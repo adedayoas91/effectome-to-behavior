@@ -69,9 +69,7 @@ def _anchor_group_key(
     raise ValueError(f"unknown group_by '{group_by}'")
 
 
-def anchor_group_labels(
-    anchors: Sequence[TemporalAnchor], group_by: str = "recording"
-) -> np.ndarray:
+def anchor_group_labels(anchors: Sequence[TemporalAnchor], group_by: str = "recording") -> np.ndarray:
     """Return stable group labels for grouped CV from typed temporal anchors."""
     labels = []
     for anchor in anchors:
@@ -79,6 +77,31 @@ def anchor_group_labels(
             "|".join("" if part is None else str(part) for part in _anchor_group_key(anchor, group_by))
         )
     return np.asarray(labels, dtype=object)
+
+
+def valid_positive_lag_origins(
+    n_samples: int,
+    lag: int,
+    anchors: Sequence[TemporalAnchor] | None = None,
+) -> np.ndarray:
+    """Return origins whose strictly future target remains in one continuous source segment."""
+    if lag <= 0:
+        raise ValueError("lag must be strictly positive")
+    if anchors is None:
+        return np.arange(max(0, n_samples - lag), dtype=int)
+    if len(anchors) != n_samples:
+        raise ValueError("anchors must align 1:1 with samples")
+
+    origins: list[int] = []
+    for origin in range(n_samples - lag):
+        path = anchors[origin : origin + lag + 1]
+        same_source = all(_anchor_source_key(anchor) == _anchor_source_key(path[0]) for anchor in path)
+        crosses_gap = any(anchor.gap_after for anchor in path[:-1]) or any(
+            anchor.gap_before for anchor in path[1:]
+        )
+        if same_source and not crosses_gap:
+            origins.append(origin)
+    return np.asarray(origins, dtype=int)
 
 
 def _histories_overlap(left: TemporalAnchor, right: TemporalAnchor) -> bool:

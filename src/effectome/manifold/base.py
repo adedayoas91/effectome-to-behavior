@@ -77,13 +77,9 @@ class ManifoldArtifact:
 
     def __post_init__(self) -> None:
         if self.full_embedding.ndim != 2:
-            raise ValueError(
-                f"full_embedding must be 2D (T, D), got shape {self.full_embedding.shape}"
-            )
+            raise ValueError(f"full_embedding must be 2D (T, D), got shape {self.full_embedding.shape}")
         if self.window_embedding.ndim != 2:
-            raise ValueError(
-                f"window_embedding must be 2D (K, D), got shape {self.window_embedding.shape}"
-            )
+            raise ValueError(f"window_embedding must be 2D (K, D), got shape {self.window_embedding.shape}")
         if self.full_embedding.shape[1] != self.window_embedding.shape[1]:
             raise ValueError("full_embedding and window_embedding must share the same latent dimension")
         n_windows = self.window_embedding.shape[0]
@@ -93,7 +89,14 @@ class ManifoldArtifact:
             raise ValueError("target_length must be positive")
         if any(ts.length != self.target_length for ts in self.target_slices):
             raise ValueError("every target slice must have length == target_length")
-        if self.target_slices and self.full_embedding.shape[0] < max(ts.stop for ts in self.target_slices):
+        full_embedding_indexing = self.metadata.get("full_embedding_indexing", "sample")
+        if full_embedding_indexing not in {"sample", "target_window_end"}:
+            raise ValueError("metadata['full_embedding_indexing'] must be 'sample' or 'target_window_end'")
+        if (
+            full_embedding_indexing == "sample"
+            and self.target_slices
+            and self.full_embedding.shape[0] < max(ts.stop for ts in self.target_slices)
+        ):
             raise ValueError("full_embedding is shorter than one or more target slices")
         if self.window_starts is not None and self.window_starts.shape[0] != n_windows:
             raise ValueError(f"window_starts length {self.window_starts.shape[0]} != K {n_windows}")

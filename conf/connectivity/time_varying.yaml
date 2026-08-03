@@ -1,0 +1,17 @@
+# Candidate sequence-level estimator. Do not promote to a biological-analysis primary merely
+# because its matrices are smoother; compare it against the rolling baseline using goal.md gates.
+name: time_varying
+max_lag: 1
+alpha: 0.05
+partial: false
+ridge: 1.0
+absolute: false
+threshold: 0.0
+extra:
+  base_estimator: granger
+  temporal_lambda: 1.0
+  base_extra:
+    n_perm: 0
+    simulation: true
+    temporal: true
+    parallel: false

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -20,7 +21,7 @@ def main(cfg: DictConfig) -> None:
     set_seed(cfg.seed)
     art = Path(cfg.paths.artifacts)
     iv_cfg = OmegaConf.load(Path(__file__).resolve().parents[1] / "conf" / "intervention" / "default.yaml")
-    iv = OmegaConf.to_container(iv_cfg, resolve=True)
+    iv = cast(dict[str, Any], OmegaConf.to_container(iv_cfg, resolve=True))
 
     series = load_artifact(art / "connectivity.pkl")
     manifold = load_artifact(art / "manifold.pkl")
@@ -28,29 +29,32 @@ def main(cfg: DictConfig) -> None:
 
     report = {}
     for bkey in iv["behavior_keys"]:
+        if bkey not in series.behavior_per_window:
+            logger.warning("behavior '%s' missing from windows; skipping", bkey)
+            continue
         beh = series.behavior_per_window[bkey]
         surrogate = fit_linear_surrogate(
             series,
             manifold,
             beh,
-            lag=iv["lag"],
-            ridge_alpha=iv["ridge_alpha"],
-            n_folds=iv["n_folds"],
-            embargo=iv["embargo"],
-            min_skill=iv["min_skill"],
+            lag=int(iv["lag"]),
+            ridge_alpha=float(iv["ridge_alpha"]),
+            n_folds=int(iv["n_folds"]),
+            embargo=int(iv["embargo"]),
+            min_skill=float(iv["min_skill"]),
         )
         preliminary_scores = [score for score in attribution[bkey].scores if score.is_candidate]
-        top_nodes = [score.node for score in preliminary_scores[: iv["top_k"]]]
+        top_nodes = [score.node for score in preliminary_scores[: int(iv["top_k"])]]
         perturb = run_virtual_perturbation(
             surrogate,
             series,
             manifold,
             beh,
             node_indices=top_nodes,
-            scale=iv["scale"],
-            n_controls=iv["n_controls"],
-            endpoint=iv["endpoint"],
-            seed=iv["seed"],
+            scale=float(iv["scale"]),
+            n_controls=int(iv["n_controls"]),
+            endpoint=str(iv["endpoint"]),
+            seed=int(iv["seed"]),
             dose_scales=iv.get("dose_scales"),
         )
         report[bkey] = {

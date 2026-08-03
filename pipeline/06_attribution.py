@@ -59,6 +59,9 @@ def main(cfg: DictConfig) -> None:
 
     report = {}
     for bkey in at["behavior_keys"]:
+        if bkey not in series.behavior_per_window:
+            logger.warning("behavior '%s' missing from windows; skipping", bkey)
+            continue
         beh = series.behavior_per_window[bkey]
         report[bkey] = qualify_candidate_drivers(
             series,
@@ -66,11 +69,11 @@ def main(cfg: DictConfig) -> None:
             manifold,
             beh,
             bkey,
-            lag=at["lag"],
-            n_folds=at["n_folds"],
-            embargo=at["embargo"],
-            seed=at["seed"],
-            matched_control_percentile=at["matched_control_percentile"],
+            lag=int(at["lag"]),
+            n_folds=int(at["n_folds"]),
+            embargo=int(at["embargo"]),
+            seed=int(at["seed"]),
+            matched_control_percentile=float(at["matched_control_percentile"]),
         )
     save_artifact(report, art / "attribution.pkl")
     logger.info("Stage 7a done: attribution for %d behavior targets", len(report))

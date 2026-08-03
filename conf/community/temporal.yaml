@@ -7,7 +7,7 @@ weight_threshold: 0.0
 seed: 42
 extra:
   n_communities: 3
-  mode: retrospective   # retrospective | prospective
+  mode: prospective     # prospective default for downstream prediction; use retrospective explicitly for description
   temporal_penalty: 1.5
   n_runs: 5
   max_iter: 20

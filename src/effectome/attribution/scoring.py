@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from effectome.data_module.schema import CommunitySeries, ConnectivitySeries
-from effectome.linking import incremental_decode_behavior
+from effectome.data_module.schema import CommunitySeries, ConnectivitySeries, TemporalAnchor
+from effectome.linking import anchor_group_labels, incremental_decode_behavior
 from effectome.manifold import ManifoldArtifact
 
 
@@ -31,7 +31,15 @@ def community_switch_rates(series: CommunitySeries) -> np.ndarray:
     labels = np.asarray(series.labels)
     if labels.shape[0] < 2:
         return np.zeros(labels.shape[1], dtype=float)
-    return (labels[1:] != labels[:-1]).mean(axis=0)
+    switching = labels[1:] != labels[:-1]
+    valid = np.ones(labels.shape[0] - 1, dtype=bool)
+    if series.boundary_indices is not None:
+        for boundary in np.asarray(series.boundary_indices, dtype=int):
+            if 0 < boundary < labels.shape[0]:
+                valid[boundary - 1] = False
+    if not np.any(valid):
+        return np.zeros(labels.shape[1], dtype=float)
+    return switching[valid].mean(axis=0)
 
 
 @dataclass
@@ -64,6 +72,29 @@ def _baseline_features(behavior: np.ndarray, manifold_window: np.ndarray) -> np.
     return np.concatenate([b, manifold_window], axis=1)
 
 
+def _anchor_key(anchor: TemporalAnchor) -> tuple[str, str, str | None, str | None, str | None]:
+    return (
+        anchor.dataset_id,
+        anchor.recording_id,
+        anchor.animal_id,
+        anchor.session_id,
+        anchor.segment_id,
+    )
+
+
+def _valid_lag_origins(series: ConnectivitySeries, lag: int) -> np.ndarray:
+    if not series.anchors:
+        return np.arange(series.n_windows - lag, dtype=int)
+    origins: list[int] = []
+    for origin in range(series.n_windows - lag):
+        path = series.anchors[origin : origin + lag + 1]
+        if all(_anchor_key(anchor) == _anchor_key(path[0]) for anchor in path) and not (
+            any(anchor.gap_after for anchor in path[:-1]) or any(anchor.gap_before for anchor in path[1:])
+        ):
+            origins.append(origin)
+    return np.asarray(origins, dtype=int)
+
+
 def qualify_candidate_drivers(
     series: ConnectivitySeries,
     community: CommunitySeries,
@@ -83,14 +114,22 @@ def qualify_candidate_drivers(
     switch_rate = community_switch_rates(community)
     net_out = roles["net_outgoing"]
 
-    baseline = _baseline_features(behavior[:-lag], manifold.window_embedding[:-lag])
-    target = np.asarray(behavior[lag:])
+    origins = _valid_lag_origins(series, lag)
+    if origins.size < 4:
+        raise ValueError("not enough within-segment positive-lag samples for attribution")
+    targets = origins + lag
+    baseline = _baseline_features(behavior[origins], manifold.window_embedding[origins])
+    target = np.asarray(behavior[targets])
+    split_anchors = [series.anchors[int(idx)] for idx in origins] if series.anchors else None
+    groups: list[object] | None = (
+        anchor_group_labels(split_anchors, group_by="recording").tolist() if split_anchors else None
+    )
     rng = np.random.default_rng(seed)
 
     scores: list[DriverScore] = []
     n_nodes = net_out.shape[1]
     for node in range(n_nodes):
-        feature = net_out[:-lag, node : node + 1]
+        feature = net_out[origins, node : node + 1]
         inc = incremental_decode_behavior(
             baseline,
             feature,
@@ -98,6 +137,8 @@ def qualify_candidate_drivers(
             n_folds=n_folds,
             seed=seed,
             embargo=embargo,
+            anchors=split_anchors,
+            groups=groups,
         )
         control_gains: list[float] = []
         sampled_controls: list[int] = []
@@ -109,15 +150,21 @@ def qualify_candidate_drivers(
             for other in sampled:
                 ctrl = incremental_decode_behavior(
                     baseline,
-                    net_out[:-lag, other : other + 1],
+                    net_out[origins, other : other + 1],
                     target,
                     n_folds=n_folds,
                     seed=seed,
                     embargo=embargo,
+                    anchors=split_anchors,
+                    groups=groups,
                 )
                 control_gains.append(ctrl.gain)
         percentile = np.percentile(control_gains, matched_control_percentile) if control_gains else 0.0
-        pvalue = float((np.asarray(control_gains) >= inc.gain).mean()) if control_gains else 1.0
+        if control_gains:
+            exceedances = int(np.sum(np.asarray(control_gains) >= inc.gain))
+            pvalue = float((exceedances + 1) / (len(control_gains) + 1))
+        else:
+            pvalue = 1.0
         is_preliminary = bool(inc.gain > percentile and inc.gain > 0)
         scores.append(
             DriverScore(
@@ -128,9 +175,7 @@ def qualify_candidate_drivers(
                 control_pvalue=pvalue,
                 matched_control_threshold=float(percentile),
                 is_candidate=is_preliminary,
-                candidate_stage=(
-                    "preliminary_predictive_candidate" if is_preliminary else "screened_out"
-                ),
+                candidate_stage=("preliminary_predictive_candidate" if is_preliminary else "screened_out"),
                 is_validated_driver=False,
                 provenance={
                     "screen": "predictive_gain_vs_matched_controls",
@@ -154,5 +199,6 @@ def qualify_candidate_drivers(
             "embargo": int(embargo),
             "seed": int(seed),
             "claim_boundary": "candidate labels here are preliminary predictive screens",
+            "split_mode": "anchor_aware_grouped_purged" if split_anchors else "purged_blocked",
         },
     )

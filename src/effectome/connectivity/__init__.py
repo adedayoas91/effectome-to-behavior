@@ -7,6 +7,7 @@ Importing this package registers all shipped estimators in the registry.
 from . import correlation as _correlation  # noqa: E402,F401
 from . import granger as _granger  # noqa: E402,F401
 from . import pcmci as _pcmci  # noqa: E402,F401
+from . import time_varying as _time_varying  # noqa: E402,F401
 from .base import ConnectivityConfig, ConnectivityEstimator
 from .registry import CONNECTIVITY_REGISTRY, ConnectivityFactory, register_connectivity
 

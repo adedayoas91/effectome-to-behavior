@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from effectome.data_module.schema import ConnectivitySeries, WindowedSegments
+from effectome.data_module.schema import ArtifactProvenance, ConnectivitySeries, WindowedSegments
 
 logger = logging.getLogger(__name__)
 
@@ -116,4 +116,16 @@ class ConnectivityEstimator(ABC):
             storage="dense",
             weight_semantics=self.weight_semantics,
             diagnostics=diagnostics,
+            provenance=ArtifactProvenance(
+                identity=segments.provenance.identity,
+                stage="connectivity",
+                source=segments.provenance.source,
+                configuration_id=self.cfg.name,
+                random_seed=segments.provenance.random_seed,
+                code_version=segments.provenance.code_version,
+                fit_data_ids=(segments.provenance.identity.recording_id,),
+                units={"weights": self.weight_semantics},
+                axis_conventions={"matrices": "anchor,source_neuron,target_neuron"},
+                metadata={"upstream_stage": segments.provenance.stage},
+            ),
         )

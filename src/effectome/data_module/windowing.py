@@ -13,7 +13,7 @@ from typing import Literal
 
 import numpy as np
 
-from .schema import NeuralRecording, TemporalAnchor, Window, WindowedSegments
+from .schema import ArtifactProvenance, NeuralRecording, TemporalAnchor, Window, WindowedSegments
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +128,15 @@ def _build_anchor(
         ),
         None,
     )
-    gap_before = owning_range is not None and context_start > owning_range[0]
-    gap_after = owning_range is not None and context_stop < owning_range[1]
+    # These flags describe a *real discontinuity* adjacent to the valid segment, not whether
+    # the current rolling window happens to be in the interior of that segment.  Marking every
+    # interior window as a gap would incorrectly reset all temporal state/community coupling.
+    gap_before = owning_range is not None and owning_range[0] > 0 and context_start == owning_range[0]
+    gap_after = (
+        owning_range is not None
+        and owning_range[1] < recording.n_timepoints
+        and context_stop == owning_range[1]
+    )
     return TemporalAnchor(
         dataset_id=recording.identity.dataset_id,
         recording_id=recording.identity.recording_id,
@@ -219,6 +226,14 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
         fps=recording.fps,
         metadata=metadata,
         anchors=anchors,
+        provenance=ArtifactProvenance(
+            identity=recording.identity,
+            stage="windowing",
+            source=str(recording.metadata.get("source", recording.identity.dataset)),
+            units={"time": "seconds", "sample": "index"},
+            axis_conventions={"segments": "window,time,neuron"},
+            metadata={"window_mode": "temporal"},
+        ),
     )
 
 
@@ -271,6 +286,14 @@ def _make_legacy_windows(recording: NeuralRecording, cfg: WindowConfig) -> Windo
         fps=recording.fps,
         metadata={"window_mode": cfg.mode, "valid_ranges": valid_ranges},
         anchors=anchors,
+        provenance=ArtifactProvenance(
+            identity=recording.identity,
+            stage="windowing",
+            source=str(recording.metadata.get("source", recording.identity.dataset)),
+            units={"time": "seconds", "sample": "index"},
+            axis_conventions={"segments": "window,time,neuron"},
+            metadata={"window_mode": cfg.mode},
+        ),
     )
 
 

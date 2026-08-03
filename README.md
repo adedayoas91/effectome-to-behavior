@@ -1,21 +1,22 @@
 # effectome
 
-**From dynamic effectomes to behavior.** Infer time-varying causal/effective connectivity from
-larval-zebrafish calcium imaging of the mesencephalic locomotor region and identified V2a
-reticulospinal neurons, model how the connectivity matrices transition as a Markov process over
-recurring states, detect evolving neural communities, and link them to a behavioral manifold to
-find the connectivity dynamics that drive behavior.
+**From dynamic effectomes to behavior.** Infer time-varying signed, directed, weighted effective
+interactions from C. elegans and larval-zebrafish calcium imaging, model recurrent whole-effectome
+states, detect evolving neural communities, and test whether their reconfiguration precedes and
+predicts later manifold or behavioral change. Structured virtual perturbations are reported as
+model-based counterfactuals, not proof of biological causation.
 
-See the parent workspace `../goals.md` for the scientific goals and `../manuscript/main.tex`
-for the LaTeX manuscript.
+The parent workspace [`goal.md`](../goal.md) is the current scientific source of truth. The older
+`goals.md` is retained only as background. See [`manuscript/main.tex`](../manuscript/main.tex) for
+the LaTeX manuscript.
 
 ## Pipeline
 
 ```
-0 preprocess → 1 windowing (shifted segments) → 2 connectivity (PCMCI+ / Granger / correlation)
-→ 3 dynamics (connectivity-state clustering + Markov transitions)
-→ 4 community (Leiden / Markov-stability / temporal-multilayer)
-→ 5 manifold (CEBRA / BundDLe-Net / classical) → 6 linking (decoding, lead-lag, behavior↔community)
+00 data + temporal anchors → 01 signed/directed/weighted effectome
+→ 02 global recurrent states + boundary-aware transitions
+→ 03 signed/directed temporal communities → 04 manifold + anchor alignment
+→ 05 leakage-safe linking → 06 attribution → 07 model-based virtual perturbation
 ```
 
 Each stage is a registry-backed module under `src/effectome/`, configured via a Hydra config
@@ -32,13 +33,15 @@ uv pip install -e ".[full,dev]"      # + PCMCI, Leiden, CEBRA, UMAP (heavier)
 ## Quickstart (synthetic data — no real dataset needed)
 
 ```bash
-# Generate synthetic neural data with a known ground-truth causal graph and run the full chain
+# Generate synthetic neural data with a known effective-interaction graph and run the full chain
 python pipeline/00_preprocess.py   data=synthetic
 python pipeline/01_connectivity.py connectivity=granger
 python pipeline/02_dynamics.py
 python pipeline/03_community.py    community=leiden
 python pipeline/04_manifold.py     manifold=classical
 python pipeline/05_linking.py
+python pipeline/06_attribution.py
+python pipeline/07_intervention.py
 ```
 
 Each script writes typed artifacts under `outputs/` (gitignored) that the next stage consumes.
@@ -66,6 +69,8 @@ src/effectome/
 ├── community/       # static / multiscale / temporal community detection
 ├── manifold/        # CEBRA / BundDLe-Net / classical behavioral manifolds
 ├── linking/         # alignment, decoding, lead-lag, behavior↔community stats
+├── attribution/     # signed neuron/group roles and preliminary candidate screening
+├── intervention/    # validated-surrogate gates and model-based counterfactual perturbations
 ├── viz/             # plotting helpers
 └── utils/           # seed, io, synthetic ground-truth generator
 ```

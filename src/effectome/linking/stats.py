@@ -12,6 +12,18 @@ import numpy as np
 from sklearn.metrics import adjusted_mutual_info_score, mutual_info_score
 
 
+def _continuous_slices(n_samples: int, groups: np.ndarray | None) -> list[slice]:
+    if groups is None:
+        return [slice(0, n_samples)]
+    group_arr = np.asarray(groups, dtype=object)
+    if group_arr.shape[0] != n_samples:
+        raise ValueError("groups must align with the input sequence")
+    boundaries = [0]
+    boundaries.extend((np.flatnonzero(group_arr[1:] != group_arr[:-1]) + 1).tolist())
+    boundaries.append(n_samples)
+    return [slice(start, stop) for start, stop in zip(boundaries[:-1], boundaries[1:], strict=True)]
+
+
 def discretize(x: np.ndarray, n_bins: int = 5) -> np.ndarray:
     """Quantile-bin a continuous array into integer labels."""
     x = np.asarray(x)
@@ -34,6 +46,7 @@ def circular_shift_null(
     seed: int,
     n_bins: int = 5,
     min_shift: int = 1,
+    groups: np.ndarray | None = None,
 ) -> np.ndarray:
     """MI null by circularly shifting behavior, preserving autocorrelation structure."""
     if len(states) != len(behavior):
@@ -43,12 +56,17 @@ def circular_shift_null(
 
     rng = np.random.default_rng(seed)
     b = discretize(behavior, n_bins)
-    valid_shifts = np.arange(min_shift, len(b))
-    if len(valid_shifts) == 0:
-        valid_shifts = np.array([1])
-    return np.array(
-        [mutual_info_score(states, np.roll(b, int(rng.choice(valid_shifts)))) for _ in range(n_null)]
-    )
+    slices = _continuous_slices(len(b), groups)
+    out = []
+    for _ in range(n_null):
+        surrogate = np.array(b, copy=True)
+        for segment in slices:
+            length = segment.stop - segment.start
+            valid_shifts = np.arange(min_shift, length)
+            if valid_shifts.size:
+                surrogate[segment] = np.roll(b[segment], int(rng.choice(valid_shifts)))
+        out.append(mutual_info_score(states, surrogate))
+    return np.asarray(out)
 
 
 def block_shuffle_null(
@@ -58,18 +76,23 @@ def block_shuffle_null(
     seed: int,
     block_length: int,
     n_bins: int = 5,
+    groups: np.ndarray | None = None,
 ) -> np.ndarray:
     """MI null by permuting contiguous behavior blocks rather than individual samples."""
     if block_length <= 0:
         raise ValueError("block_length must be positive")
     rng = np.random.default_rng(seed)
     b = discretize(behavior, n_bins)
-    starts = list(range(0, len(b), block_length))
-    blocks = [b[s : s + block_length] for s in starts]
+    slices = _continuous_slices(len(b), groups)
     out = []
     for _ in range(n_null):
-        order = rng.permutation(len(blocks))
-        shuffled = np.concatenate([blocks[i] for i in order])[: len(b)]
+        shuffled = np.array(b, copy=True)
+        for segment in slices:
+            segment_values = b[segment]
+            starts = list(range(0, len(segment_values), block_length))
+            blocks = [segment_values[start : start + block_length] for start in starts]
+            order = rng.permutation(len(blocks))
+            shuffled[segment] = np.concatenate([blocks[i] for i in order])[: len(segment_values)]
         out.append(mutual_info_score(states, shuffled))
     return np.asarray(out)
 
@@ -130,16 +153,17 @@ def association_with_null(
     n_bins: int = 5,
     null_kind: str = "circular_shift",
     block_length: int | None = None,
+    groups: np.ndarray | None = None,
 ) -> AssociationResult:
     """Mutual-information association of `states` with `behavior` vs a temporally aware null."""
     stat = state_behavior_mi(states, behavior, n_bins)
     if null_kind == "block_shuffle":
         block_length = block_length or max(2, len(states) // 10)
-        null = block_shuffle_null(states, behavior, n_null, seed, block_length, n_bins)
+        null = block_shuffle_null(states, behavior, n_null, seed, block_length, n_bins, groups=groups)
     else:
-        null = circular_shift_null(states, behavior, n_null, seed, n_bins)
+        null = circular_shift_null(states, behavior, n_null, seed, n_bins, groups=groups)
         null_kind = "circular_shift"
-    p = float((null >= stat).mean())
+    p = float((int(np.sum(null >= stat)) + 1) / (len(null) + 1))
     std = float(null.std()) or 1e-12
     return AssociationResult(
         statistic=stat,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from effectome.attribution import qualify_candidate_drivers, signed_node_roles
+from effectome.attribution import community_switch_rates, qualify_candidate_drivers, signed_node_roles
 from effectome.data_module.schema import CommunitySeries, ConnectivitySeries
 from effectome.intervention import fit_linear_surrogate, run_virtual_perturbation
 from effectome.manifold import ManifoldArtifact, TargetSlice
@@ -67,6 +67,16 @@ def test_signed_node_roles_shapes():
     assert roles["net_outgoing"].shape == (series.n_windows, series.n_neurons)
 
 
+def test_switch_rates_exclude_recording_boundary_changes():
+    community = CommunitySeries(
+        labels=np.array([[0, 0], [0, 0], [1, 1], [1, 1]], dtype=int),
+        method="toy",
+        n_communities_per_window=np.ones(4, dtype=int),
+        boundary_indices=np.array([0, 2], dtype=int),
+    )
+    assert np.array_equal(community_switch_rates(community), np.zeros(2))
+
+
 def test_candidate_driver_requires_predictive_gain_not_just_switching():
     series, community, manifold, behavior = _toy_lane_artifacts()
     result = qualify_candidate_drivers(
@@ -125,6 +135,8 @@ def test_surrogate_validation_and_graded_virtual_perturbation():
     assert perturb.effect_size != 0.0
     assert len(perturb.dose_response) == 4
     assert perturb.provenance["claim_boundary"] == "model_based_counterfactual_not_biological_causation"
+    assert perturb.control_pvalue >= 1.0 / 9.0
+    assert perturb.candidate_stage != "validated_candidate_driver"
     assert all(point.sham_effect == 0.0 for point in perturb.dose_response)
     assert {point.scale for point in perturb.dose_response} == {0.75, 0.5, 0.25, 0.0}
 

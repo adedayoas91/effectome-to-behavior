@@ -230,8 +230,10 @@ class _TemporalRegularizedMixin:
         matrices = np.stack([self._prepare_signed(w) for w in series.matrices])
         feats = np.stack([_signed_role_features(w) for w in matrices])
         if settings.mode == "prospective":
-            init_steps = min(settings.init_window_count, feats.shape[0])
-            base = feats[:init_steps].reshape(-1, feats.shape[-1])
+            # A prospective label at layer k may not depend on k+1.  Initialize scaling and
+            # centroids from the first observed layer only; init_window_count remains a retained
+            # compatibility setting but is not allowed to introduce a future-looking warm-up.
+            base = feats[0].reshape(-1, feats.shape[-1])
             mean = base.mean(axis=0, keepdims=True)
             scale = base.std(axis=0, keepdims=True)
             scale[scale == 0] = 1.0
@@ -265,12 +267,16 @@ class _TemporalRegularizedMixin:
                 labels, centroids = updated, new_centroids
                 break
             labels, centroids = updated, new_centroids
-        return labels, centroids, _objective(
-            features,
+        return (
             labels,
             centroids,
-            settings.temporal_penalty,
-            boundary_indices=boundary_indices,
+            _objective(
+                features,
+                labels,
+                centroids,
+                settings.temporal_penalty,
+                boundary_indices=boundary_indices,
+            ),
         )
 
     def _fit_prospective_run(
@@ -281,9 +287,8 @@ class _TemporalRegularizedMixin:
         boundary_indices: np.ndarray | None = None,
     ) -> tuple[np.ndarray, np.ndarray, float]:
         settings = self._settings()
-        init_steps = min(settings.init_window_count, features.shape[0])
         km = KMeans(n_clusters=settings.n_communities, random_state=seed, n_init=10)
-        km.fit(features[:init_steps].reshape(-1, features.shape[-1]))
+        km.fit(features[0])
         centroids = km.cluster_centers_.astype(np.float64)
         labels = np.zeros((features.shape[0], features.shape[1]), dtype=np.int64)
         counts = np.ones(settings.n_communities, dtype=np.float64)
@@ -307,12 +312,16 @@ class _TemporalRegularizedMixin:
                 lr = min(1.0, settings.online_learning_rate / counts[state])
                 centroids[state] = (1.0 - lr) * centroids[state] + lr * batch
                 counts[state] += len(members)
-        return labels, centroids, _objective(
-            features,
+        return (
             labels,
             centroids,
-            settings.temporal_penalty,
-            boundary_indices=boundary_indices,
+            _objective(
+                features,
+                labels,
+                centroids,
+                settings.temporal_penalty,
+                boundary_indices=boundary_indices,
+            ),
         )
 
     def _fit_runs(

@@ -187,3 +187,9 @@ def test_prospective_temporal_mode_is_future_invariant():
     labels_a = CommunityFactory(cfg).run(series_a).labels
     labels_b = CommunityFactory(cfg).run(series_b).labels
     assert np.array_equal(labels_a[:4], labels_b[:4])
+
+    immediate_future_changed = _manual_series(
+        np.stack([early, alt_late, alt_late, alt_late, alt_late, alt_late])
+    )
+    labels_c = CommunityFactory(cfg).run(immediate_future_changed).labels
+    assert np.array_equal(labels_a[0], labels_c[0])

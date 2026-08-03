@@ -17,8 +17,10 @@ from effectome.linking import (
     connectivity_features,
     decode_behavior,
     lead_lag,
+    manifold_speed,
     purged_blocked_splits,
     state_features,
+    valid_positive_lag_origins,
 )
 from effectome.manifold import (
     ManifoldArtifact,
@@ -173,7 +175,7 @@ def test_manifold_stage_uses_target_intervals_from_connectivity_anchors():
     ]
     series = ConnectivitySeries(
         matrices=np.zeros((2, 2, 2), dtype=np.float32),
-        window_starts=np.array([100, 200], dtype=int),
+        window_starts=np.array([0, 3], dtype=int),
         method="toy",
         directed=True,
         anchors=anchors,
@@ -199,7 +201,7 @@ def test_linking_stage_uses_anchor_groups_and_validates_handoff():
     manifold = ManifoldArtifact(
         method="toy",
         behavior_key="continuous",
-        full_embedding=np.zeros((20, 2), dtype=np.float32),
+        full_embedding=np.zeros((515, 2), dtype=np.float32),
         window_embedding=np.zeros((2, 2), dtype=np.float32),
         target_slices=[TargetSlice(485, 500), TargetSlice(500, 515)],
         target_length=15,
@@ -224,6 +226,31 @@ def test_default_temporal_config_uses_signed_temporal_communities_and_grouped_li
     assert cfg.windowing.stride == 15
     assert linking_cfg.group_by == "recording"
     assert linking_cfg.embargo == 4
+
+
+def test_manifold_speed_and_lead_lag_do_not_cross_recording_boundaries():
+    groups = np.array(["rec-a", "rec-a", "rec-b", "rec-b"], dtype=object)
+    embedding = np.array([[0.0], [1.0], [100.0], [102.0]])
+    speed = manifold_speed(embedding, groups=groups)
+    assert np.array_equal(speed, np.array([0.0, 1.0, 0.0, 2.0]))
+
+    result = lead_lag(
+        np.array([0, 1, 0, 1]),
+        np.array([0, 1, 0, 1]),
+        max_lag=1,
+        groups=groups,
+    )
+    assert np.all(np.isfinite(result.xcorr))
+
+
+def test_positive_lag_origins_exclude_cross_recording_pair():
+    anchors = [
+        _anchor("rec-a", 0, 8, 5, 8),
+        _anchor("rec-a", 3, 11, 8, 11),
+        _anchor("rec-b", 0, 8, 5, 8),
+        _anchor("rec-b", 3, 11, 8, 11),
+    ]
+    assert np.array_equal(valid_positive_lag_origins(4, 1, anchors), np.array([0, 2]))
 
 
 def test_state_behavior_association_and_leadlag(windows):

@@ -8,6 +8,6 @@ min_skill: 0.0
 top_k: 2
 scale: 0.0
 dose_scales: [0.75, 0.5, 0.25, 0.0]
-n_controls: 16
+n_controls: 64
 endpoint: behavior
 seed: 42

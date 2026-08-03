@@ -20,6 +20,7 @@ from effectome.linking import (
     lead_lag,
     manifold_speed,
     state_features,
+    valid_positive_lag_origins,
 )
 from effectome.utils import set_seed
 from effectome.utils.io import load_artifact, save_artifact
@@ -78,13 +79,14 @@ def main(cfg: DictConfig) -> None:
     conn_feat = connectivity_features(series)
     state_feat = state_features(states.labels, states.n_states)
     com_feat = community_features(community)
-    manifold_dyn = manifold_speed(manifold.window_embedding).reshape(-1, 1)
+    manifold_dyn = manifold_speed(manifold.window_embedding, groups=groups).reshape(-1, 1)
 
     report: dict = {
         "decoding": [],
         "association": {},
         "lead_lag": {},
         "incremental": {},
+        "positive_lag_incremental": {},
         "splitter": {
             "mode": "anchor_aware_grouped_purged" if anchors is not None else "purged_blocked",
             "group_by": str(lk.get("group_by", "recording")) if anchors is not None else None,
@@ -126,10 +128,18 @@ def main(cfg: DictConfig) -> None:
             n_bins=lk["n_bins"],
             null_kind=lk["null_kind"],
             block_length=lk["block_length"],
+            groups=groups,
         )
         report["association"][bkey] = assoc
 
-        ll = lead_lag(states.labels, beh, max_lag=lk["max_lag"], n_bins=lk["n_bins"], target_name=bkey)
+        ll = lead_lag(
+            states.labels,
+            beh,
+            max_lag=lk["max_lag"],
+            n_bins=lk["n_bins"],
+            target_name=bkey,
+            groups=groups,
+        )
         report["lead_lag"][bkey] = ll
 
         baseline = np.concatenate([state_feat, manifold.window_embedding], axis=1)
@@ -145,6 +155,65 @@ def main(cfg: DictConfig) -> None:
         )
         report["incremental"][bkey] = inc
 
+        positive_lag = int(lk.get("positive_lag", 1))
+        community_mode = getattr(community, "mode", None)
+        if community_mode != "prospective":
+            logger.warning(
+                "community mode is %r; positive-lag community prediction requires prospective mode",
+                community_mode,
+            )
+            report["positive_lag_incremental"][bkey] = {
+                "lag": positive_lag,
+                "status": "invalid_future_aware_community_features",
+                "community_mode": community_mode,
+                "claim_boundary": "not_eligible_for_prospective_interpretation",
+            }
+            continue
+        origins = valid_positive_lag_origins(
+            series.n_windows,
+            positive_lag,
+            anchors=series.anchors if series.anchors else None,
+        )
+        if origins.size < 4:
+            logger.warning(
+                "behavior '%s' has too few within-segment samples at lag %d; skipping positive-lag model",
+                bkey,
+                positive_lag,
+            )
+            continue
+        lag_anchors = [series.anchors[int(idx)] for idx in origins] if series.anchors else None
+        lag_groups: list[object] | None = (
+            anchor_group_labels(
+                lag_anchors, group_by=str(lk.get("group_by", "recording"))
+            ).tolist()
+            if lag_anchors
+            else None
+        )
+        future_behavior = beh[origins + positive_lag]
+        current_behavior = beh[origins].astype(float).reshape(-1, 1)
+        predictive_baseline = np.concatenate(
+            [current_behavior, manifold.window_embedding[origins], conn_feat[origins]],
+            axis=1,
+        )
+        prospective_community = com_feat[origins]
+        positive_inc = incremental_decode_behavior(
+            predictive_baseline,
+            prospective_community,
+            future_behavior,
+            n_folds=lk["n_folds"],
+            seed=lk["seed"],
+            embargo=lk["embargo"],
+            anchors=lag_anchors,
+            groups=lag_groups,
+        )
+        report["positive_lag_incremental"][bkey] = {
+            "lag": positive_lag,
+            "result": positive_inc,
+            "baseline": "current_behavior_plus_manifold_plus_raw_effectome",
+            "community_mode": community_mode,
+            "claim_boundary": "predictive_increment_only_not_causal_mediation",
+        }
+
     save_artifact(report, art / "linking.pkl")
     _print_summary(report)
 
@@ -159,9 +228,7 @@ def _print_summary(report: dict) -> None:
         )
     print("\nState↔behavior association vs temporal null:")
     for bkey, a in report["association"].items():
-        print(
-            f"  {bkey:<12} MI={a.statistic:.4f}  z={a.z_score:5.2f}  p={a.p_value:.4f}  [{a.null_kind}]"
-        )
+        print(f"  {bkey:<12} MI={a.statistic:.4f}  z={a.z_score:5.2f}  p={a.p_value:.4f}  [{a.null_kind}]")
     print("\nLead-lag (positive lag = connectivity leads target):")
     for bkey, ll in report["lead_lag"].items():
         print(
@@ -172,6 +239,16 @@ def _print_summary(report: dict) -> None:
     for bkey, inc in report["incremental"].items():
         print(
             f"  {bkey:<12} baseline={inc.baseline_score:.3f}  full={inc.full_score:.3f}  gain={inc.gain:.3f}"
+        )
+    print("\nPositive-lag community gain over current behavior+manifold+effectome baseline:")
+    for bkey, payload in report["positive_lag_incremental"].items():
+        if "result" not in payload:
+            print(f"  {bkey:<12} skipped [{payload['status']}]")
+            continue
+        inc = payload["result"]
+        print(
+            f"  {bkey:<12} lag={payload['lag']}  baseline={inc.baseline_score:.3f}  "
+            f"full={inc.full_score:.3f}  gain={inc.gain:.3f}"
         )
     print()
 

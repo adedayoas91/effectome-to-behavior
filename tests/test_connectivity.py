@@ -11,11 +11,14 @@ from effectome.connectivity import (
     ConnectivityEstimator,
     ConnectivityFactory,
 )
+from effectome.data_module.schema import TemporalAnchor, Window, WindowedSegments
 from effectome.experiments import analyze_with_cgc, analyze_with_cgc_star
 
 
 def test_registry_has_methods():
-    assert {"correlation", "granger", "granger_star", "pcmci", "jpcmci"} <= set(CONNECTIVITY_REGISTRY)
+    assert {"correlation", "granger", "granger_star", "pcmci", "jpcmci", "time_varying"} <= set(
+        CONNECTIVITY_REGISTRY
+    )
 
 
 def test_correlation_runs(windows):
@@ -73,6 +76,53 @@ def test_sequence_level_estimator_hook_runs_once_for_full_series(windows):
     assert series.matrices.shape == (windows.n_windows, windows.n_neurons, windows.n_neurons)
     assert series.diagnostics["estimation_mode"] == "sequence_regularized"
     assert np.allclose(series.matrices[:, np.arange(windows.n_neurons), np.arange(windows.n_neurons)], 0.0)
+
+
+def test_time_varying_candidate_resets_regularization_at_recording_boundary():
+    x = np.linspace(-1.0, 1.0, 8, dtype=np.float32)
+    positive = np.column_stack([x, x])
+    negative = np.column_stack([x, -x])
+    segments = np.stack([positive, positive, negative, negative])
+    anchors = [
+        TemporalAnchor(
+            dataset_id="ds",
+            recording_id="rec-a" if idx < 2 else "rec-b",
+            animal_id=None,
+            session_id=None,
+            segment_id=None,
+            context_start=(idx % 2) * 2,
+            context_stop=(idx % 2) * 2 + 8,
+            target_start=(idx % 2) * 2 + 7,
+            target_stop=(idx % 2) * 2 + 8,
+            anchor_sample=(idx % 2) * 2 + 7,
+            anchor_time_seconds=float(idx),
+            sampling_rate_hz=1.0,
+        )
+        for idx in range(4)
+    ]
+    windows = WindowedSegments(
+        segments=segments,
+        windows=[Window(anchor.context_start, anchor.context_stop) for anchor in anchors],
+        behavior_per_window={},
+        n_neurons=2,
+        fps=1.0,
+        anchors=anchors,
+    )
+    estimator = ConnectivityFactory(
+        ConnectivityConfig(
+            name="time_varying",
+            extra={
+                "base_estimator": "correlation",
+                "temporal_lambda": 100.0,
+            },
+        )
+    )
+    series = estimator.run(windows)
+
+    assert np.all(series.matrices[:2, 0, 1] > 0.99)
+    assert np.all(series.matrices[2:, 0, 1] < -0.99)
+    assert series.diagnostics["continuous_segments"] == 2
+    assert series.diagnostics["candidate_status"] == "candidate_not_promoted"
 
 
 def test_notebook_cgc_adapters_return_weighted_matrices(synthetic_recording):

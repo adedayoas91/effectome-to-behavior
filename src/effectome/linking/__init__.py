@@ -11,6 +11,7 @@ from .decoding import (
     incremental_decode_behavior,
     purged_blocked_splits,
     state_features,
+    valid_positive_lag_origins,
 )
 from .stats import (
     AssociationResult,
@@ -48,4 +49,5 @@ __all__ = [
     "purged_blocked_splits",
     "state_behavior_mi",
     "state_features",
+    "valid_positive_lag_origins",
 ]

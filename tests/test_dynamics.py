@@ -49,6 +49,7 @@ def test_graph_state_transform_is_holdout_safe(windows):
         directed=series.directed,
     )
     prefix = model.transform(heldout)
+    fitted_starts = np.array(model.window_starts, copy=True)
 
     altered = np.concatenate(
         [
@@ -62,6 +63,7 @@ def test_graph_state_transform_is_holdout_safe(windows):
     )
     altered_labels = model.transform(altered, window_starts=altered_starts)
     assert np.array_equal(prefix, altered_labels[: len(prefix)])
+    assert np.array_equal(model.window_starts, fitted_starts)
 
 
 def test_transitions_beat_block_null(windows):

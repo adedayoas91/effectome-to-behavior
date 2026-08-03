@@ -11,6 +11,9 @@ from typing import Any
 
 import numpy as np
 
+CURRENT_ARTIFACT_SCHEMA_VERSION = "1.0"
+SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = frozenset({CURRENT_ARTIFACT_SCHEMA_VERSION})
+
 
 def _validate_anchor_alignment(
     anchors: list[TemporalAnchor], expected: int, *, window_starts: np.ndarray | None = None
@@ -20,9 +23,7 @@ def _validate_anchor_alignment(
     if anchors and window_starts is not None and len(window_starts) == expected:
         for idx, anchor in enumerate(anchors):
             if int(window_starts[idx]) != anchor.context_start:
-                raise ValueError(
-                    "window_starts must align with anchor.context_start for every window"
-                )
+                raise ValueError("window_starts must align with anchor.context_start for every window")
 
 
 def _validate_behavior_alignment(behavior_per_window: dict[str, np.ndarray], expected: int) -> None:
@@ -47,10 +48,29 @@ class RecordingIdentity:
 class ArtifactProvenance:
     """Typed provenance carried by stage artifacts without replacing free-form metadata."""
 
+    schema_version: str = CURRENT_ARTIFACT_SCHEMA_VERSION
     identity: RecordingIdentity = field(default_factory=RecordingIdentity)
     stage: str = "unknown"
     source: str | None = None
+    configuration_id: str | None = None
+    random_seed: int | None = None
+    upstream_artifact_hashes: dict[str, str] = field(default_factory=dict)
+    code_version: str | None = None
+    fit_data_ids: tuple[str, ...] = ()
+    transform_data_ids: tuple[str, ...] = ()
+    validation_fold: str | None = None
+    units: dict[str, str] = field(default_factory=dict)
+    axis_conventions: dict[str, str] = field(default_factory=dict)
+    created_at: str | None = None
+    warnings: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.schema_version not in SUPPORTED_ARTIFACT_SCHEMA_VERSIONS:
+            supported = ", ".join(sorted(SUPPORTED_ARTIFACT_SCHEMA_VERSIONS))
+            raise ValueError(
+                f"unsupported artifact schema version '{self.schema_version}'; supported: {supported}"
+            )
 
 
 @dataclass

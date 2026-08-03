@@ -109,11 +109,10 @@ class GraphStateModel:
     ) -> np.ndarray:
         """Assign labels to new matrices without refitting the state model."""
         matrices = series.matrices if isinstance(series, ConnectivitySeries) else np.asarray(series)
-        starts = series.window_starts if isinstance(series, ConnectivitySeries) else window_starts
-        labels = assign_graph_states(self, matrices)
-        if starts is not None:
-            self.window_starts = np.asarray(starts, dtype=int)
-        return labels
+        # `window_starts` is accepted for backward compatibility, but held-out assignment must
+        # not mutate the fitted model's training coordinates or boundary metadata.
+        _ = series.window_starts if isinstance(series, ConnectivitySeries) else window_starts
+        return assign_graph_states(self, matrices)
 
 
 @dataclass(frozen=True)
