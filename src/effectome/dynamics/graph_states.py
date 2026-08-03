@@ -21,7 +21,7 @@ import numpy as np
 from sklearn.cluster import KMeans, SpectralClustering
 from sklearn.metrics import silhouette_score
 
-from effectome.data_module.schema import ConnectivitySeries
+from effectome.data_module.schema import ConnectivitySeries, TemporalAnchor
 
 from .metrics import expm_sym, kmedoids, log_euclidean_features, logm_spd, pairwise_distances, vectorize
 
@@ -134,6 +134,29 @@ def _series_metadata(series: ConnectivitySeries) -> dict:
     return {}
 
 
+def _boundary_indices_from_anchors(anchors: list[TemporalAnchor]) -> np.ndarray:
+    """Infer segment starts from typed temporal anchors."""
+    if not anchors:
+        return np.asarray([0], dtype=int)
+
+    def _key(anchor: TemporalAnchor) -> tuple[str, str, str | None, str | None, str | None]:
+        return (
+            anchor.dataset_id,
+            anchor.recording_id,
+            anchor.animal_id,
+            anchor.session_id,
+            anchor.segment_id,
+        )
+
+    boundaries = [0]
+    for idx in range(1, len(anchors)):
+        prev = anchors[idx - 1]
+        cur = anchors[idx]
+        if _key(cur) != _key(prev) or cur.gap_before or prev.gap_after:
+            boundaries.append(idx)
+    return np.asarray(boundaries, dtype=int)
+
+
 def infer_boundary_indices(
     window_starts: np.ndarray,
     *,
@@ -165,6 +188,27 @@ def infer_boundary_indices(
         if delta <= 0 or delta > gap_threshold:
             boundaries.append(idx)
     return np.asarray(boundaries, dtype=int)
+
+
+def boundary_indices_for_series(
+    series: ConnectivitySeries,
+    *,
+    gap_factor: float = 3.0,
+) -> np.ndarray:
+    """Infer boundary indices from typed anchors first, then fall back to provenance or starts."""
+    anchors = list(getattr(series, "anchors", []))
+    if anchors:
+        if len(anchors) != series.n_windows:
+            raise ValueError("series.anchors must align 1:1 with series windows")
+        return _boundary_indices_from_anchors(anchors)
+
+    metadata = _series_metadata(series)
+    recording_ids = metadata.get("recording_ids")
+    return infer_boundary_indices(
+        series.window_starts,
+        recording_ids=None if recording_ids is None else np.asarray(recording_ids),
+        gap_factor=gap_factor,
+    )
 
 
 def _fit_standardizer(features: np.ndarray, standardize: bool) -> tuple[np.ndarray, _Standardizer]:
@@ -372,13 +416,7 @@ def fit_graph_states(
     train_idx = np.arange(n_windows, dtype=int) if fit_indices is None else np.asarray(fit_indices, dtype=int)
     train_matrices = matrices[train_idx]
 
-    metadata = _series_metadata(series)
-    recording_ids = metadata.get("recording_ids")
-    boundary_indices = infer_boundary_indices(
-        series.window_starts,
-        recording_ids=None if recording_ids is None else np.asarray(recording_ids),
-        gap_factor=cfg.boundary_gap_factor,
-    )
+    boundary_indices = boundary_indices_for_series(series, gap_factor=cfg.boundary_gap_factor)
 
     feature_centroids = None
     feature_mean = None

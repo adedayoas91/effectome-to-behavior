@@ -23,8 +23,9 @@ from scipy.optimize import linear_sum_assignment
 from sklearn.cluster import KMeans
 
 from effectome.data_module.schema import CommunitySeries, ConnectivitySeries
+from effectome.dynamics.graph_states import boundary_indices_for_series
 
-from .base import CommunityConfig, CommunityDetector, register_community
+from .base import CommunityConfig, CommunityDetector, build_community_series, register_community
 from .static import LeidenCommunity
 
 
@@ -95,12 +96,33 @@ def _sqdist(features: np.ndarray, centroids: np.ndarray) -> np.ndarray:
     return np.sum((features[:, None, :] - centroids[None, :, :]) ** 2, axis=2)
 
 
-def _viterbi_assign(unary: np.ndarray, penalty: float) -> np.ndarray:
+def _coupled_step_mask(t_steps: int, boundary_indices: np.ndarray | None) -> np.ndarray:
+    mask = np.ones(max(t_steps - 1, 0), dtype=bool)
+    if boundary_indices is None:
+        return mask
+    for idx in np.asarray(boundary_indices, dtype=int):
+        if 0 < idx < t_steps:
+            mask[idx - 1] = False
+    return mask
+
+
+def _viterbi_assign(
+    unary: np.ndarray,
+    penalty: float,
+    *,
+    boundary_indices: np.ndarray | None = None,
+) -> np.ndarray:
     t_steps, n_states = unary.shape
     cost = np.empty((t_steps, n_states), dtype=np.float64)
     back = np.zeros((t_steps, n_states), dtype=np.int64)
     cost[0] = unary[0]
+    coupled_steps = _coupled_step_mask(t_steps, boundary_indices)
     for t in range(1, t_steps):
+        if not coupled_steps[t - 1]:
+            best_prev = int(np.argmin(cost[t - 1]))
+            back[t].fill(best_prev)
+            cost[t] = unary[t] + cost[t - 1, best_prev]
+            continue
         switch = cost[t - 1][:, None] + penalty * (1.0 - np.eye(n_states))
         back[t] = np.argmin(switch, axis=0)
         cost[t] = unary[t] + switch[back[t], np.arange(n_states)]
@@ -111,12 +133,22 @@ def _viterbi_assign(unary: np.ndarray, penalty: float) -> np.ndarray:
     return path
 
 
-def _objective(features: np.ndarray, labels: np.ndarray, centroids: np.ndarray, penalty: float) -> float:
+def _objective(
+    features: np.ndarray,
+    labels: np.ndarray,
+    centroids: np.ndarray,
+    penalty: float,
+    *,
+    boundary_indices: np.ndarray | None = None,
+) -> float:
     total = 0.0
+    coupled_steps = _coupled_step_mask(features.shape[0], boundary_indices)
     for neuron in range(features.shape[1]):
         unary = _sqdist(features[:, neuron, :], centroids)
         total += float(unary[np.arange(features.shape[0]), labels[:, neuron]].sum())
-        total += float(penalty * np.sum(labels[1:, neuron] != labels[:-1, neuron]))
+        if coupled_steps.size:
+            switches = labels[1:, neuron] != labels[:-1, neuron]
+            total += float(penalty * np.sum(switches[coupled_steps]))
     return total
 
 
@@ -151,10 +183,13 @@ def _coassignment_matrix(runs: list[np.ndarray]) -> np.ndarray:
     return np.mean(stack[:, :, :, None] == stack[:, :, None, :], axis=0)
 
 
-def _flexibility(labels: np.ndarray) -> np.ndarray:
+def _flexibility(labels: np.ndarray, boundary_indices: np.ndarray | None = None) -> np.ndarray:
     if labels.shape[0] <= 1:
         return np.zeros(labels.shape[1], dtype=np.float64)
-    return np.mean(labels[1:] != labels[:-1], axis=0)
+    coupled_steps = _coupled_step_mask(labels.shape[0], boundary_indices)
+    if not np.any(coupled_steps):
+        return np.zeros(labels.shape[1], dtype=np.float64)
+    return np.mean((labels[1:] != labels[:-1])[coupled_steps], axis=0)
 
 
 @dataclass(frozen=True)
@@ -204,7 +239,13 @@ class _TemporalRegularizedMixin:
         standardized, _, _ = _standardize_node_features(feats)
         return standardized
 
-    def _fit_retro_run(self, features: np.ndarray, seed: int) -> tuple[np.ndarray, np.ndarray, float]:
+    def _fit_retro_run(
+        self,
+        features: np.ndarray,
+        seed: int,
+        *,
+        boundary_indices: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, float]:
         settings = self._settings()
         flat = features.reshape(-1, features.shape[-1])
         km = KMeans(n_clusters=settings.n_communities, random_state=seed, n_init=10)
@@ -214,15 +255,31 @@ class _TemporalRegularizedMixin:
             updated = np.zeros_like(labels)
             for neuron in range(features.shape[1]):
                 unary = _sqdist(features[:, neuron, :], centroids)
-                updated[:, neuron] = _viterbi_assign(unary, settings.temporal_penalty)
+                updated[:, neuron] = _viterbi_assign(
+                    unary,
+                    settings.temporal_penalty,
+                    boundary_indices=boundary_indices,
+                )
             new_centroids = _update_centroids(features, updated, settings.n_communities)
             if np.array_equal(updated, labels) and np.allclose(new_centroids, centroids):
                 labels, centroids = updated, new_centroids
                 break
             labels, centroids = updated, new_centroids
-        return labels, centroids, _objective(features, labels, centroids, settings.temporal_penalty)
+        return labels, centroids, _objective(
+            features,
+            labels,
+            centroids,
+            settings.temporal_penalty,
+            boundary_indices=boundary_indices,
+        )
 
-    def _fit_prospective_run(self, features: np.ndarray, seed: int) -> tuple[np.ndarray, np.ndarray, float]:
+    def _fit_prospective_run(
+        self,
+        features: np.ndarray,
+        seed: int,
+        *,
+        boundary_indices: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, float]:
         settings = self._settings()
         init_steps = min(settings.init_window_count, features.shape[0])
         km = KMeans(n_clusters=settings.n_communities, random_state=seed, n_init=10)
@@ -230,9 +287,12 @@ class _TemporalRegularizedMixin:
         centroids = km.cluster_centers_.astype(np.float64)
         labels = np.zeros((features.shape[0], features.shape[1]), dtype=np.int64)
         counts = np.ones(settings.n_communities, dtype=np.float64)
+        boundary_starts = set(
+            np.asarray([] if boundary_indices is None else boundary_indices, dtype=int).tolist()
+        )
         for t in range(features.shape[0]):
             unary = _sqdist(features[t], centroids)
-            if t == 0:
+            if t == 0 or t in boundary_starts:
                 labels[t] = np.argmin(unary, axis=1)
             else:
                 switch = settings.temporal_penalty * (
@@ -247,25 +307,51 @@ class _TemporalRegularizedMixin:
                 lr = min(1.0, settings.online_learning_rate / counts[state])
                 centroids[state] = (1.0 - lr) * centroids[state] + lr * batch
                 counts[state] += len(members)
-        return labels, centroids, _objective(features, labels, centroids, settings.temporal_penalty)
+        return labels, centroids, _objective(
+            features,
+            labels,
+            centroids,
+            settings.temporal_penalty,
+            boundary_indices=boundary_indices,
+        )
 
-    def _fit_runs(self, features: np.ndarray) -> tuple[list[np.ndarray], list[float]]:
+    def _fit_runs(
+        self,
+        features: np.ndarray,
+        *,
+        boundary_indices: np.ndarray | None = None,
+    ) -> tuple[list[np.ndarray], list[float]]:
         settings = self._settings()
         runs: list[np.ndarray] = []
         scores: list[float] = []
         for run_idx in range(settings.n_runs):
             seed = self.cfg.seed + run_idx
             if settings.mode == "prospective":
-                labels, _, score = self._fit_prospective_run(features, seed)
+                labels, _, score = self._fit_prospective_run(
+                    features,
+                    seed,
+                    boundary_indices=boundary_indices,
+                )
             elif settings.mode == "retrospective":
-                labels, _, score = self._fit_retro_run(features, seed)
+                labels, _, score = self._fit_retro_run(
+                    features,
+                    seed,
+                    boundary_indices=boundary_indices,
+                )
             else:
                 raise ValueError(f"unknown temporal mode '{settings.mode}'")
             runs.append(labels)
             scores.append(score)
         return runs, scores
 
-    def _package(self, runs: list[np.ndarray], scores: list[float]) -> CommunitySeries:
+    def _package(
+        self,
+        series: ConnectivitySeries,
+        runs: list[np.ndarray],
+        scores: list[float],
+        *,
+        boundary_indices: np.ndarray | None = None,
+    ) -> CommunitySeries:
         settings = self._settings()
         ref_idx = int(np.argmin(scores))
         reference = runs[ref_idx]
@@ -281,30 +367,42 @@ class _TemporalRegularizedMixin:
             stack,
         ).astype(np.int64)
         counts = np.array([len(np.unique(row)) for row in consensus])
-        result = CommunitySeries(labels=consensus, method=self.cfg.name, n_communities_per_window=counts)
+        coupled_steps = _coupled_step_mask(consensus.shape[0], boundary_indices)
         switching = consensus[1:] != consensus[:-1]
-        result.__dict__.update(
-            {
-                "mode": settings.mode,
-                "flexibility": _flexibility(consensus),
-                "switching": switching,
-                "switching_rate": float(np.mean(switching)) if switching.size else 0.0,
-                "coassignment": _coassignment_matrix(aligned),
-            }
-        )
+        if switching.size and coupled_steps.size:
+            switching = switching & coupled_steps[:, None]
+        switching_rate = float(np.mean(switching[coupled_steps])) if np.any(coupled_steps) else 0.0
         agreements = [
             np.max(np.bincount(stack[:, t, n], minlength=settings.n_communities)) / len(aligned)
             for t in range(consensus.shape[0])
             for n in range(consensus.shape[1])
         ]
-        result.__dict__.update(
-            {
+        return build_community_series(
+            series=series,
+            labels=consensus,
+            method=self.cfg.name,
+            n_communities_per_window=counts,
+            extras={
+                "resolution": float(self.cfg.resolution),
+                "interlayer_coupling": float(settings.temporal_penalty),
+                "boundary_indices": (
+                    None if boundary_indices is None else np.asarray(boundary_indices, dtype=int)
+                ),
+                "mode": settings.mode,
+                "flexibility": _flexibility(consensus, boundary_indices=boundary_indices),
+                "switching": switching,
+                "switching_rate": switching_rate,
+                "coassignment": _coassignment_matrix(aligned),
                 "stability": float(np.mean(agreements)) if agreements else 1.0,
                 "objective_scores": np.asarray(scores, dtype=np.float64),
                 "n_runs": len(runs),
-            }
+                "metadata": {
+                    "connectivity_diagnostics": dict(series.diagnostics),
+                    "temporal_mode": settings.mode,
+                    "temporal_penalty": float(settings.temporal_penalty),
+                },
+            },
         )
-        return result
 
 
 @register_community("temporal")
@@ -316,8 +414,9 @@ class TemporalCommunity(_TemporalRegularizedMixin, CommunityDetector):
 
     def run(self, series: ConnectivitySeries) -> CommunitySeries:
         features = self._feature_tensor(series)
-        runs, scores = self._fit_runs(features)
-        return self._package(runs, scores)
+        boundary_indices = boundary_indices_for_series(series)
+        runs, scores = self._fit_runs(features, boundary_indices=boundary_indices)
+        return self._package(series, runs, scores, boundary_indices=boundary_indices)
 
 
 @register_community("temporal_greedy")
@@ -340,13 +439,22 @@ class TemporalGreedyCommunity(CommunityDetector):
         return self._base.detect_one(matrix)
 
     def run(self, series: ConnectivitySeries) -> CommunitySeries:
+        boundary_indices = set(boundary_indices_for_series(series).tolist())
         raw = [self.detect_one(self._prepare(w)) for w in series.matrices]
         aligned = [raw[0]]
         for idx in range(1, len(raw)):
-            aligned.append(_match_labels(aligned[-1], raw[idx]))
+            if idx in boundary_indices:
+                aligned.append(raw[idx])
+            else:
+                aligned.append(_match_labels(aligned[-1], raw[idx]))
         labels = np.stack(aligned).astype(np.int64)
         counts = np.array([len(np.unique(row)) for row in labels])
-        return CommunitySeries(labels=labels, method=self.cfg.name, n_communities_per_window=counts)
+        return build_community_series(
+            series=series,
+            labels=labels,
+            method=self.cfg.name,
+            n_communities_per_window=counts,
+        )
 
 
 __all__ = [

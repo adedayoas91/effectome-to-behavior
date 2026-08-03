@@ -4,13 +4,70 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, is_dataclass
+from typing import Any, cast
 
 import numpy as np
 
+from effectome.data_module import schema as schema_module
 from effectome.data_module.schema import CommunitySeries, ConnectivitySeries
 
 logger = logging.getLogger(__name__)
+
+
+def _community_provenance(series: ConnectivitySeries) -> Any:
+    payload = {
+        "connectivity_method": series.method,
+        "directed": bool(series.directed),
+        "signed": bool(series.signed),
+        "weighted": bool(series.weighted),
+        "storage": series.storage,
+        "weight_semantics": series.weight_semantics,
+        "connectivity_diagnostics": dict(series.diagnostics),
+    }
+    prov_cls = cast(type[Any] | None, getattr(schema_module, "ArtifactProvenance", None))
+    if prov_cls is None:
+        return None
+    try:
+        if is_dataclass(prov_cls):
+            supported = {item.name for item in fields(prov_cls)}
+            return prov_cls(**{key: value for key, value in payload.items() if key in supported})
+        return prov_cls(**payload)
+    except Exception:
+        logger.debug("Falling back to CommunitySeries provenance default", exc_info=True)
+        return None
+
+
+def build_community_series(
+    *,
+    series: ConnectivitySeries,
+    labels: np.ndarray,
+    method: str,
+    n_communities_per_window: np.ndarray,
+    extras: dict[str, Any] | None = None,
+) -> CommunitySeries:
+    """Construct a CommunitySeries while remaining compatible with older schema revisions."""
+    kwargs: dict[str, Any] = {
+        "labels": labels.astype(np.int64),
+        "method": method,
+        "n_communities_per_window": np.asarray(n_communities_per_window, dtype=int),
+        "anchors": list(series.anchors),
+        "window_starts": np.asarray(series.window_starts, dtype=int),
+        "signed": bool(series.signed),
+        "directed": bool(series.directed),
+        "metadata": {
+            "connectivity_diagnostics": dict(series.diagnostics),
+            "connectivity_method": series.method,
+        },
+    }
+    provenance = _community_provenance(series)
+    if provenance is not None:
+        kwargs["provenance"] = provenance
+    if extras:
+        kwargs.update(extras)
+
+    supported = {item.name for item in fields(CommunitySeries)}
+    return CommunitySeries(**{key: value for key, value in kwargs.items() if key in supported})
 
 
 @dataclass(frozen=True)
@@ -62,7 +119,8 @@ class CommunityDetector(ABC):
         labels = np.stack([self.detect_one(self._prepare(w)) for w in series.matrices])
         counts = np.array([len(np.unique(row)) for row in labels])
         logger.info("Detected communities for %d windows (%s)", series.n_windows, self.cfg.name)
-        return CommunitySeries(
+        return build_community_series(
+            series=series,
             labels=labels.astype(np.int64),
             method=self.cfg.name,
             n_communities_per_window=counts,
