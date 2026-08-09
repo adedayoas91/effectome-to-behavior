@@ -11,8 +11,11 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from effectome.linking import (
+    DependencySupport,
+    activity_magnitude_features,
     anchor_group_labels,
     association_with_null,
+    combined_continuity_groups,
     community_features,
     connectivity_features,
     decode_behavior,
@@ -74,25 +77,91 @@ def main(cfg: DictConfig) -> None:
     states = load_artifact(art / "graph_states.pkl")
     community = load_artifact(art / "community.pkl")
     manifold = load_artifact(art / "manifold.pkl")
+    recording = load_artifact(art / "recording.pkl")
     anchors, groups = _split_inputs_for_linking(series, manifold, str(lk.get("group_by", "recording")))
+    preprocess_dependency = recording.metadata.get("preprocess_dependency", {})
+    if (
+        preprocess_dependency.get("kind") == "global"
+        and not bool(lk.get("allow_global_preprocessing", False))
+    ):
+        raise ValueError(
+            "recording-global preprocessing cannot support prospective linking; rerun with "
+            "fold/window-fitted transforms or set linking.allow_global_preprocessing=true "
+            "for a clearly labelled retrospective sensitivity analysis"
+        )
+    dependency_support = DependencySupport(
+        lag_extension=int(lk.get("lag_extension", 0)),
+        preprocessing_past=max(
+            int(lk.get("preprocessing_past_support", 0)),
+            int(preprocess_dependency.get("past_support", 0)),
+        ),
+        preprocessing_future=max(
+            int(lk.get("preprocessing_future_support", 0)),
+            int(preprocess_dependency.get("future_support", 0)),
+        ),
+    )
 
     conn_feat = connectivity_features(series)
     state_feat = state_features(states.labels, states.n_states)
     com_feat = community_features(community)
-    manifold_dyn = manifold_speed(manifold.window_embedding, groups=groups).reshape(-1, 1)
+    manifold_prospective = bool(manifold.metadata.get("prospective_eligible", False))
+    fold_ids = manifold.metadata.get("cross_fit_fold_ids") if manifold_prospective else None
+    manifold_groups = combined_continuity_groups(
+        groups,
+        None if fold_ids is None else np.asarray(fold_ids),
+        series.n_windows,
+    )
+    manifold_dyn = manifold_speed(
+        manifold.window_embedding,
+        groups=manifold_groups,
+    ).reshape(-1, 1)
+    activity_feat = (
+        activity_magnitude_features(recording.traces.T, list(series.anchors))
+        if series.anchors
+        else np.empty((series.n_windows, 0), dtype=float)
+    )
 
     report: dict = {
         "decoding": [],
         "association": {},
         "lead_lag": {},
+        "lead_lag_activity_adjusted": {},
         "incremental": {},
         "positive_lag_incremental": {},
         "splitter": {
             "mode": "anchor_aware_grouped_purged" if anchors is not None else "purged_blocked",
             "group_by": str(lk.get("group_by", "recording")) if anchors is not None else None,
             "embargo": int(lk["embargo"]),
+            "raw_dependency_support": {
+                "lag_extension": dependency_support.lag_extension,
+                "preprocessing_past": dependency_support.preprocessing_past,
+                "preprocessing_future": dependency_support.preprocessing_future,
+                "preprocess_kind": preprocess_dependency.get("kind", "undeclared"),
+            },
         },
+        "manifold_feature_mode": manifold.metadata.get(
+            "window_embedding_mode", "undeclared_retrospective"
+        ),
+        "manifold_derivative_boundaries": "recording_and_cross_fit_fold",
     }
+    if manifold_prospective:
+        report["lead_lag"]["manifold_speed"] = lead_lag(
+            states.labels,
+            manifold_dyn[:, 0],
+            max_lag=lk["max_lag"],
+            n_bins=lk["n_bins"],
+            target_name="manifold_speed",
+            groups=manifold_groups,
+        )
+        report["lead_lag_activity_adjusted"]["manifold_speed"] = lead_lag(
+            states.labels,
+            manifold_dyn[:, 0],
+            max_lag=lk["max_lag"],
+            n_bins=lk["n_bins"],
+            target_name="manifold_speed",
+            groups=manifold_groups,
+            controls=activity_feat if activity_feat.shape[1] else None,
+        )
     for bkey in lk["behavior_keys"]:
         if bkey not in series.behavior_per_window:
             logger.warning("behavior '%s' missing from windows; skipping", bkey)
@@ -104,8 +173,11 @@ def main(cfg: DictConfig) -> None:
             ("connectivity", conn_feat),
             ("state", state_feat),
             ("community", com_feat),
-            ("manifold_dynamics", manifold_dyn),
         ]
+        if manifold_prospective:
+            feature_sets.append(("manifold_dynamics", manifold_dyn))
+        if activity_feat.shape[1]:
+            feature_sets.append(("activity_magnitude", activity_feat))
         for name, feats in feature_sets:
             res = decode_behavior(
                 feats,
@@ -117,6 +189,7 @@ def main(cfg: DictConfig) -> None:
                 embargo=lk["embargo"],
                 anchors=anchors,
                 groups=groups,
+                dependency_support=dependency_support,
             )
             report["decoding"].append(res)
 
@@ -141,8 +214,20 @@ def main(cfg: DictConfig) -> None:
             groups=groups,
         )
         report["lead_lag"][bkey] = ll
+        report["lead_lag_activity_adjusted"][bkey] = lead_lag(
+            states.labels,
+            beh,
+            max_lag=lk["max_lag"],
+            n_bins=lk["n_bins"],
+            target_name=bkey,
+            groups=groups,
+            controls=activity_feat if activity_feat.shape[1] else None,
+        )
 
-        baseline = np.concatenate([state_feat, manifold.window_embedding], axis=1)
+        baseline_parts = [state_feat, activity_feat]
+        if manifold_prospective:
+            baseline_parts.append(manifold_dyn)
+        baseline = np.concatenate(baseline_parts, axis=1)
         inc = incremental_decode_behavior(
             baseline,
             com_feat,
@@ -152,11 +237,20 @@ def main(cfg: DictConfig) -> None:
             embargo=lk["embargo"],
             anchors=anchors,
             groups=groups,
+            dependency_support=dependency_support,
         )
         report["incremental"][bkey] = inc
 
         positive_lag = int(lk.get("positive_lag", 1))
         community_mode = getattr(community, "mode", None)
+        if not manifold_prospective:
+            report["positive_lag_incremental"][bkey] = {
+                "lag": positive_lag,
+                "status": "invalid_non_cross_fitted_manifold",
+                "community_mode": community_mode,
+                "claim_boundary": "not_eligible_for_prospective_interpretation",
+            }
+            continue
         if community_mode != "prospective":
             logger.warning(
                 "community mode is %r; positive-lag community prediction requires prospective mode",
@@ -182,6 +276,11 @@ def main(cfg: DictConfig) -> None:
             )
             continue
         lag_anchors = [series.anchors[int(idx)] for idx in origins] if series.anchors else None
+        future_anchors = (
+            [series.anchors[int(idx + positive_lag)] for idx in origins]
+            if series.anchors
+            else None
+        )
         lag_groups: list[object] | None = (
             anchor_group_labels(
                 lag_anchors, group_by=str(lk.get("group_by", "recording"))
@@ -192,7 +291,12 @@ def main(cfg: DictConfig) -> None:
         future_behavior = beh[origins + positive_lag]
         current_behavior = beh[origins].astype(float).reshape(-1, 1)
         predictive_baseline = np.concatenate(
-            [current_behavior, manifold.window_embedding[origins], conn_feat[origins]],
+            [
+                current_behavior,
+                manifold_dyn[origins],
+                activity_feat[origins],
+                conn_feat[origins],
+            ],
             axis=1,
         )
         prospective_community = com_feat[origins]
@@ -205,11 +309,13 @@ def main(cfg: DictConfig) -> None:
             embargo=lk["embargo"],
             anchors=lag_anchors,
             groups=lag_groups,
+            dependency_support=dependency_support,
+            outcome_anchors=future_anchors,
         )
         report["positive_lag_incremental"][bkey] = {
             "lag": positive_lag,
             "result": positive_inc,
-            "baseline": "current_behavior_plus_manifold_plus_raw_effectome",
+            "baseline": "current_behavior_plus_manifold_speed_plus_activity_plus_raw_effectome",
             "community_mode": community_mode,
             "claim_boundary": "predictive_increment_only_not_causal_mediation",
         }

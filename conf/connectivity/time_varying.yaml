@@ -11,7 +11,12 @@ extra:
   base_estimator: granger
   temporal_lambda: 1.0
   base_extra:
+    support_test: analytic
     n_perm: 0
+    n_lags: 1
+    beta: 0.01
+    lag_aggregation: sum
     simulation: true
     temporal: true
     parallel: false
+    seed: 42

@@ -149,11 +149,15 @@ def _run_causalised_gc_single_depth(
     alpha: float,
     beta: float,
     n_perm: int,
+    support_test: str,
     n_lags: int,
     temporal: bool,
     verbose: int,
     simulation: bool,
     signed: bool,
+    ridge_alpha: float,
+    lag_aggregation: str,
+    seed: int,
 ) -> np.ndarray:
     estimator = CausalisedGC(
         n_perm=n_perm,
@@ -161,7 +165,11 @@ def _run_causalised_gc_single_depth(
         n_lags=n_lags,
         temporal=temporal,
         method=method,
+        support_test=support_test,
         signed=signed,
+        ridge_alpha=ridge_alpha,
+        lag_aggregation=lag_aggregation,
+        seed=seed,
     )
     estimator.fit(np.asarray(x, dtype=np.float64).T, verbose=verbose)
     return estimator.get_connectivity_matrix(
@@ -175,13 +183,17 @@ def make_causalised_gc_analyzer(
     method: str,
     *,
     alpha: float = 0.01,
-    beta: float = 0.001,
-    n_perm: int = 200,
+    beta: float = 0.01,
+    n_perm: int = 0,
+    support_test: str = "analytic",
     n_lags: int = 1,
     temporal: bool = True,
     verbose: int = 0,
     simulation: bool = True,
     signed: bool = True,
+    ridge_alpha: float = 1.0,
+    lag_aggregation: str = "sum",
+    seed: int = 42,
 ) -> Callable[[np.ndarray, list[int]], dict[int, np.ndarray]]:
     if method not in {"cgc", "fcgc"}:
         raise ValueError("method must be 'cgc' or 'fcgc'.")
@@ -195,11 +207,15 @@ def make_causalised_gc_analyzer(
                 alpha=alpha,
                 beta=beta,
                 n_perm=n_perm,
+                support_test=support_test,
                 n_lags=n_lags,
                 temporal=temporal,
                 verbose=verbose,
                 simulation=simulation,
                 signed=signed,
+                ridge_alpha=ridge_alpha,
+                lag_aggregation=lag_aggregation,
+                seed=seed,
             )
             for p_value in p_values
         }

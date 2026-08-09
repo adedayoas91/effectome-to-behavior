@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from effectome.attribution import community_switch_rates, qualify_candidate_drivers, signed_node_roles
 from effectome.data_module.schema import CommunitySeries, ConnectivitySeries
@@ -159,3 +160,112 @@ def test_invalid_surrogate_fails_safe():
     assert perturb.control_pvalue == 1.0
     assert perturb.validation_status == "unvalidated_counterfactual"
     assert perturb.fail_safe_reason == "surrogate_validation_failed"
+
+
+def test_manifold_surrogate_one_hot_encodes_integer_behavior_covariate():
+    series, _, manifold, behavior = _toy_lane_artifacts()
+    categorical = np.digitize(behavior, bins=[-0.3, 0.3]).astype(np.int64)
+    second_axis_manifold = ManifoldArtifact(
+        method=manifold.method,
+        behavior_key="motif",
+        full_embedding=np.column_stack(
+            [np.zeros(len(behavior), dtype=np.float32), manifold.window_embedding[:, 0]]
+        ),
+        window_embedding=np.column_stack(
+            [np.zeros(len(behavior), dtype=np.float32), manifold.window_embedding[:, 0]]
+        ),
+        target_slices=manifold.target_slices,
+        target_length=manifold.target_length,
+        window_starts=manifold.window_starts,
+    )
+
+    surrogate = fit_linear_surrogate(
+        series,
+        second_axis_manifold,
+        categorical,
+        endpoint="manifold",
+        lag=1,
+        n_folds=5,
+        embargo=2,
+        min_skill=-1e9,
+    )
+
+    assert surrogate.endpoint == "manifold"
+    assert surrogate.validation.status == "valid"
+    assert surrogate.metadata["target_dim"] == 2
+    assert surrogate.metadata["behavior_covariate_encoding"] == "categorical_one_hot"
+    assert surrogate.metadata["behavior_categories"] == [0, 1, 2]
+    assert surrogate.feature_shape == (series.n_windows - 1, series.n_neurons**2 + 2 + 3)
+    assert surrogate.model is not None
+    assert surrogate.model.coef_.shape[0] == 2
+
+    perturb = run_virtual_perturbation(
+        surrogate,
+        series,
+        second_axis_manifold,
+        categorical,
+        node_indices=[0],
+        endpoint="manifold",
+        scale=0.0,
+        n_controls=4,
+        dose_scales=[0.5, 0.0],
+    )
+    assert perturb.status == "valid"
+    assert perturb.endpoint == "manifold"
+    assert perturb.provenance["surrogate_endpoint"] == "manifold"
+    assert perturb.provenance["effect_metric"] == "mean_euclidean_latent_displacement"
+    assert perturb.effect_size != 0.0
+
+
+@pytest.mark.parametrize("endpoint", ["behavior", "joint"])
+def test_integer_behavior_cannot_be_used_as_regression_target(endpoint: str):
+    series, _, manifold, behavior = _toy_lane_artifacts()
+    categorical = np.digitize(behavior, bins=[-0.3, 0.3]).astype(np.int64)
+
+    with pytest.raises(ValueError, match="integer behavior labels are categorical"):
+        fit_linear_surrogate(series, manifold, categorical, endpoint=endpoint)
+
+
+def test_behavior_only_surrogate_retains_continuous_endpoint_path():
+    series, _, manifold, behavior = _toy_lane_artifacts()
+    surrogate = fit_linear_surrogate(
+        series,
+        manifold,
+        behavior,
+        endpoint="behavior",
+        min_skill=-1e9,
+    )
+
+    assert surrogate.endpoint == "behavior"
+    assert surrogate.metadata["target_dim"] == 1
+    perturb = run_virtual_perturbation(
+        surrogate,
+        series,
+        manifold,
+        behavior,
+        node_indices=[0],
+        endpoint="behavior",
+        n_controls=2,
+    )
+    assert perturb.status == "valid"
+
+
+def test_virtual_perturbation_rejects_endpoint_not_fitted_by_surrogate():
+    series, _, manifold, behavior = _toy_lane_artifacts()
+    surrogate = fit_linear_surrogate(
+        series,
+        manifold,
+        behavior,
+        endpoint="manifold",
+        min_skill=-1e9,
+    )
+
+    with pytest.raises(ValueError, match="incompatible with a surrogate fitted"):
+        run_virtual_perturbation(
+            surrogate,
+            series,
+            manifold,
+            behavior,
+            node_indices=[0],
+            endpoint="behavior",
+        )

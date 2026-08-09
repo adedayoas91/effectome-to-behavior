@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from scipy import signal
 
 from effectome.data_module import (
     ArtifactProvenance,
@@ -15,6 +16,8 @@ from effectome.data_module import (
     RecordingIdentity,
     TemporalAnchor,
     WindowConfig,
+    bundle_net_bandpass,
+    exclude_named_neurons,
     get_loader,
     make_overlapping_calcium_windows,
     make_taper,
@@ -51,6 +54,60 @@ def test_preprocess_zscore(synthetic_recording):
     assert pre.identity == synthetic_recording.identity
 
 
+def test_bundle_net_bandpass_matches_pinned_upstream_implementation(synthetic_recording):
+    traces = synthetic_recording.traces[:3, :200].astype(np.float64)
+    fps = synthetic_recording.fps
+    nyquist = fps / 2.0
+    sos = signal.butter(
+        4,
+        [1.0e-10 * nyquist, 0.05 * nyquist],
+        "bandpass",
+        fs=fps,
+        output="sos",
+    )
+    expected = signal.sosfilt(sos, traces, axis=1)
+    expected = np.flip(expected, axis=1)
+    expected = signal.sosfilt(sos, expected, axis=1)
+    expected = np.flip(expected, axis=1)
+
+    actual = bundle_net_bandpass(traces, fps)
+
+    assert np.allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+
+def test_bundle_net_bandpass_is_marked_retrospective_only(synthetic_recording):
+    filtered = preprocess(
+        synthetic_recording,
+        PreprocessConfig(bundle_net_bandpass=True),
+    )
+
+    assert filtered.metadata["preprocess_dependency"]["kind"] == "global_noncausal_iir"
+    assert filtered.metadata["bundle_net_reference"]["source_file"] == "functions.py"
+
+
+def test_named_neuron_exclusion_uses_exact_raw_names(synthetic_recording):
+    synthetic_recording.metadata["raw_neuron_names"] = [
+        f"raw-{idx}" for idx in range(synthetic_recording.n_neurons)
+    ]
+    synthetic_recording.metadata["canonical_neuron_names"] = [
+        f"canonical-{idx}" for idx in range(synthetic_recording.n_neurons)
+    ]
+
+    selected = exclude_named_neurons(
+        synthetic_recording,
+        ["raw-1", "canonical-2", "absent"],
+        name_source="raw",
+    )
+
+    assert selected.n_neurons == synthetic_recording.n_neurons - 1
+    assert "raw-1" not in selected.metadata["raw_neuron_names"]
+    assert selected.metadata["excluded_neuron_names"] == ["raw-1"]
+    assert selected.metadata["requested_but_absent_excluded_neuron_names"] == [
+        "canonical-2",
+        "absent",
+    ]
+
+
 def test_sliding_windows_shapes(synthetic_recording):
     w = make_windows(synthetic_recording, WindowConfig(length=100, stride=50, mode="sliding"))
     assert w.segments.shape[1] == 100
@@ -59,6 +116,41 @@ def test_sliding_windows_shapes(synthetic_recording):
     assert len(w.anchors) == w.n_windows
     for name in synthetic_recording.behavior:
         assert w.behavior_per_window[name].shape[0] == w.n_windows
+
+
+def test_per_window_neuronal_standardization_is_local_and_scale_safe():
+    traces = np.array(
+        [
+            [1, 2, 3, 4, 100, 120, 140, 160],
+            [7, 7, 7, 7, 3, 3, 3, 3],
+        ],
+        dtype=np.float32,
+    )
+    recording = NeuralRecording(
+        traces=traces.copy(),
+        time=np.arange(8, dtype=np.float64),
+        coords=None,
+        neuron_ids=np.arange(2),
+        behavior={"continuous": np.arange(8, dtype=np.float32)},
+        fps=1.0,
+    )
+
+    windows = make_windows(
+        recording,
+        WindowConfig(
+            length=4,
+            stride=4,
+            mode="sliding",
+            standardize_per_window=True,
+        ),
+    )
+
+    assert np.allclose(windows.segments.mean(axis=1), 0.0, atol=1.0e-7)
+    assert np.allclose(windows.segments[:, :, 0].std(axis=1), 1.0, atol=1.0e-7)
+    assert np.allclose(windows.segments[:, :, 1], 0.0)
+    assert np.array_equal(recording.traces, traces)
+    assert windows.metadata["neural_standardization"]["enabled"] is True
+    assert windows.metadata["neural_standardization"]["constant_window_neuron_count"] == 2
 
 
 def test_behavior_aligned_windows(synthetic_recording):

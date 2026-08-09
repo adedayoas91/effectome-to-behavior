@@ -1,0 +1,21 @@
+# V2a reticulospinal-neuron recording: fish 220119_F2, run F2_run11.
+name: v2a_rsns
+dataset_id: v2a-rsns
+recording_id: 220119_F2_run11
+animal_id: 220119_F2
+path: data/v2a-RSNs/220119_F2_run11
+signal_type: fluorescence
+cell_subset: emitter_receiver
+bad_frame_policy: boundaries
+bad_frame_indexing: zero_based
+valid_ranges: []
+gap_intervals: []
+files:
+  analysis_info: 220119_F2_F2_run11_analysis_info.json
+  traces: 220119_F2_F2_run11_cells_fluorescence_signals.npy
+  coords: 220119_F2_F2_run11_registered_cells_pos.npy
+  tail_angle: 220119_F2_F2_run11_tail_angle.npy
+  emitter_cells: 220119_F2_F2_run11_emitter_cells.npy
+  receiver_cells: 220119_F2_F2_run11_receiver_cells.npy
+behavior_keys:
+  continuous: tail_angle

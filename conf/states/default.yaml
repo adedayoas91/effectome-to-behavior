@@ -18,4 +18,13 @@ graph_states:
 transitions:
   laplace: 1.0
   n_null: 500
+  heldout_fraction: 0.3
+  seed: 42
+probabilistic:
+  n_states: 3
+  n_components: 8
+  standardize: true
+  covariance_floor: 1.0e-4
+  n_iter: 50
+  tol: 1.0e-4
   seed: 42

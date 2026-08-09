@@ -11,8 +11,10 @@ from omegaconf import DictConfig, OmegaConf
 
 from effectome.dynamics import (
     GraphStateConfig,
+    ProbabilisticStateConfig,
     TransitionConfig,
     fit_graph_states,
+    fit_probabilistic_states,
     fit_transitions,
 )
 from effectome.utils import set_seed
@@ -33,6 +35,10 @@ def main(cfg: DictConfig) -> None:
     gs_cfg = GraphStateConfig(**gs_cfg_data)
     states = fit_graph_states(series, gs_cfg)
 
+    ps_cfg_data = cast(dict[str, Any], OmegaConf.to_container(cfg.states.probabilistic, resolve=True))
+    ps_cfg = ProbabilisticStateConfig(**ps_cfg_data)
+    probabilistic = fit_probabilistic_states(series, ps_cfg)
+
     tr_cfg_data = cast(dict[str, Any], OmegaConf.to_container(cfg.states.transitions, resolve=True))
     tr_cfg = TransitionConfig(**tr_cfg_data)
     transitions = fit_transitions(
@@ -44,6 +50,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     save_artifact(states, art / "graph_states.pkl")
+    save_artifact(probabilistic, art / "probabilistic_states.pkl")
     save_artifact(transitions, art / "transitions.pkl")
     plot_transition_matrix(
         transitions.transition_matrix,
@@ -51,8 +58,11 @@ def main(cfg: DictConfig) -> None:
         fig / "transition_matrix.png",
     )
     logger.info(
-        "Stage 3 done: %d states, silhouette=%.3f, transition p=%.4f",
-        states.n_states, states.silhouette, transitions.p_value,
+        "Stage 3 done: %d states, silhouette=%.3f, transition p=%.4f, hmm ll=%.2f",
+        states.n_states,
+        states.silhouette,
+        transitions.p_value,
+        probabilistic.log_likelihood,
     )
 
 

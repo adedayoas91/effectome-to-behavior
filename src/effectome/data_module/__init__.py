@@ -1,7 +1,7 @@
 """Data module: schema, loaders, preprocessing, and windowing (Stages 0-1)."""
 
 from .loaders import get_loader, register_loader
-from .preprocess import PreprocessConfig, preprocess
+from .preprocess import PreprocessConfig, bundle_net_bandpass, exclude_named_neurons, preprocess
 from .schema import (
     ArtifactProvenance,
     CommunitySeries,
@@ -32,6 +32,8 @@ __all__ = [
     "get_loader",
     "register_loader",
     "PreprocessConfig",
+    "bundle_net_bandpass",
+    "exclude_named_neurons",
     "preprocess",
     "CalciumSegmentationConfig",
     "make_overlapping_calcium_windows",

@@ -121,6 +121,7 @@ def qualify_candidate_drivers(
     baseline = _baseline_features(behavior[origins], manifold.window_embedding[origins])
     target = np.asarray(behavior[targets])
     split_anchors = [series.anchors[int(idx)] for idx in origins] if series.anchors else None
+    outcome_anchors = [series.anchors[int(idx)] for idx in targets] if series.anchors else None
     groups: list[object] | None = (
         anchor_group_labels(split_anchors, group_by="recording").tolist() if split_anchors else None
     )
@@ -139,6 +140,7 @@ def qualify_candidate_drivers(
             embargo=embargo,
             anchors=split_anchors,
             groups=groups,
+            outcome_anchors=outcome_anchors,
         )
         control_gains: list[float] = []
         sampled_controls: list[int] = []
@@ -157,6 +159,7 @@ def qualify_candidate_drivers(
                     embargo=embargo,
                     anchors=split_anchors,
                     groups=groups,
+                    outcome_anchors=outcome_anchors,
                 )
                 control_gains.append(ctrl.gain)
         percentile = np.percentile(control_gains, matched_control_percentile) if control_gains else 0.0

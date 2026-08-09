@@ -6,6 +6,13 @@ max_lag: 10
 positive_lag: 1
 n_folds: 5
 embargo: 4    # additional same-group window-index buffer after raw-history overlap purging
+# Raw dependency support outside the stored context. Lagged predictors are built
+# inside each context by default, hence lag_extension=0. Set nonzero values for
+# external lag construction or preprocessing kernels (e.g. centered smoothing).
+lag_extension: 0
+preprocessing_past_support: 0
+preprocessing_future_support: 0
+allow_global_preprocessing: false
 group_by: recording
 null_kind: circular_shift
 block_length: 8

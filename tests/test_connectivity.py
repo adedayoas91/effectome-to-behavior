@@ -11,6 +11,7 @@ from effectome.connectivity import (
     ConnectivityEstimator,
     ConnectivityFactory,
 )
+from effectome.core import CausalisedGC
 from effectome.data_module.schema import TemporalAnchor, Window, WindowedSegments
 from effectome.experiments import analyze_with_cgc, analyze_with_cgc_star
 
@@ -45,8 +46,17 @@ def test_granger_recovers_ground_truth(windows, true_graph):
     labels = true_graph[off]
     auroc = roc_auc_score(labels, scores)
     assert auroc > 0.6, f"Granger AUROC too low: {auroc:.3f}"
-    assert series.weight_semantics == "effective_influence"
+    assert series.weight_semantics == "signed_regularized_var_coefficient"
     assert series.diagnostics["estimation_mode"] == "rolling_window"
+    assert series.diagnostics["support_kind"] == "logical_and_of_marginal_and_conditional_evidence"
+    assert series.diagnostics["support_description"] == (
+        "intersection_of_unconditional_and_conditional_evidence"
+    )
+    assert series.diagnostics["support_variant"] == "cgc"
+    assert series.diagnostics["primary_tau_policy"] == "lagged_only_tau_ge_1"
+    assert len(series.diagnostics["lag_resolved"]) == windows.n_windows
+    assert series.lagged_matrices is not None
+    assert series.lagged_matrices.shape[:2] == (windows.n_windows, 1)
 
 
 def test_granger_preserves_sign(windows):
@@ -133,3 +143,35 @@ def test_notebook_cgc_adapters_return_weighted_matrices(synthetic_recording):
     assert set(cgc_star) == {1}
     assert cgc[1].shape == (X.shape[1], X.shape[1])
     assert cgc_star[1].shape == (X.shape[1], X.shape[1])
+
+
+def test_granger_analytic_support_can_disable_permutations(windows):
+    estimator = ConnectivityFactory(
+        ConnectivityConfig(name="granger", max_lag=1, extra={"n_perm": 0, "support_test": "analytic"})
+    )
+    series = estimator.run(windows)
+    assert series.diagnostics["lag_resolved"][0]["support_test"] == "analytic"
+
+
+def test_granger_permutation_support_requires_positive_n_perm(windows):
+    estimator = ConnectivityFactory(
+        ConnectivityConfig(
+            name="granger",
+            max_lag=1,
+            extra={"n_perm": 0, "support_test": "circular_shift"},
+        )
+    )
+    with np.testing.assert_raises_regex(ValueError, "n_perm must be positive"):
+        estimator.run(windows)
+
+
+def test_circular_shift_threshold_respects_monte_carlo_resolution():
+    data = np.random.default_rng(0).normal(size=(3, 40))
+    estimator = CausalisedGC(
+        n_perm=9,
+        n_pasts=1,
+        support_test="circular_shift",
+        seed=0,
+    ).fit(data)
+    with np.testing.assert_raises_regex(ValueError, "p-value resolution"):
+        estimator.get_connectivity_matrix(alpha=0.05, beta=0.05)

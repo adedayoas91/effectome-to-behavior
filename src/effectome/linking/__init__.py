@@ -1,9 +1,20 @@
 """Linking effectome dynamics to behavior (Stage 6): stats, decoding, lead-lag."""
 
-from .alignment import LeadLagResult, change_signal, lead_lag, manifold_speed, manifold_velocity
+from .alignment import (
+    LeadLagResult,
+    activity_magnitude_features,
+    change_signal,
+    combined_continuity_groups,
+    lead_lag,
+    manifold_speed,
+    manifold_velocity,
+)
+from .comparison import EffectomeAgreement, SignedEffectomeScaler, signed_effectome_agreement
 from .decoding import (
     DecodeResult,
+    DependencySupport,
     IncrementalDecodeResult,
+    anchor_dependency_intervals,
     anchor_group_labels,
     community_features,
     connectivity_features,
@@ -28,9 +39,15 @@ from .stats import (
 __all__ = [
     "AssociationResult",
     "ConfidenceInterval",
+    "DependencySupport",
+    "EffectomeAgreement",
     "DecodeResult",
     "IncrementalDecodeResult",
     "LeadLagResult",
+    "SignedEffectomeScaler",
+    "activity_magnitude_features",
+    "combined_continuity_groups",
+    "anchor_dependency_intervals",
     "anchor_group_labels",
     "association_with_null",
     "benjamini_hochberg",
@@ -49,5 +66,6 @@ __all__ = [
     "purged_blocked_splits",
     "state_behavior_mi",
     "state_features",
+    "signed_effectome_agreement",
     "valid_positive_lag_origins",
 ]

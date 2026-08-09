@@ -1,54 +1,96 @@
-"""Notebook-friendly causalised Granger estimators.
+"""Notebook-friendly c-GC / c-GC* estimators with explicit support selection.
 
-This module follows the structure of the markovianity_diagnostic GcStar
-implementation so the same analysis style can be reused in effectome notebooks.
-The main difference is that signed weights are preserved by default so the
-output can support excitation/inhibition analyses.
+The primary directed effectome is lagged-only (tau >= 1). Support is selected by
+intersecting unconditional and conditional evidence, while signed weights come from
+a separate ridge-regularized VAR fit restricted to the selected support.
 """
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 
 import numpy as np
-
-try:
-    from numba import jit
-except Exception:  # pragma: no cover - optional runtime speedup
-    def jit(*_args, **_kwargs):
-        def decorator(func):
-            return func
-
-        return decorator
+from scipy.stats import t as student_t
 
 
-@jit(nopython=True)
-def _perm_test_numba(x: np.ndarray, y: np.ndarray, n_perm: int) -> float:
-    """Circular-shift permutation p-value for correlation magnitude."""
-    if x.size <= 1 or y.size <= 1 or n_perm <= 0:
+def _corrcoef_safe(x: np.ndarray, y: np.ndarray) -> float:
+    if x.size <= 1 or y.size <= 1:
         return 0.0
+    x_std = float(np.std(x))
+    y_std = float(np.std(y))
+    if x_std <= 1e-12 or y_std <= 1e-12:
+        return 0.0
+    return float(np.corrcoef(x, y)[0, 1])
 
-    count = 0
-    corr_obs = np.corrcoef(x, y)[1, 0]
-    low = 1
-    high = x.size
 
-    for _ in range(n_perm):
-        shift = np.random.randint(low, high)
-        rolled = np.hstack((x[shift:], x[:shift]))
-        corr_perm = np.corrcoef(rolled, y)[1, 0]
-        if np.abs(corr_perm) >= np.abs(corr_obs):
-            count += 1
+def _corr_against_matrix(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Correlate one sample-aligned series against every row of ``y``."""
+    x_arr = np.asarray(x, dtype=np.float64)
+    y_arr = np.asarray(y, dtype=np.float64)
+    if y_arr.ndim == 1:
+        y_arr = y_arr[np.newaxis, :]
+    if x_arr.shape[0] != y_arr.shape[1]:
+        raise ValueError("x and y must align across the sample axis")
+    x_centered = x_arr - x_arr.mean()
+    y_centered = y_arr - y_arr.mean(axis=1, keepdims=True)
+    x_scale = float(np.linalg.norm(x_centered))
+    y_scale = np.linalg.norm(y_centered, axis=1)
+    denom = x_scale * y_scale
+    corr = np.zeros(y_arr.shape[0], dtype=np.float64)
+    valid = denom > 1e-12
+    if np.any(valid):
+        corr[valid] = (y_centered[valid] @ x_centered) / denom[valid]
+    return np.clip(corr, -1.0, 1.0)
 
-    return count / n_perm
+
+def _analytic_corr_pvalues(corr: np.ndarray, *, n_obs: int, n_controls: int = 0) -> np.ndarray:
+    """Two-sided analytic p-values for correlation / partial correlation."""
+    dof = int(n_obs) - int(n_controls) - 2
+    if dof <= 0:
+        return np.ones_like(np.asarray(corr, dtype=np.float64))
+    corr_arr = np.clip(np.asarray(corr, dtype=np.float64), -0.999999, 0.999999)
+    statistic = np.abs(corr_arr) * np.sqrt(dof / np.maximum(1e-12, 1.0 - corr_arr * corr_arr))
+    return 2.0 * student_t.sf(statistic, dof)
+
+
+def _circular_shift_pvalue(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    n_perm: int,
+    rng: np.random.Generator,
+) -> float:
+    """Circular-shift permutation p-value for correlation magnitude."""
+    if x.size <= 1 or y.size <= 1:
+        raise ValueError("support inference needs at least two aligned samples")
+    if n_perm <= 0:
+        corr = np.clip(abs(_corrcoef_safe(x, y)), 0.0, 1.0 - 1e-12)
+        dof = max(int(x.size) - 2, 1)
+        statistic = corr * np.sqrt(dof / max(1.0 - corr * corr, 1e-12))
+        return float(2.0 * student_t.sf(statistic, dof))
+
+    x_centered = np.asarray(x, dtype=np.float64) - np.mean(x)
+    y_centered = np.asarray(y, dtype=np.float64) - np.mean(y)
+    denominator = float(np.linalg.norm(x_centered) * np.linalg.norm(y_centered))
+    if denominator <= 1e-12:
+        return 1.0
+    corr_obs = abs(float(x_centered @ y_centered) / denominator)
+    # Every circular-shift correlation is available from one FFT-based circular
+    # cross-correlation. Sampling its non-zero shifts preserves the configured
+    # Monte-Carlo null without repeatedly allocating rolled vectors.
+    circular = np.fft.ifft(
+        np.conj(np.fft.fft(x_centered)) * np.fft.fft(y_centered)
+    ).real
+    shifts = rng.integers(1, x.size, size=n_perm)
+    permuted = np.abs(circular[shifts] / denominator)
+    count = int(np.sum(permuted >= corr_obs))
+    return float((count + 1) / (n_perm + 1))
 
 
 def regression_residual(x: np.ndarray, z: np.ndarray) -> np.ndarray:
     """Return residuals after regressing ``z`` out of ``x``."""
     if z.size == 0:
         return x - np.mean(x)
-
     if z.ndim == 1:
         z = z[np.newaxis, :]
 
@@ -57,22 +99,58 @@ def regression_residual(x: np.ndarray, z: np.ndarray) -> np.ndarray:
     return x - design @ coef
 
 
+def regression_residual_matrix(y: np.ndarray, z: np.ndarray) -> np.ndarray:
+    """Residualize every row of ``y`` against the shared conditioning set ``z``."""
+    y_arr = np.asarray(y, dtype=np.float64)
+    if y_arr.ndim == 1:
+        return regression_residual(y_arr, z)[np.newaxis, :]
+    if z.size == 0:
+        return y_arr - y_arr.mean(axis=1, keepdims=True)
+    if z.ndim == 1:
+        z = z[np.newaxis, :]
+
+    design = np.vstack([z, np.ones(z.shape[1])]).T
+    coef, *_ = np.linalg.lstsq(design, y_arr.T, rcond=None)
+    return (y_arr.T - design @ coef).T
+
+
+def _ridge_regression(x: np.ndarray, y: np.ndarray, alpha: float) -> np.ndarray:
+    if x.ndim != 2:
+        raise ValueError("x must be 2D")
+    if x.shape[0] != y.shape[0]:
+        raise ValueError("x and y must have the same number of rows")
+    if x.shape[1] == 0:
+        return np.zeros(0, dtype=np.float64)
+
+    x_mean = x.mean(axis=0, keepdims=True)
+    y_mean = float(np.mean(y))
+    x_centered = x - x_mean
+    y_centered = y - y_mean
+    gram = x_centered.T @ x_centered
+    penalty = max(float(alpha), 0.0) * np.eye(x_centered.shape[1], dtype=np.float64)
+    rhs = x_centered.T @ y_centered
+    return np.linalg.solve(gram + penalty, rhs)
+
+
 @dataclass
 class CausalisedGC:
     """c-GC / c-GC* estimator.
 
-    Parameters mirror the markovianity_diagnostic estimator.
     ``method="cgc"`` uses the pairwise causalised conditioning set.
     ``method="fcgc"`` uses the full-conditioning c-GC* variant.
     """
 
-    n_perm: int = 200
+    n_perm: int = 0
     n_pasts: int = 1
     n_lags: int = 1
     temporal: bool = True
     method: str = "cgc"
+    support_test: str = "analytic"
     parallel: bool = False
     signed: bool = True
+    ridge_alpha: float = 1.0
+    seed: int = 42
+    lag_aggregation: str = "sum"
     corr_: np.ndarray | None = None
     pval_corr_: np.ndarray | None = None
     inv_corr_: np.ndarray | None = None
@@ -81,142 +159,221 @@ class CausalisedGC:
     def __post_init__(self) -> None:
         if self.method not in {"cgc", "fcgc"}:
             raise ValueError("method must be 'cgc' or 'fcgc'.")
-        if self.n_pasts < 0:
-            raise ValueError("n_pasts must be non-negative.")
-        if self.n_lags < 1:
-            raise ValueError("n_lags must be at least 1.")
-        self.logger = logging.getLogger(__name__)
+        if self.support_test not in {"analytic", "circular_shift"}:
+            raise ValueError("support_test must be 'analytic' or 'circular_shift'.")
+        if self.support_test == "circular_shift" and self.n_perm <= 0:
+            raise ValueError("n_perm must be positive when support_test='circular_shift'.")
+        if self.n_pasts < 1:
+            raise ValueError("n_pasts must be at least 1.")
+        if self.n_lags < 1 or self.n_lags > self.n_pasts:
+            raise ValueError("n_lags must lie in [1, n_pasts].")
+        if self.lag_aggregation not in {"sum", "mean", "max_abs"}:
+            raise ValueError("lag_aggregation must be one of {'sum', 'mean', 'max_abs'}.")
 
-    def shift_data(self, arr: np.ndarray) -> np.ndarray:
-        """Create stacked lagged views of ``arr`` with shape ``(n_variables, T)``."""
-        self.n_neur = arr.shape[0]
-        if self.n_pasts == 0:
-            return arr.copy()
+    def _lagged_rows(self, data: np.ndarray) -> np.ndarray:
+        rows = []
+        for lag in range(1, self.n_pasts + 1):
+            rows.append(data[:, self.n_pasts - lag : data.shape[1] - lag])
+        return np.concatenate(rows, axis=0)
 
-        trimmed = arr[:, self.n_pasts :]
-        for index in range(self.n_pasts):
-            start = self.n_pasts - 1 - index
-            stop = -index - 1
-            trimmed = np.r_[trimmed, arr[:, start:stop]]
-        return trimmed
+    def _targets(self, data: np.ndarray) -> np.ndarray:
+        return data[:, self.n_pasts :]
 
-    def get_conditioning_set(self, data: np.ndarray, i: int, j: int) -> np.ndarray:
-        """Build the c-GC conditioning set for directed pair ``i -> j``."""
-        shifted = self.shift_data(data.copy())
-        source_index = i % self.n_neur
-        excluded_history = [
-            source_index + lag * self.n_neur for lag in range(i // self.n_neur)
-        ]
-        excluded = np.r_[np.array(excluded_history, dtype=int), [i, j]]
-        return np.delete(shifted, excluded, axis=0)
+    def _conditioning_indices(self, predictor_index: int) -> np.ndarray:
+        all_indices = np.arange(self.n_pasts * self.n_neur, dtype=int)
+        if self.method == "fcgc":
+            return all_indices[all_indices != predictor_index]
 
-    def correlation_func(self, data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Compute unconditional dependence and circular-shift p-values."""
-        self.n_neur = data.shape[0]
-        shifted = self.shift_data(data.copy())
-        corr = np.corrcoef(shifted)
-        if not self.signed:
-            corr = np.abs(corr)
+        lag_index = predictor_index // self.n_neur
+        source_index = predictor_index % self.n_neur
+        excluded = {predictor_index}
+        for previous_lag in range(lag_index):
+            excluded.add(previous_lag * self.n_neur + source_index)
+        return np.asarray([idx for idx in all_indices if idx not in excluded], dtype=int)
 
-        n_rows = shifted.shape[0]
-        pvals = np.zeros((n_rows, self.n_neur))
-        for i in range(n_rows):
-            for j in range(self.n_neur):
-                pvals[i, j] = _perm_test_numba(shifted[i, :], shifted[j, :], self.n_perm)
-        return corr[:, : self.n_neur], pvals
+    def _compute_support_statistics(self) -> None:
+        n_rows = self.shifted_data.shape[0]
+        self.corr_ = np.zeros((n_rows, self.n_neur), dtype=np.float64)
+        self.pval_corr_ = np.ones((n_rows, self.n_neur), dtype=np.float64)
+        self.inv_corr_ = np.zeros((n_rows, self.n_neur), dtype=np.float64)
+        self.pval_inv_corr_ = np.ones((n_rows, self.n_neur), dtype=np.float64)
 
-    def inv_correlation_func(self, data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Compute conditional dependence using residual correlations."""
-        self.n_neur = data.shape[0]
-        shifted = self.shift_data(data.copy())
-        n_rows = shifted.shape[0]
-        inv_corr = np.zeros((n_rows, self.n_neur))
-        pvals = np.zeros((n_rows, self.n_neur))
+        rng = np.random.default_rng(self.seed)
+        for predictor_index in range(n_rows):
+            x = self.shifted_data[predictor_index]
+            cond_idx = self._conditioning_indices(predictor_index)
+            z = self.shifted_data[cond_idx] if cond_idx.size else np.empty((0, x.size))
+            x_res = regression_residual(x, z)
+            y_residuals = regression_residual_matrix(self.target_data, z)
+            corr = _corr_against_matrix(x, self.target_data)
+            inv_corr = _corr_against_matrix(x_res, y_residuals)
+            if not self.signed:
+                corr = np.abs(corr)
+                inv_corr = np.abs(inv_corr)
+            self.corr_[predictor_index] = corr
+            self.inv_corr_[predictor_index] = inv_corr
 
-        for i in range(n_rows):
-            for j in range(self.n_neur):
-                x = shifted[i]
-                y = shifted[j]
-                if self.method == "fcgc":
-                    z = np.delete(shifted.copy(), [i, j], axis=0)
-                else:
-                    z = self.get_conditioning_set(data, i, j)
+            if self.support_test == "analytic":
+                self.pval_corr_[predictor_index] = _analytic_corr_pvalues(corr, n_obs=x.size)
+                self.pval_inv_corr_[predictor_index] = _analytic_corr_pvalues(
+                    inv_corr,
+                    n_obs=x_res.size,
+                    n_controls=int(z.shape[0]),
+                )
+                continue
 
-                x_res = regression_residual(x, z)
-                y_res = regression_residual(y, z)
-                corr = np.corrcoef(x_res, y_res)[1, 0]
-                inv_corr[i, j] = corr if self.signed else np.abs(corr)
-                pvals[i, j] = _perm_test_numba(x_res, y_res, self.n_perm)
-
-        return inv_corr, pvals
+            for target_index in range(self.n_neur):
+                y = self.target_data[target_index]
+                self.pval_corr_[predictor_index, target_index] = _circular_shift_pvalue(
+                    x,
+                    y,
+                    n_perm=self.n_perm,
+                    rng=rng,
+                )
+                self.pval_inv_corr_[predictor_index, target_index] = _circular_shift_pvalue(
+                    x_res,
+                    y_residuals[target_index],
+                    n_perm=self.n_perm,
+                    rng=rng,
+                )
 
     def fit(self, data: np.ndarray, verbose: int = 0) -> CausalisedGC:
         """Fit on ``data`` shaped ``(n_variables, T)``."""
         del verbose
         self.data = np.asarray(data, dtype=np.float64).copy()
-        self.shifted_data = self.shift_data(self.data)
-
-        if self.parallel:
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                corr_future = executor.submit(self.correlation_func, self.data)
-                inv_future = executor.submit(self.inv_correlation_func, self.data)
-                self.corr_, self.pval_corr_ = corr_future.result()
-                self.inv_corr_, self.pval_inv_corr_ = inv_future.result()
-        else:
-            self.corr_, self.pval_corr_ = self.correlation_func(self.data)
-            self.inv_corr_, self.pval_inv_corr_ = self.inv_correlation_func(self.data)
+        self.n_neur = self.data.shape[0]
+        if self.data.shape[1] <= self.n_pasts:
+            raise ValueError("time series is too short for the requested lag depth")
+        self.shifted_data = self._lagged_rows(self.data)
+        self.target_data = self._targets(self.data)
+        self.design_ = self.shifted_data.T
+        self._compute_support_statistics()
         return self
 
-    def get_connectivity_matrix(
-        self,
-        *,
-        simulation: bool = True,
-        alpha: float = 0.01,
-        beta: float = 0.001,
-    ) -> np.ndarray:
-        """Construct a weighted connectivity matrix from significance masks."""
+    def _support_mask(self, alpha: float, beta: float) -> np.ndarray:
         if (
             self.corr_ is None
             or self.inv_corr_ is None
             or self.pval_corr_ is None
             or self.pval_inv_corr_ is None
         ):
-            raise RuntimeError("fit must be called before get_connectivity_matrix.")
+            raise RuntimeError("fit must be called before computing support")
+        resolution = 1.0 / (self.n_perm + 1) if self.n_perm > 0 else 0.0
+        if self.n_perm > 0 and (alpha + 1e-15 < resolution or beta + 1e-15 < resolution):
+            raise ValueError(
+                "alpha and beta must be at least the Monte-Carlo p-value resolution "
+                f"1/(n_perm+1)={resolution:.6g}; increase n_perm or relax the threshold"
+            )
+        support = (self.pval_corr_ <= alpha) & (self.pval_inv_corr_ <= beta)
+        lagged_support = support.reshape(self.n_pasts, self.n_neur, self.n_neur)
+        diagonal = np.arange(self.n_neur)
+        lagged_support[:, diagonal, diagonal] = False
+        return lagged_support
 
-        sig_corr = np.multiply(self.corr_, self.pval_corr_ <= alpha)
-        sig_inv = np.multiply(self.inv_corr_, self.pval_inv_corr_ <= beta)
-        inferred = np.logical_and(sig_corr != 0, sig_inv != 0)
+    def _lagged_coefficients(self, support: np.ndarray) -> np.ndarray:
+        coefficients = np.zeros((self.n_pasts, self.n_neur, self.n_neur), dtype=np.float64)
+        for target_index in range(self.n_neur):
+            flat_support = support[:, :, target_index].reshape(-1)
+            if not np.any(flat_support):
+                continue
+            coef = _ridge_regression(
+                self.design_[:, flat_support],
+                self.target_data[target_index],
+                self.ridge_alpha,
+            )
+            full = np.zeros(self.design_.shape[1], dtype=np.float64)
+            full[flat_support] = coef
+            coefficients[:, :, target_index] = full.reshape(self.n_pasts, self.n_neur)
+        if not self.signed:
+            coefficients = np.abs(coefficients)
+        return coefficients
 
-        all_lags: list[np.ndarray] = []
-        n_neur = inferred.shape[1]
-        for lag in range(self.n_pasts + 1):
-            start = lag * n_neur
-            stop = (lag + 1) * n_neur
-            all_lags.append(inferred[start:stop, 0:n_neur])
-
-        if simulation:
-            lag_ids = [1] if len(all_lags) > 1 else [0]
-            if self.n_lags > 1:
-                max_lag = min(self.n_lags, len(all_lags) - 1)
-                lag_ids.extend(range(2, max_lag + 1))
-        elif self.n_lags == 1:
-            lag_ids = [0, 1] if len(all_lags) > 1 else [0]
+    def collapse_lagged_coefficients(
+        self,
+        lagged_coefficients: np.ndarray,
+        *,
+        aggregation: str | None = None,
+        n_lags: int | None = None,
+    ) -> np.ndarray:
+        aggregation = aggregation or self.lag_aggregation
+        n_lags = int(self.n_lags if n_lags is None else n_lags)
+        if n_lags < 1 or n_lags > self.n_pasts:
+            raise ValueError("n_lags must lie in [1, n_pasts].")
+        selected = lagged_coefficients[:n_lags]
+        if aggregation == "sum":
+            collapsed = selected.sum(axis=0)
+        elif aggregation == "mean":
+            collapsed = selected.mean(axis=0)
+        elif aggregation == "max_abs":
+            indices = np.argmax(np.abs(selected), axis=0, keepdims=True)
+            collapsed = np.take_along_axis(selected, indices, axis=0)[0]
         else:
-            max_lag = min(self.n_lags, len(all_lags) - 1)
-            lag_ids = list(range(0, max_lag + 1))
+            raise ValueError(f"unknown aggregation '{aggregation}'")
+        np.fill_diagonal(collapsed, 0.0)
+        return collapsed
 
-        conn = np.zeros((n_neur, n_neur), dtype=np.float64)
-        for lag in lag_ids:
-            start = lag * n_neur
-            stop = (lag + 1) * n_neur
-            weights = self.corr_[start:stop, :]
-            conn += np.multiply(weights, all_lags[lag])
+    def get_connectivity_matrix(
+        self,
+        *,
+        simulation: bool = True,
+        alpha: float = 0.01,
+        beta: float = 0.01,
+        aggregation: str | None = None,
+        return_lagged: bool = False,
+    ) -> np.ndarray:
+        """Construct the lagged or collapsed connectivity estimate."""
+        if not simulation:
+            raise ValueError("tau=0 edges are not part of the primary c-GC effectome")
 
-        self.conn_mat = conn
-        np.fill_diagonal(self.conn_mat, 0.0)
-        return self.conn_mat
+        support = self._support_mask(alpha, beta)
+        lagged_coefficients = self._lagged_coefficients(support)
+        collapsed = self.collapse_lagged_coefficients(
+            lagged_coefficients,
+            aggregation=aggregation,
+            n_lags=self.n_lags,
+        )
+
+        self.last_support_ = support
+        self.last_lagged_coefficients_ = lagged_coefficients
+        self.conn_mat = collapsed
+        return lagged_coefficients if return_lagged else collapsed
+
+    def summary(self, *, alpha: float, beta: float, aggregation: str | None = None) -> dict[str, object]:
+        if not hasattr(self, "last_support_"):
+            self.get_connectivity_matrix(alpha=alpha, beta=beta, aggregation=aggregation)
+        support = self.last_support_
+        lagged = self.last_lagged_coefficients_
+        resolution = 1.0 / (self.n_perm + 1) if self.n_perm > 0 else 0.0
+        return {
+            "method": self.method,
+            "n_perm": self.n_perm if self.support_test == "circular_shift" else 0,
+            "n_pasts": self.n_pasts,
+            "n_lags": self.n_lags,
+            "ridge_alpha": self.ridge_alpha,
+            "lag_aggregation": aggregation or self.lag_aggregation,
+            "primary_tau_policy": "lagged_only_tau_ge_1",
+            "support_kind": "logical_and_of_marginal_and_conditional_evidence",
+            "support_test": self.support_test,
+            "support_test_assumption": (
+                "analytic correlation calibration; autocorrelation-aware sensitivity required"
+                if self.support_test == "analytic"
+                else "circular shifts preserve each tested series' marginal autocorrelation"
+            ),
+            "signed_weight_source": "ridge_var_on_selected_support",
+            "lag_support_counts": support[: self.n_lags].sum(axis=(1, 2)).astype(int).tolist(),
+            "lag_nonzero_weight_counts": (
+                (np.abs(lagged[: self.n_lags]) > 0.0)
+                .sum(axis=(1, 2))
+                .astype(int)
+                .tolist()
+            ),
+            "support_density": float(np.mean(support[: self.n_lags])),
+            "pvalue_resolution": (
+                float(resolution) if self.support_test == "circular_shift" else None
+            ),
+            "alpha": float(alpha),
+            "beta": float(beta),
+        }
 
 
 GcStar = CausalisedGC

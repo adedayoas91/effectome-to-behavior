@@ -1,0 +1,18 @@
+# Multivariate c-GC* with stricter conditioning-depth support and signed ridge-VAR weights.
+name: granger_star
+max_lag: 2
+alpha: 0.05
+partial: false
+ridge: 1.0
+absolute: false
+threshold: 0.0
+extra:
+  support_test: analytic
+  n_perm: 0           # only used when support_test=circular_shift
+  n_lags: 2
+  beta: 0.01
+  lag_aggregation: sum
+  simulation: true
+  temporal: true
+  parallel: false
+  seed: 42

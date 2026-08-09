@@ -46,9 +46,65 @@ def _design_origins(series: ConnectivitySeries, lag: int) -> np.ndarray:
     return np.asarray(origins, dtype=int)
 
 
+_SURROGATE_ENDPOINTS = {"joint", "manifold", "behavior"}
+_PERTURBATION_ENDPOINTS = {"manifold", "behavior"}
+
+
+def _validate_surrogate_endpoint(endpoint: str) -> None:
+    if endpoint not in _SURROGATE_ENDPOINTS:
+        raise ValueError(
+            f"unknown surrogate endpoint {endpoint!r}; expected one of {sorted(_SURROGATE_ENDPOINTS)}"
+        )
+
+
+def _behavior_design(
+    behavior: np.ndarray,
+    n_windows: int,
+    *,
+    categories: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, str, np.ndarray | None]:
+    """Return behavior values and stable current-state covariates.
+
+    Integer-valued behavior is treated as categorical state rather than as an
+    ordered scalar.  The returned categories can be reused when rebuilding the
+    design matrix for a fitted model.
+    """
+    values = np.asarray(behavior)
+    if values.ndim == 2 and values.shape[1] == 1:
+        values = values[:, 0]
+    if values.ndim != 1:
+        raise ValueError("behavior must be a one-dimensional array")
+    if values.shape[0] != n_windows:
+        raise ValueError(f"behavior length {values.shape[0]} does not match connectivity windows {n_windows}")
+
+    categorical = np.issubdtype(values.dtype, np.integer) or np.issubdtype(values.dtype, np.bool_)
+    if not categorical:
+        continuous = np.asarray(values, dtype=float)
+        if not np.all(np.isfinite(continuous)):
+            raise ValueError("behavior contains non-finite values")
+        return continuous, continuous.reshape(-1, 1), "continuous", None
+
+    fitted_categories = np.unique(values) if categories is None else np.asarray(categories)
+    if fitted_categories.ndim != 1 or fitted_categories.size == 0:
+        raise ValueError("categorical behavior requires at least one fitted category")
+    known = np.isin(values, fitted_categories)
+    if not np.all(known):
+        unknown = np.unique(values[~known]).tolist()
+        raise ValueError(f"behavior contains categories not seen during surrogate fitting: {unknown}")
+    one_hot = (values[:, None] == fitted_categories[None, :]).astype(float)
+    return values, one_hot, "categorical_one_hot", fitted_categories
+
+
 def _build_design(
-    series: ConnectivitySeries, manifold: ManifoldArtifact, behavior: np.ndarray, lag: int
+    series: ConnectivitySeries,
+    manifold: ManifoldArtifact,
+    behavior: np.ndarray,
+    lag: int,
+    *,
+    endpoint: str = "joint",
+    behavior_categories: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
+    _validate_surrogate_endpoint(endpoint)
     if lag <= 0:
         raise ValueError("lag must be positive")
     origins = _design_origins(series, lag)
@@ -57,9 +113,33 @@ def _build_design(
     targets = origins + lag
     conn = _flatten_connectivity(series)
     cur_latent = np.asarray(manifold.window_embedding, dtype=float)
-    cur_behavior = np.asarray(behavior, dtype=float).reshape(-1, 1)
-    x = np.concatenate([conn[origins], cur_latent[origins], cur_behavior[origins]], axis=1)
-    y = np.concatenate([cur_latent[targets], cur_behavior[targets]], axis=1)
+    if cur_latent.shape[0] != series.n_windows:
+        raise ValueError(
+            "manifold window count does not match connectivity windows: "
+            f"{cur_latent.shape[0]} != {series.n_windows}"
+        )
+    behavior_values, behavior_covariates, encoding, _ = _behavior_design(
+        behavior,
+        series.n_windows,
+        categories=behavior_categories,
+    )
+    if encoding == "categorical_one_hot" and endpoint in {"joint", "behavior"}:
+        raise ValueError(
+            "integer behavior labels are categorical and cannot be regressed as a behavior target; "
+            "fit with endpoint='manifold' or provide a continuous behavior target"
+        )
+
+    x = np.concatenate([conn[origins], cur_latent[origins], behavior_covariates[origins]], axis=1)
+    future_latent = cur_latent[targets]
+    if endpoint == "manifold":
+        y = future_latent
+    else:
+        future_behavior = np.asarray(behavior_values[targets], dtype=float).reshape(-1, 1)
+        y = (
+            future_behavior
+            if endpoint == "behavior"
+            else np.concatenate([future_latent, future_behavior], axis=1)
+        )
     return x, y
 
 
@@ -80,6 +160,7 @@ class LinearSurrogateModel:
     model: Ridge | None = None
     feature_shape: tuple[int, int] | None = None
     metadata: dict = field(default_factory=dict)
+    endpoint: str = "joint"
 
     def predict(self, x: np.ndarray) -> np.ndarray:
         if self.model is None:
@@ -123,11 +204,28 @@ def fit_linear_surrogate(
     n_folds: int = 5,
     embargo: int = 0,
     min_skill: float = 0.0,
+    endpoint: str = "joint",
 ) -> LinearSurrogateModel:
-    """Fit and validate a ridge surrogate for next latent+behavior state."""
-    x, y = _build_design(series, manifold, behavior, lag)
+    """Fit and validate a ridge surrogate for a future endpoint.
+
+    ``joint`` preserves the historical latent-plus-behavior target.  Integer
+    behavior codes are accepted as one-hot current-state covariates for a
+    manifold endpoint, but are rejected when behavior itself is a regression
+    target because numeric code distances have no categorical meaning.
+    """
+    _validate_surrogate_endpoint(endpoint)
+    _, _, behavior_encoding, behavior_categories = _behavior_design(behavior, series.n_windows)
+    x, y = _build_design(
+        series,
+        manifold,
+        behavior,
+        lag,
+        endpoint=endpoint,
+        behavior_categories=behavior_categories,
+    )
     origins = _design_origins(series, lag)
     split_anchors = [series.anchors[int(idx)] for idx in origins] if series.anchors else None
+    outcome_anchors = [series.anchors[int(idx + lag)] for idx in origins] if series.anchors else None
     groups: list[object] | None = (
         anchor_group_labels(split_anchors, group_by="recording").tolist() if split_anchors else None
     )
@@ -140,6 +238,7 @@ def fit_linear_surrogate(
         embargo=embargo,
         anchors=split_anchors,
         groups=groups,
+        outcome_anchors=outcome_anchors,
     ):
         model = Ridge(alpha=ridge_alpha)
         model.fit(x[train], y[train])
@@ -162,10 +261,17 @@ def fit_linear_surrogate(
         ridge_alpha=ridge_alpha,
         lag=lag,
         validation=validation,
+        endpoint=endpoint,
         model=final,
-        feature_shape=x.shape,
+        feature_shape=(int(x.shape[0]), int(x.shape[1])),
         metadata={
             "target_dim": int(y.shape[1]),
+            "manifold_target_dim": int(manifold.window_embedding.shape[1]),
+            "endpoint": endpoint,
+            "behavior_covariate_encoding": behavior_encoding,
+            "behavior_categories": (
+                behavior_categories.tolist() if behavior_categories is not None else None
+            ),
             "design_origins": origins,
             "split_mode": "anchor_aware_grouped_purged" if split_anchors else "purged_blocked",
             "validation_baseline": "autoregressive_latent_plus_behavior_without_connectivity",
@@ -175,8 +281,12 @@ def fit_linear_surrogate(
 
 def _perturb_series(series: ConnectivitySeries, node_indices: list[int], scale: float) -> ConnectivitySeries:
     mats = np.array(series.matrices, copy=True)
+    source_lagged = getattr(series, "lagged_matrices", None)
+    lagged = np.array(source_lagged, copy=True) if source_lagged is not None else None
     for node in node_indices:
         mats[:, node, :] *= scale
+        if lagged is not None:
+            lagged[:, :, node, :] *= scale
     return ConnectivitySeries(
         matrices=mats,
         window_starts=np.array(series.window_starts, copy=True),
@@ -190,7 +300,57 @@ def _perturb_series(series: ConnectivitySeries, node_indices: list[int], scale: 
         weight_semantics=series.weight_semantics,
         diagnostics=dict(series.diagnostics),
         provenance=series.provenance,
+        lagged_matrices=lagged,
     )
+
+
+def _fitted_endpoint(model: LinearSurrogateModel) -> str:
+    endpoint = str(getattr(model, "endpoint", model.metadata.get("endpoint", "joint")))
+    _validate_surrogate_endpoint(endpoint)
+    return endpoint
+
+
+def _validate_perturbation_endpoint(model: LinearSurrogateModel, endpoint: str) -> str:
+    if endpoint not in _PERTURBATION_ENDPOINTS:
+        raise ValueError(
+            f"unknown perturbation endpoint {endpoint!r}; expected one of {sorted(_PERTURBATION_ENDPOINTS)}"
+        )
+    fitted_endpoint = _fitted_endpoint(model)
+    if fitted_endpoint != "joint" and endpoint != fitted_endpoint:
+        raise ValueError(
+            f"perturbation endpoint {endpoint!r} is incompatible with a surrogate fitted for "
+            f"endpoint {fitted_endpoint!r}"
+        )
+    return fitted_endpoint
+
+
+def _prediction_endpoint(model: LinearSurrogateModel, predictions: np.ndarray, endpoint: str) -> np.ndarray:
+    fitted_endpoint = _validate_perturbation_endpoint(model, endpoint)
+    pred = np.asarray(predictions, dtype=float)
+    if pred.ndim == 1:
+        pred = pred.reshape(-1, 1)
+    if pred.ndim != 2:
+        raise ValueError(f"surrogate predictions must be 2D, got shape {pred.shape}")
+    expected_dim = int(model.metadata.get("target_dim", pred.shape[1]))
+    if pred.shape[1] != expected_dim:
+        raise ValueError(
+            f"surrogate prediction dimension {pred.shape[1]} does not match fitted target "
+            f"dimension {expected_dim}"
+        )
+
+    if fitted_endpoint == "behavior":
+        if pred.shape[1] != 1:
+            raise ValueError("behavior surrogate must predict exactly one target column")
+        return pred[:, 0]
+    if fitted_endpoint == "manifold":
+        return pred
+
+    manifold_dim = int(model.metadata.get("manifold_target_dim", pred.shape[1] - 1))
+    if manifold_dim <= 0 or manifold_dim >= pred.shape[1]:
+        raise ValueError("joint surrogate target layout must contain manifold and behavior columns")
+    if endpoint == "behavior":
+        return pred[:, manifold_dim]
+    return pred[:, :manifold_dim]
 
 
 def _mean_endpoint_effect(
@@ -204,10 +364,22 @@ def _mean_endpoint_effect(
     baseline_endpoint: np.ndarray,
 ) -> float:
     perturbed = _perturb_series(series, node_indices, scale)
-    pert_x, _ = _build_design(perturbed, manifold, behavior, model.lag)
+    fitted_endpoint = _fitted_endpoint(model)
+    categories = model.metadata.get("behavior_categories")
+    pert_x, _ = _build_design(
+        perturbed,
+        manifold,
+        behavior,
+        model.lag,
+        endpoint=fitted_endpoint,
+        behavior_categories=np.asarray(categories) if categories is not None else None,
+    )
     pert_pred = model.predict(pert_x)
-    pert_endpoint = pert_pred[:, -1] if endpoint == "behavior" else np.linalg.norm(pert_pred[:, :-1], axis=1)
-    return float(np.mean(pert_endpoint - baseline_endpoint))
+    pert_endpoint = _prediction_endpoint(model, pert_pred, endpoint)
+    endpoint_delta = pert_endpoint - baseline_endpoint
+    if endpoint == "manifold":
+        return float(np.mean(np.linalg.norm(endpoint_delta, axis=1)))
+    return float(np.mean(endpoint_delta))
 
 
 def _sample_matched_control_sets(
@@ -264,11 +436,16 @@ def run_virtual_perturbation(
     dose_scales: list[float] | None = None,
 ) -> PerturbationResult:
     """Run graded node perturbations against matched random and sham controls."""
+    fitted_endpoint = _validate_perturbation_endpoint(model, endpoint)
     provenance = {
         "claim_boundary": "model_based_counterfactual_not_biological_causation",
         "endpoint": endpoint,
         "n_controls": int(n_controls),
         "seed": int(seed),
+        "surrogate_endpoint": fitted_endpoint,
+        "effect_metric": (
+            "mean_euclidean_latent_displacement" if endpoint == "manifold" else "mean_signed_behavior_change"
+        ),
     }
     if model.validation.status != "valid" or model.model is None:
         return PerturbationResult(
@@ -300,11 +477,17 @@ def run_virtual_perturbation(
         )
 
     lag = model.lag
-    base_x, _ = _build_design(series, manifold, behavior, lag)
-    base_pred = model.predict(base_x)
-    baseline_endpoint = (
-        base_pred[:, -1] if endpoint == "behavior" else np.linalg.norm(base_pred[:, :-1], axis=1)
+    categories = model.metadata.get("behavior_categories")
+    base_x, _ = _build_design(
+        series,
+        manifold,
+        behavior,
+        lag,
+        endpoint=fitted_endpoint,
+        behavior_categories=np.asarray(categories) if categories is not None else None,
     )
+    base_pred = model.predict(base_x)
+    baseline_endpoint = _prediction_endpoint(model, base_pred, endpoint)
 
     doses = dose_scales or [scale]
     unique_doses = list(dict.fromkeys(float(dose) for dose in doses))

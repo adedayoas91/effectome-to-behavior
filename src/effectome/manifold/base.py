@@ -38,6 +38,8 @@ class ManifoldConfig:
     max_iter: int = 2000
     seed: int = 42
     target_length: int = 15
+    cross_fit: bool = True
+    n_folds: int = 5
     extra: dict = field(default_factory=dict)
 
 

@@ -104,26 +104,96 @@ def valid_positive_lag_origins(
     return np.asarray(origins, dtype=int)
 
 
-def _histories_overlap(left: TemporalAnchor, right: TemporalAnchor) -> bool:
-    return max(left.context_start, right.context_start) < min(left.context_stop, right.context_stop)
+@dataclass(frozen=True)
+class DependencySupport:
+    """Raw-sample support outside an anchor's recorded context.
+
+    ``lag_extension`` is zero when all lagged predictors are constructed inside the
+    stored context window.  Non-causal preprocessing (for example, centered
+    smoothing) must declare its past and future kernel support explicitly.
+    """
+
+    lag_extension: int = 0
+    preprocessing_past: int = 0
+    preprocessing_future: int = 0
+
+    def __post_init__(self) -> None:
+        if min(self.lag_extension, self.preprocessing_past, self.preprocessing_future) < 0:
+            raise ValueError("dependency support values must be non-negative")
+
+    @property
+    def total_past(self) -> int:
+        return self.lag_extension + self.preprocessing_past
+
+
+def _intervals_overlap(left: tuple[int, int], right: tuple[int, int]) -> bool:
+    return max(left[0], right[0]) < min(left[1], right[1])
+
+
+def anchor_dependency_intervals(
+    anchor: TemporalAnchor,
+    support: DependencySupport | None = None,
+    outcome_anchor: TemporalAnchor | None = None,
+) -> tuple[tuple[int, int], ...]:
+    """Return the exact half-open raw intervals used by one model row.
+
+    The feature interval is the connectivity history expanded by any lag or
+    preprocessing support.  A positive-lag outcome contributes only its target
+    interval, not the future anchor's entire history.
+    """
+    dep = support or DependencySupport()
+    feature = (
+        max(0, int(anchor.context_start) - dep.total_past),
+        int(anchor.context_stop) + dep.preprocessing_future,
+    )
+    if outcome_anchor is None:
+        return (feature,)
+    if _anchor_source_key(anchor) != _anchor_source_key(outcome_anchor):
+        raise ValueError("feature and outcome anchors must belong to the same source segment")
+    outcome = (int(outcome_anchor.target_start), int(outcome_anchor.target_stop))
+    return (feature, outcome)
+
+
+def _dependencies_overlap(
+    left: TemporalAnchor,
+    right: TemporalAnchor,
+    support: DependencySupport,
+    left_outcome: TemporalAnchor | None = None,
+    right_outcome: TemporalAnchor | None = None,
+) -> bool:
+    if _anchor_source_key(left) != _anchor_source_key(right):
+        return False
+    left_intervals = anchor_dependency_intervals(left, support, left_outcome)
+    right_intervals = anchor_dependency_intervals(right, support, right_outcome)
+    return any(_intervals_overlap(a, b) for a in left_intervals for b in right_intervals)
 
 
 def _apply_anchor_overlap_purge(
     train: np.ndarray,
     test: np.ndarray,
     anchors: Sequence[TemporalAnchor],
+    support: DependencySupport,
+    outcome_anchors: Sequence[TemporalAnchor] | None = None,
 ) -> np.ndarray:
-    test_by_source: dict[tuple[str, str | None, str | None, str, str | None], list[TemporalAnchor]] = {}
+    test_by_source: dict[
+        tuple[str, str | None, str | None, str, str | None], list[tuple[int, TemporalAnchor]]
+    ] = {}
     for idx in test:
         anchor = anchors[int(idx)]
-        test_by_source.setdefault(_anchor_source_key(anchor), []).append(anchor)
+        test_by_source.setdefault(_anchor_source_key(anchor), []).append((int(idx), anchor))
 
     kept: list[int] = []
     for idx in train:
         anchor = anchors[int(idx)]
         overlaps = any(
-            _histories_overlap(anchor, test_anchor)
-            for test_anchor in test_by_source.get(_anchor_source_key(anchor), [])
+            _dependencies_overlap(
+                anchor,
+                test_anchor,
+                support,
+                None if outcome_anchors is None else outcome_anchors[int(idx)],
+                None if outcome_anchors is None else outcome_anchors[test_idx],
+            )
+            for test_idx, test_anchor in test_by_source.get(_anchor_source_key(anchor), [])
         )
         if not overlaps:
             kept.append(int(idx))
@@ -155,13 +225,20 @@ def purged_blocked_splits(
     embargo: int = 0,
     anchors: Sequence[TemporalAnchor] | None = None,
     groups: Sequence[object] | None = None,
+    dependency_support: DependencySupport | None = None,
+    outcome_anchors: Sequence[TemporalAnchor] | None = None,
 ) -> list[tuple[np.ndarray, np.ndarray]]:
-    """Return contiguous test blocks with neighboring train samples purged by `embargo`."""
+    """Return blocked folds purged by raw dependency overlap and index embargo."""
     if n_samples < 4:
         raise ValueError("need at least 4 samples for blocked CV")
     indices = np.arange(n_samples)
     if anchors is not None and len(anchors) != n_samples:
         raise ValueError("anchors must align 1:1 with samples")
+    if outcome_anchors is not None:
+        if anchors is None:
+            raise ValueError("outcome_anchors require feature anchors")
+        if len(outcome_anchors) != n_samples:
+            raise ValueError("outcome_anchors must align 1:1 with samples")
 
     groups_arr = np.asarray(groups if groups is not None else np.zeros(n_samples, dtype=int), dtype=object)
     if groups_arr.shape[0] != n_samples:
@@ -182,9 +259,15 @@ def purged_blocked_splits(
         mask[test] = False
         train = indices[mask]
         if anchors is not None:
-            train = _apply_anchor_overlap_purge(train, test, anchors)
+            train = _apply_anchor_overlap_purge(
+                train,
+                test,
+                anchors,
+                dependency_support or DependencySupport(),
+                outcome_anchors=outcome_anchors,
+            )
         train = _apply_group_embargo(train, test, embargo, groups_arr)
-        if len(train) >= max(2, len(np.unique(test))):
+        if len(train) >= 2:
             splits.append((train, test))
     if len(splits) < 2:
         raise ValueError("unable to construct at least two purged blocked splits")
@@ -233,11 +316,16 @@ def _fit_predict(
     x_test: np.ndarray,
     task: str,
 ) -> np.ndarray:
-    """Fit a model unless a classification fold is single-class, then predict the constant class."""
+    """Fit with train-only scaling, or return a constant for a single-class fold."""
     if task == "classification" and len(np.unique(y_train)) < 2:
         return np.full(len(x_test), y_train[0], dtype=y_train.dtype)
-    model.fit(x_train, y_train)
-    return np.asarray(model.predict(x_test))
+    mean = np.asarray(x_train, dtype=float).mean(axis=0, keepdims=True)
+    scale = np.asarray(x_train, dtype=float).std(axis=0, keepdims=True)
+    scale[scale < 1e-12] = 1.0
+    train_scaled = (np.asarray(x_train, dtype=float) - mean) / scale
+    test_scaled = (np.asarray(x_test, dtype=float) - mean) / scale
+    model.fit(train_scaled, y_train)
+    return np.asarray(model.predict(test_scaled))
 
 
 def decode_behavior(
@@ -250,6 +338,8 @@ def decode_behavior(
     embargo: int = 0,
     anchors: Sequence[TemporalAnchor] | None = None,
     groups: Sequence[object] | None = None,
+    dependency_support: DependencySupport | None = None,
+    outcome_anchors: Sequence[TemporalAnchor] | None = None,
 ) -> DecodeResult:
     """Cross-validate a decoder of `behavior` from `features` with purged blocked splits."""
     model, y, task = _model_for(behavior, seed)
@@ -260,6 +350,8 @@ def decode_behavior(
         embargo=embargo,
         anchors=anchors,
         groups=groups,
+        dependency_support=dependency_support,
+        outcome_anchors=outcome_anchors,
     ):
         pred = _fit_predict(model, features[train], y[train], features[test], task)
         scores.append(_score_predictions(task, y[test], pred))
@@ -284,6 +376,8 @@ def incremental_decode_behavior(
     embargo: int = 0,
     anchors: Sequence[TemporalAnchor] | None = None,
     groups: Sequence[object] | None = None,
+    dependency_support: DependencySupport | None = None,
+    outcome_anchors: Sequence[TemporalAnchor] | None = None,
 ) -> IncrementalDecodeResult:
     """Quantify gain from `extra_features` over autoregressive baseline features."""
     model, y, task = _model_for(behavior, seed)
@@ -296,6 +390,8 @@ def incremental_decode_behavior(
         embargo=embargo,
         anchors=anchors,
         groups=groups,
+        dependency_support=dependency_support,
+        outcome_anchors=outcome_anchors,
     ):
         baseline_pred = _fit_predict(
             model,

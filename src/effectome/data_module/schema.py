@@ -250,6 +250,9 @@ class ConnectivitySeries:
         behavior_per_window: Behavior summary per window, carried through for linking.
         anchors: Temporal anchors aligned 1:1 with matrices when available.
         diagnostics: Estimator metadata, semantics, and run-time summary.
+        lagged_matrices: Optional lag-resolved weights with shape (K, P, N, N).
+            When present, these are the primary directed effectome weights; ``matrices``
+            is the configured N x N lag aggregation used by downstream graph methods.
     """
 
     matrices: np.ndarray
@@ -264,6 +267,7 @@ class ConnectivitySeries:
     weight_semantics: str = "effective_influence"
     diagnostics: dict[str, Any] = field(default_factory=dict)
     provenance: ArtifactProvenance = field(default_factory=ArtifactProvenance)
+    lagged_matrices: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         if self.matrices.ndim != 3:
@@ -275,6 +279,20 @@ class ConnectivitySeries:
             raise ValueError(f"window_starts length {self.window_starts.shape[0]} != K {k}")
         _validate_behavior_alignment(self.behavior_per_window, k)
         _validate_anchor_alignment(self.anchors, k, window_starts=self.window_starts)
+        if self.lagged_matrices is not None:
+            if self.lagged_matrices.ndim != 4:
+                raise ValueError(
+                    "lagged_matrices must be 4D (K, P, N, N), "
+                    f"got shape {self.lagged_matrices.shape}"
+                )
+            if (
+                self.lagged_matrices.shape[0] != k
+                or self.lagged_matrices.shape[2] != n_in
+                or self.lagged_matrices.shape[3] != n_out
+            ):
+                raise ValueError(
+                    "lagged_matrices must align with matrices on window and neuron axes"
+                )
 
     @property
     def n_windows(self) -> int:

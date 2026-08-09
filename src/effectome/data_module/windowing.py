@@ -34,6 +34,8 @@ class WindowConfig:
         behavior_summary: How to summarize each continuous behavior variable within a window.
         respect_boundaries: Prevent windows from crossing valid-range boundaries or gaps.
         drop_incomplete_tail: Drop incomplete tail windows in temporal mode.
+        standardize_per_window: Center and scale every neuron independently within each window.
+        standardization_epsilon: Minimum standard deviation treated as non-constant.
     """
 
     length: int = 100
@@ -46,6 +48,8 @@ class WindowConfig:
     behavior_summary: Literal["mean", "mode", "last"] = "mean"
     respect_boundaries: bool = True
     drop_incomplete_tail: bool = True
+    standardize_per_window: bool = False
+    standardization_epsilon: float = 1.0e-8
 
     @property
     def effective_history_length(self) -> int:
@@ -108,6 +112,36 @@ def _valid_ranges(recording: NeuralRecording) -> list[tuple[int, int]]:
 
 def _window_in_valid_range(start: int, stop: int, ranges: list[tuple[int, int]]) -> bool:
     return any(start >= range_start and stop <= range_stop for range_start, range_stop in ranges)
+
+
+def _standardize_window_neurons(
+    segments: np.ndarray,
+    cfg: WindowConfig,
+) -> tuple[np.ndarray, dict[str, object]]:
+    """Apply independent time-axis z-scoring to every neuron in every window."""
+    metadata: dict[str, object] = {
+        "enabled": bool(cfg.standardize_per_window),
+        "scope": "window",
+        "axis": "time_per_neuron",
+        "ddof": 0,
+        "epsilon": float(cfg.standardization_epsilon),
+        "constant_neuron_policy": "center_to_zero",
+        "claim_boundary": "uses only samples inside each causal history window",
+    }
+    values = np.asarray(segments, dtype=np.float64)
+    if not cfg.standardize_per_window:
+        return values.astype(np.float32), metadata
+    if cfg.standardization_epsilon <= 0:
+        raise ValueError("standardization_epsilon must be positive")
+
+    means = values.mean(axis=1, keepdims=True)
+    scales = values.std(axis=1, keepdims=True)
+    constant = scales < float(cfg.standardization_epsilon)
+    safe_scales = np.where(constant, 1.0, scales)
+    standardized = (values - means) / safe_scales
+    standardized = np.where(constant, 0.0, standardized)
+    metadata["constant_window_neuron_count"] = int(constant.sum())
+    return standardized.astype(np.float32), metadata
 
 
 def _build_anchor(
@@ -205,6 +239,10 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
         vals = np.array([_summarize(arr[a.target_start : a.target_stop], how) for a in anchors])
         behavior_per_window[name] = np.round(vals).astype(np.int64) if discrete else vals
 
+    standardized_segments, standardization = _standardize_window_neurons(
+        np.stack(segments),
+        cfg,
+    )
     metadata = {
         "window_mode": "temporal",
         "history_length": history_length,
@@ -212,6 +250,7 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
         "stride": cfg.stride,
         "valid_ranges": valid_ranges,
         "drop_incomplete_tail": cfg.drop_incomplete_tail,
+        "neural_standardization": standardization,
         "reference_profile": {
             "history_length": 500,
             "target_length": 15,
@@ -219,7 +258,7 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
         },
     }
     return WindowedSegments(
-        segments=np.stack(segments).astype(np.float32),
+        segments=standardized_segments,
         windows=windows,
         behavior_per_window=behavior_per_window,
         n_neurons=recording.n_neurons,
@@ -232,7 +271,10 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
             source=str(recording.metadata.get("source", recording.identity.dataset)),
             units={"time": "seconds", "sample": "index"},
             axis_conventions={"segments": "window,time,neuron"},
-            metadata={"window_mode": "temporal"},
+            metadata={
+                "window_mode": "temporal",
+                "neural_standardization": standardization,
+            },
         ),
     )
 
@@ -256,7 +298,10 @@ def _make_legacy_windows(recording: NeuralRecording, cfg: WindowConfig) -> Windo
         windows = [w for w in windows if _window_in_valid_range(w.start, w.stop, valid_ranges)]
         if not windows:
             raise ValueError("no windows remain after enforcing valid-range boundaries")
-    segments = np.stack([x[w.start : w.stop] for w in windows]).astype(np.float32)
+    segments, standardization = _standardize_window_neurons(
+        np.stack([x[w.start : w.stop] for w in windows]),
+        cfg,
+    )
 
     behavior_per_window: dict[str, np.ndarray] = {}
     for name, arr in recording.behavior.items():
@@ -284,7 +329,11 @@ def _make_legacy_windows(recording: NeuralRecording, cfg: WindowConfig) -> Windo
         behavior_per_window=behavior_per_window,
         n_neurons=recording.n_neurons,
         fps=recording.fps,
-        metadata={"window_mode": cfg.mode, "valid_ranges": valid_ranges},
+        metadata={
+            "window_mode": cfg.mode,
+            "valid_ranges": valid_ranges,
+            "neural_standardization": standardization,
+        },
         anchors=anchors,
         provenance=ArtifactProvenance(
             identity=recording.identity,
@@ -292,7 +341,10 @@ def _make_legacy_windows(recording: NeuralRecording, cfg: WindowConfig) -> Windo
             source=str(recording.metadata.get("source", recording.identity.dataset)),
             units={"time": "seconds", "sample": "index"},
             axis_conventions={"segments": "window,time,neuron"},
-            metadata={"window_mode": cfg.mode},
+            metadata={
+                "window_mode": cfg.mode,
+                "neural_standardization": standardization,
+            },
         ),
     )
 

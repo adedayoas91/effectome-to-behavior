@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from time import perf_counter
 from typing import Any
 
 import numpy as np
@@ -92,17 +93,45 @@ class ConnectivityEstimator(ABC):
             "estimation_mode": self.estimation_mode,
             "storage": "dense",
             "window_mode": segments.metadata.get("window_mode"),
+            "input_neural_standardization": segments.metadata.get("neural_standardization"),
             "n_windows": int(mats.shape[0]),
             "n_neurons": int(mats.shape[1]),
             "anchor_samples": anchor_samples,
             "sparsity": sparsity,
         }
 
+    def _lagged_output(self) -> np.ndarray | None:
+        """Return optional lag-resolved weights aligned with the last sequence run."""
+        return None
+
     def run(self, segments: WindowedSegments) -> ConnectivitySeries:
         """Estimate a connectivity matrix per window -> ConnectivitySeries."""
+        started = perf_counter()
         mats = np.stack([self._postprocess(mat) for mat in self.estimate_sequence(segments)])
+        lagged_matrices = self._lagged_output()
+        if lagged_matrices is not None and lagged_matrices.shape[0] != mats.shape[0]:
+            raise ValueError("lag-resolved output must align with the estimated windows")
+        if lagged_matrices is not None:
+            lagged_matrices = np.asarray(lagged_matrices, dtype=np.float64).copy()
+            if self.cfg.absolute:
+                lagged_matrices = np.abs(lagged_matrices)
+            if self.cfg.threshold > 0:
+                lagged_matrices = np.where(
+                    np.abs(lagged_matrices) >= self.cfg.threshold,
+                    lagged_matrices,
+                    0.0,
+                )
+            diagonal = np.arange(lagged_matrices.shape[-1])
+            lagged_matrices[:, :, diagonal, diagonal] = 0.0
+        elapsed_seconds = perf_counter() - started
         starts = np.array([w.start for w in segments.windows])
         diagnostics = self._diagnostics(segments, mats)
+        diagnostics["runtime"] = {
+            "elapsed_seconds": float(elapsed_seconds),
+            "seconds_per_window": float(elapsed_seconds / max(1, mats.shape[0])),
+            "dense_output_bytes": int(mats.nbytes),
+            "note": "Output memory only; estimator workspace and NumPy-native allocations are not included.",
+        }
         logger.info("Estimated %d %s matrices (%d neurons)", len(mats), self.cfg.name, segments.n_neurons)
         return ConnectivitySeries(
             matrices=mats.astype(np.float32),
@@ -116,6 +145,11 @@ class ConnectivityEstimator(ABC):
             storage="dense",
             weight_semantics=self.weight_semantics,
             diagnostics=diagnostics,
+            lagged_matrices=(
+                lagged_matrices.astype(np.float32)
+                if lagged_matrices is not None
+                else None
+            ),
             provenance=ArtifactProvenance(
                 identity=segments.provenance.identity,
                 stage="connectivity",
@@ -125,7 +159,15 @@ class ConnectivityEstimator(ABC):
                 code_version=segments.provenance.code_version,
                 fit_data_ids=(segments.provenance.identity.recording_id,),
                 units={"weights": self.weight_semantics},
-                axis_conventions={"matrices": "anchor,source_neuron,target_neuron"},
-                metadata={"upstream_stage": segments.provenance.stage},
+                axis_conventions={
+                    "matrices": "anchor,source_neuron,target_neuron",
+                    "lagged_matrices": "anchor,lag,source_neuron,target_neuron",
+                },
+                metadata={
+                    "upstream_stage": segments.provenance.stage,
+                    "input_neural_standardization": segments.metadata.get(
+                        "neural_standardization"
+                    ),
+                },
             ),
         )

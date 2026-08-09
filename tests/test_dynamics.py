@@ -9,9 +9,11 @@ from effectome.connectivity import ConnectivityConfig, ConnectivityFactory
 from effectome.data_module.schema import ConnectivitySeries, TemporalAnchor
 from effectome.dynamics import (
     GraphStateConfig,
+    ProbabilisticStateConfig,
     TransitionConfig,
     affine_invariant_distance,
     fit_graph_states,
+    fit_probabilistic_states,
     fit_transitions,
     gromov_wasserstein_distance,
     kmedoids,
@@ -79,6 +81,9 @@ def test_transitions_beat_block_null(windows):
     assert tm.transition_matrix.shape == (3, 3)
     assert np.allclose(tm.transition_matrix.sum(axis=1), 1.0)
     assert tm.p_value < 0.05
+    assert tm.heldout_delta_log_likelihood == pytest.approx(
+        tm.heldout_transition_log_likelihood - tm.heldout_baseline_log_likelihood
+    )
 
 
 def test_transitions_do_not_cross_recording_boundaries():
@@ -209,3 +214,50 @@ def test_unknown_metric_raises(windows):
     series = _series(windows)
     with pytest.raises(ValueError, match="unknown metric"):
         fit_graph_states(series, GraphStateConfig(metric="not_a_metric"))
+
+
+def test_probabilistic_states_filtered_prefix_is_future_safe(windows):
+    series = _series(windows)
+    model = fit_probabilistic_states(
+        series,
+        ProbabilisticStateConfig(n_states=3, n_components=4, n_iter=25, seed=0),
+    )
+    prefix = series.matrices[:8]
+    future = np.concatenate(
+        [prefix, np.ones((3,) + prefix.shape[1:], dtype=prefix.dtype) * 4.0],
+        axis=0,
+    )
+    prefix_projection = model.transform(prefix)
+    future_projection = model.transform(future)
+    assert np.allclose(prefix_projection.filtered_probs, future_projection.filtered_probs[: len(prefix)])
+    assert not np.allclose(prefix_projection.smoothed_probs, future_projection.smoothed_probs[: len(prefix)])
+
+
+def test_probabilistic_states_report_holdout_scores(windows):
+    series = _series(windows)
+    fit_idx = np.arange(series.n_windows // 2, dtype=int)
+    model = fit_probabilistic_states(
+        series,
+        ProbabilisticStateConfig(n_states=3, n_components=4, n_iter=25, seed=0),
+        fit_indices=fit_idx,
+    )
+    assert model.heldout_log_likelihood is not None
+    assert model.heldout_iid_log_likelihood is not None
+
+
+def test_probabilistic_states_flag_non_geometric_dwell():
+    labels = np.array([0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1], dtype=int)
+    matrices = np.zeros((labels.size, 2, 2), dtype=np.float32)
+    matrices[labels == 1, 0, 1] = 5.0
+    series = ConnectivitySeries(
+        matrices=matrices,
+        window_starts=np.arange(labels.size, dtype=int),
+        method="manual",
+        directed=True,
+    )
+    model = fit_probabilistic_states(
+        series,
+        ProbabilisticStateConfig(n_states=2, n_components=2, n_iter=30, seed=0),
+    )
+    assert np.any(model.hsmm_candidate.diagnostics.total_variation > 0.1)
+    assert model.hsmm_candidate.status == "duration_diagnostic_only"

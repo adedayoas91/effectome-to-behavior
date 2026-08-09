@@ -9,7 +9,18 @@ max_lag: 1
 coupling: 0.35
 noise_std: 1.0
 n_states: 3
+regime_dwell: 150
 behavior_drivers: 4
+# Failure-mode switches. Defaults retain the lightweight baseline DGP; sensitivity
+# runs turn these on individually and jointly.
+regime_sign_flip_fraction: 0.0
+regime_sparsity_jitter: 0.0
+instantaneous_density: 0.0
+instantaneous_strength: 0.0
+n_latent_confounders: 0
+latent_strength: 0.0
+calcium_decay_range: null
+calcium_gain_heterogeneity: 0.0
 fps: 10.0
 signal_type: synthetic
 seed: 42

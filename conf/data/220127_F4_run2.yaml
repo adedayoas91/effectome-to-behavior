@@ -1,0 +1,21 @@
+# V2a reticulospinal-neuron recording: fish 220127_F4, run 2 after decerebration.
+name: v2a_rsns
+dataset_id: v2a-rsns
+recording_id: 220127_F4_run2
+animal_id: 220127_F4
+path: data/v2a-RSNs/220127_F4_run2
+signal_type: fluorescence
+cell_subset: emitter_receiver
+bad_frame_policy: boundaries
+bad_frame_indexing: zero_based
+valid_ranges: []
+gap_intervals: []
+files:
+  analysis_info: 220127_F4_F4_run2_after_dec_analysis_info.json
+  traces: 220127_F4_F4_run2_after_dec_cells_fluorescence_signals.npy
+  coords: 220127_F4_F4_run2_after_dec_registered_cells_pos.npy
+  tail_angle: 220127_F4_F4_run2_after_dec_tail_angle.npy
+  emitter_cells: 220127_F4_F4_run2_after_dec_emitter_cells.npy
+  receiver_cells: 220127_F4_F4_run2_after_dec_receiver_cells.npy
+behavior_keys:
+  continuous: tail_angle

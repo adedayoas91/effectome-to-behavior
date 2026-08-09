@@ -1,6 +1,10 @@
 # Stage 0 preprocessing.
-detrend: true
-zscore: true
+detrend: false             # recording-global fit; enable only for retrospective/sensitivity runs
+zscore: false              # estimators/decoders apply train- or window-fitted scaling
 deconvolve: false        # set true to estimate spike rates (requires '.[deconv]')
 smooth_window: 0
 drop_low_variance: 0.0
+bundle_net_bandpass: false
+bundle_net_low_fraction: 1.0e-10
+bundle_net_high_fraction: 0.05
+bundle_net_filter_order: 4

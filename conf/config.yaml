@@ -24,6 +24,8 @@ windowing:
   behavior_summary: mean
   respect_boundaries: true
   drop_incomplete_tail: true
+  standardize_per_window: true
+  standardization_epsilon: 1.0e-8
 
 # Where pipeline artifacts are written/read (relative to the Hydra run dir's project root).
 paths:

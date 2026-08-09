@@ -5,3 +5,7 @@ behavior_key: motif        # discrete behavior works well for the behavior-decod
 max_iter: 1500
 seed: 42
 target_length: 15
+# Fold-safe segmented BundDLe training is not yet exposed by the model API; keep
+# this retrospective and ineligible for prospective linking until it is.
+cross_fit: false
+n_folds: 5

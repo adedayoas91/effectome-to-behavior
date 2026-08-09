@@ -6,7 +6,29 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from effectome.data_module.schema import TemporalAnchor
+
 from .stats import discretize
+
+
+def combined_continuity_groups(
+    groups: np.ndarray | None,
+    strata: np.ndarray | None,
+    n_samples: int,
+) -> np.ndarray | None:
+    """Create 1D group keys that break derivatives at either group or stratum changes."""
+    if groups is None and strata is None:
+        return None
+    group_arr = np.zeros(n_samples, dtype=int) if groups is None else np.asarray(groups, dtype=object)
+    strata_arr = (
+        np.zeros(n_samples, dtype=int) if strata is None else np.asarray(strata, dtype=object)
+    )
+    if group_arr.shape[0] != n_samples or strata_arr.shape[0] != n_samples:
+        raise ValueError("groups and strata must align with the sequence")
+    combined = np.empty(n_samples, dtype=object)
+    for index in range(n_samples):
+        combined[index] = (group_arr[index], strata_arr[index])
+    return combined
 
 
 def change_signal(labels: np.ndarray, groups: np.ndarray | None = None) -> np.ndarray:
@@ -38,6 +60,45 @@ def manifold_speed(embedding: np.ndarray, groups: np.ndarray | None = None) -> n
     """Euclidean speed of the window-aligned manifold trajectory."""
     vel = manifold_velocity(embedding, groups=groups)
     return np.linalg.norm(vel, axis=1)
+
+
+def activity_magnitude_features(
+    time_by_neuron: np.ndarray,
+    anchors: list[TemporalAnchor] | tuple[TemporalAnchor, ...],
+) -> np.ndarray:
+    """Summarize population activity over each anchor's target interval.
+
+    Columns are mean absolute activity, root-mean-square activity, and the
+    absolute population mean.  These nuisance covariates help distinguish
+    connectivity-linked effects from changes in overall activity magnitude.
+    """
+    traces = np.asarray(time_by_neuron, dtype=float)
+    if traces.ndim != 2:
+        raise ValueError("time_by_neuron must have shape (time, neuron)")
+    rows: list[list[float]] = []
+    for anchor in anchors:
+        target = traces[anchor.target_start : anchor.target_stop]
+        if target.shape[0] != anchor.target_length:
+            raise ValueError("anchor target interval falls outside activity samples")
+        rows.append(
+            [
+                float(np.mean(np.abs(target))),
+                float(np.sqrt(np.mean(target**2))),
+                float(np.mean(np.abs(np.mean(target, axis=1)))),
+            ]
+        )
+    return np.asarray(rows, dtype=float)
+
+
+def _residualize(signal: np.ndarray, controls: np.ndarray) -> np.ndarray:
+    control_arr = np.asarray(controls, dtype=float)
+    if control_arr.ndim == 1:
+        control_arr = control_arr[:, None]
+    if control_arr.shape[0] != signal.shape[0]:
+        raise ValueError("controls must align with the signals")
+    design = np.concatenate([np.ones((len(signal), 1)), control_arr], axis=1)
+    coefficients, *_ = np.linalg.lstsq(design, signal, rcond=None)
+    return signal - design @ coefficients
 
 
 def _normalized_xcorr(
@@ -89,10 +150,14 @@ def lead_lag(
     n_bins: int = 5,
     target_name: str = "behavior",
     groups: np.ndarray | None = None,
+    controls: np.ndarray | None = None,
 ) -> LeadLagResult:
-    """Cross-correlate connectivity-state changes against behavior changes over lags."""
+    """Cross-correlate state and target changes, optionally adjusting nuisance activity."""
     conn_change = change_signal(state_labels, groups=groups)
     beh_change = change_signal(discretize(behavior, n_bins), groups=groups)
+    if controls is not None:
+        conn_change = _residualize(conn_change, controls)
+        beh_change = _residualize(beh_change, controls)
     lags, xc = _normalized_xcorr(conn_change, beh_change, max_lag, groups=groups)
     best_idx = int(np.argmax(np.abs(xc)))
     best_lag = int(lags[best_idx])

@@ -19,7 +19,9 @@ multirun/
 *.log
 
 # Data (never commit raw or processed neural data)
-data/
+# Anchor this rule at the repository root so Hydra configs under conf/data/
+# remain version controlled.
+/data/
 *.h5
 *.hdf5
 *.npy

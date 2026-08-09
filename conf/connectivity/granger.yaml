@@ -6,3 +6,13 @@ partial: false
 ridge: 1.0
 absolute: false      # preserve signed effective influence
 threshold: 0.0
+extra:
+  support_test: analytic
+  n_perm: 0           # only used when support_test=circular_shift
+  n_lags: 2
+  beta: 0.01
+  lag_aggregation: sum
+  simulation: true
+  temporal: true
+  parallel: false
+  seed: 42

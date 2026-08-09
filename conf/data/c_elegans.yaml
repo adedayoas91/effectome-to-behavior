@@ -1,17 +1,41 @@
-# C. elegans whole-brain calcium imaging contract.
-name: c_elegans
-dataset_id: c_elegans-whole_brain
-recording_id: elegans-session-0
-path: ../data/raw/c_elegans.npz
-fps: 2.0
-signal_type: dff
+# BunDLe-Net C. elegans no-stimulus dataset, reference worm 0.
+name: bundle_net_c_elegans
+dataset_id: bundle-net-c-elegans
+recording_id: bundle-net-worm-0
+animal_id: worm-0
+path: data/c_elegans/bundle_net_raw
+worm_index: 0
+signal_type: dff_bleach_corrected
 valid_ranges: []
 gap_intervals: []
-keys:
-  traces: traces
-  # time: time
-  # coords: coords
-  # neuron_ids: neuron_ids
+state_names: [dt, fwd, nostate, rev1, rev2, revsus, slow, vt]
+files:
+  recordings: NoStim_Data.mat
+  class_ids: ClassIDs_279.mat
+  neuron_order: Order279.mat
 behavior_keys:
-  motif: behavior_motif
-  continuous: behavior_continuous
+  motif: motif
+source_url: https://github.com/akshey-kumar/BunDLe-Net/tree/main/data/raw
+source_commit: cbefad93fe98b5860c7e219e5af9a7bb0a177143
+bundle_net_reference:
+  source_file: functions.py
+  input_field: deltaFOverF_bc
+  # Kept inside the retrospective reference lane: excluding these neurons from
+  # the primary effectome would remove plausible behavioral drivers.
+  exclude_neuron_name_source: raw
+  exclude_neuron_names: [AVAR, AVAL, SMDVR, SMDVL, SMDDR, SMDDL, RIBR, RIBL]
+  preprocessing:
+    detrend: false
+    zscore: false
+    deconvolve: false
+    smooth_window: 0
+    drop_low_variance: 0.0
+    bundle_net_bandpass: true
+    bundle_net_low_fraction: 1.0e-10
+    bundle_net_high_fraction: 0.05
+    bundle_net_filter_order: 4
+  paired_window_length: 15
+downloaded_sha256:
+  NoStim_Data.mat: 8224b37211e455df4c89b2c6c4216dcde525da00a5f1dc0c22a0c9b4a0f22539
+  ClassIDs_279.mat: d2445adcdf6a14210884c12130c19c48bf5778a84ff84d7305359cd149e3746c
+  Order279.mat: f06ba69d6ca35ef1d13823418412985e8c07dbfd8a728467a6f35e457d4d41d6

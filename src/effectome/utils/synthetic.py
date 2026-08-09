@@ -48,6 +48,14 @@ class SyntheticConfig:
     n_states: int = 3
     regime_dwell: int = 150
     behavior_drivers: int = 4
+    regime_sign_flip_fraction: float = 0.0
+    regime_sparsity_jitter: float = 0.0
+    instantaneous_density: float = 0.0
+    instantaneous_strength: float = 0.0
+    n_latent_confounders: int = 0
+    latent_strength: float = 0.0
+    calcium_decay_range: tuple[float, float] | None = None
+    calcium_gain_heterogeneity: float = 0.0
     fps: float = 10.0
     seed: int = 42
 
@@ -83,6 +91,58 @@ def _regime_sequence(t: int, n_states: int, dwell: int, rng: np.random.Generator
     return seq
 
 
+def _instantaneous_dag(
+    n: int,
+    density: float,
+    strength: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Generate an acyclic contemporaneous graph in source->target convention."""
+    mask = np.triu(rng.random((n, n)) < density, k=1)
+    signs = rng.choice([-1.0, 1.0], size=(n, n))
+    return strength * (0.5 + 0.5 * rng.random((n, n))) * signs * mask
+
+
+def _stabilize_lag_stack(graphs: list[np.ndarray], radius_limit: float = 0.95) -> None:
+    """Rescale a VAR(p) coefficient stack using its companion-matrix radius."""
+    n = graphs[0].shape[0]
+    p = len(graphs)
+    for _ in range(12):
+        companion = np.zeros((n * p, n * p), dtype=np.float64)
+        companion[:n, : n * p] = np.concatenate([graph.T for graph in graphs], axis=1)
+        if p > 1:
+            companion[n:, :-n] = np.eye(n * (p - 1))
+        radius = float(np.max(np.abs(np.linalg.eigvals(companion))))
+        if radius < radius_limit:
+            return
+        scale = min(0.95, radius_limit / max(radius, 1e-12))
+        for graph in graphs:
+            graph *= scale
+    raise RuntimeError("failed to stabilize the synthetic VAR lag stack")
+
+
+def _validate_config(cfg: SyntheticConfig) -> None:
+    if cfg.n_neurons < 2 or cfg.n_timepoints <= cfg.max_lag or cfg.max_lag < 1:
+        raise ValueError("synthetic dimensions require N>=2, max_lag>=1, and T>max_lag")
+    if not 0 <= cfg.density <= 1:
+        raise ValueError("density must be in [0, 1]")
+    for name, value in (
+        ("regime_sign_flip_fraction", cfg.regime_sign_flip_fraction),
+        ("regime_sparsity_jitter", cfg.regime_sparsity_jitter),
+        ("instantaneous_density", cfg.instantaneous_density),
+    ):
+        if not 0 <= value <= 1:
+            raise ValueError(f"{name} must be in [0, 1]")
+    if cfg.n_latent_confounders < 0 or cfg.latent_strength < 0:
+        raise ValueError("latent-confounder settings must be non-negative")
+    if cfg.behavior_drivers < 1 or cfg.behavior_drivers > cfg.n_neurons:
+        raise ValueError("behavior_drivers must be in 1..n_neurons")
+    if cfg.calcium_decay_range is not None:
+        low, high = cfg.calcium_decay_range
+        if not 0 <= low <= high < 1:
+            raise ValueError("calcium_decay_range must satisfy 0 <= low <= high < 1")
+
+
 def make_synthetic_recording(cfg: SyntheticConfig) -> NeuralRecording:
     """Generate a `NeuralRecording` plus the ground-truth causal graphs per state.
 
@@ -92,21 +152,76 @@ def make_synthetic_recording(cfg: SyntheticConfig) -> NeuralRecording:
     """
     from effectome.data_module.schema import NeuralRecording
 
+    _validate_config(cfg)
     rng = np.random.default_rng(cfg.seed)
     n, t = cfg.n_neurons, cfg.n_timepoints
 
-    # One causal graph (source->target convention) per latent regime; regimes recur over time
-    # as a slow Markov chain so the transition structure is non-trivial.
-    true_graphs = [
-        _random_dag_coeffs(n, cfg.density, cfg.coupling, rng) for _ in range(cfg.n_states)
+    # One lag-resolved graph stack per latent regime.  The legacy ``true_graphs``
+    # metadata remains the sum across lags so existing edge-recovery consumers keep
+    # working while new tests can inspect the exact lag structure.
+    lag_graphs: list[list[np.ndarray]] = []
+    sign_flip_masks: list[np.ndarray] = []
+    for _state in range(cfg.n_states):
+        density_scale = 1.0 + rng.uniform(
+            -cfg.regime_sparsity_jitter, cfg.regime_sparsity_jitter
+        )
+        state_density = float(np.clip(cfg.density * density_scale, 0.0, 1.0))
+        state_lags = [
+            _random_dag_coeffs(n, state_density, cfg.coupling / cfg.max_lag, rng)
+            for _ in range(cfg.max_lag)
+        ]
+        flip_mask = np.zeros((n, n), dtype=bool)
+        if cfg.regime_sign_flip_fraction > 0:
+            candidates = np.argwhere(np.abs(state_lags[0]) > 1e-12)
+            candidates = candidates[candidates[:, 0] != candidates[:, 1]]
+            n_flip = int(round(cfg.regime_sign_flip_fraction * len(candidates)))
+            if n_flip > 0:
+                selected = candidates[rng.choice(len(candidates), size=n_flip, replace=False)]
+                flip_mask[selected[:, 0], selected[:, 1]] = True
+                for graph in state_lags:
+                    graph[flip_mask] *= -1.0
+        _stabilize_lag_stack(state_lags)
+        lag_graphs.append(state_lags)
+        sign_flip_masks.append(flip_mask)
+    true_graphs = [np.sum(np.stack(graphs), axis=0) for graphs in lag_graphs]
+    instantaneous_graphs = [
+        _instantaneous_dag(
+            n,
+            cfg.instantaneous_density,
+            cfg.instantaneous_strength,
+            rng,
+        )
+        for _ in range(cfg.n_states)
     ]
     state_seq = _regime_sequence(t, cfg.n_states, cfg.regime_dwell, rng)
 
+    latent_factors = np.zeros((t, cfg.n_latent_confounders), dtype=np.float64)
+    latent_loadings = np.zeros((n, cfg.n_latent_confounders), dtype=np.float64)
+    if cfg.n_latent_confounders:
+        latent_loadings = rng.normal(
+            0.0,
+            cfg.latent_strength / np.sqrt(cfg.n_latent_confounders),
+            size=(n, cfg.n_latent_confounders),
+        )
+        latent_factors[0] = rng.normal(size=cfg.n_latent_confounders)
+        for tt in range(1, t):
+            latent_factors[tt] = 0.8 * latent_factors[tt - 1] + rng.normal(
+                0.0, 0.6, size=cfg.n_latent_confounders
+            )
+
     x = np.zeros((t, n), dtype=np.float64)
-    x[0] = rng.normal(0, cfg.noise_std, size=n)
-    for tt in range(1, t):
-        g = true_graphs[state_seq[tt]]  # [source, target]
-        x[tt] = g.T @ x[tt - 1] + rng.normal(0, cfg.noise_std, size=n)
+    x[: cfg.max_lag] = rng.normal(0, cfg.noise_std, size=(cfg.max_lag, n))
+    identity = np.eye(n)
+    for tt in range(cfg.max_lag, t):
+        state = int(state_seq[tt])
+        lagged = np.zeros(n, dtype=float)
+        for lag, graph in enumerate(lag_graphs[state], start=1):
+            lagged += graph.T @ x[tt - lag]
+        common = latent_loadings @ latent_factors[tt] if cfg.n_latent_confounders else 0.0
+        innovation = lagged + common + rng.normal(0, cfg.noise_std, size=n)
+        # For B[source,target], x = B.T x + innovation.  B is a DAG, so
+        # (I-B.T) is nonsingular and the contemporaneous solution is exact.
+        x[tt] = np.linalg.solve(identity - instantaneous_graphs[state].T, innovation)
 
     # Behavior:
     #   * 'motif' is tied to the connectivity *regime* (a subset of regimes is 'active'),
@@ -120,7 +235,22 @@ def make_synthetic_recording(cfg: SyntheticConfig) -> NeuralRecording:
     drivers = rng.choice(n, size=cfg.behavior_drivers, replace=False)
     behavior_continuous = x[:, drivers].mean(axis=1) + rng.normal(0, 0.1, size=t)
 
-    traces = x.T.astype(np.float32)  # N x T
+    observed = x
+    calcium_decay = np.zeros(n, dtype=float)
+    calcium_gain = np.ones(n, dtype=float)
+    if cfg.calcium_decay_range is not None:
+        low, high = cfg.calcium_decay_range
+        calcium_decay = rng.uniform(low, high, size=n)
+        if cfg.calcium_gain_heterogeneity > 0:
+            calcium_gain = np.exp(
+                rng.normal(0.0, cfg.calcium_gain_heterogeneity, size=n)
+            )
+        observed = np.zeros_like(x)
+        observed[0] = calcium_gain * x[0]
+        for tt in range(1, t):
+            observed[tt] = calcium_decay * observed[tt - 1] + calcium_gain * x[tt]
+
+    traces = observed.T.astype(np.float32)  # N x T
     coords = rng.normal(0, 1, size=(n, 3)).astype(np.float32)
     neuron_ids = np.arange(n)
 
@@ -134,7 +264,26 @@ def make_synthetic_recording(cfg: SyntheticConfig) -> NeuralRecording:
         metadata={
             "source": "synthetic",
             "true_graphs": np.stack(true_graphs),
+            "true_lag_graphs": np.asarray(lag_graphs),
+            "true_instantaneous_graphs": np.stack(instantaneous_graphs),
             "true_states": state_seq,
+            "regime_sign_flip_masks": np.stack(sign_flip_masks),
+            "latent_factors": latent_factors,
+            "latent_loadings": latent_loadings,
+            "latent_neural_activity": x,
+            "calcium_decay": calcium_decay,
+            "calcium_gain": calcium_gain,
             "behavior_drivers": drivers,
+            "stress_config": {
+                "max_lag": cfg.max_lag,
+                "sign_flip_fraction": cfg.regime_sign_flip_fraction,
+                "sparsity_jitter": cfg.regime_sparsity_jitter,
+                "instantaneous_density": cfg.instantaneous_density,
+                "instantaneous_strength": cfg.instantaneous_strength,
+                "n_latent_confounders": cfg.n_latent_confounders,
+                "latent_strength": cfg.latent_strength,
+                "calcium_decay_range": cfg.calcium_decay_range,
+                "calcium_gain_heterogeneity": cfg.calcium_gain_heterogeneity,
+            },
         },
     )

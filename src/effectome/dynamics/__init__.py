@@ -19,6 +19,14 @@ from .metrics import (
     pairwise_frobenius,
     vectorize,
 )
+from .probabilistic import (
+    DurationDiagnostics,
+    HSMMCandidate,
+    ProbabilisticStateConfig,
+    ProbabilisticStateModel,
+    ProbabilisticStateProjection,
+    fit_probabilistic_states,
+)
 from .transitions import TransitionConfig, TransitionModel, fit_transitions
 
 __all__ = [
@@ -28,6 +36,12 @@ __all__ = [
     "FEATURE_METRICS",
     "KERNEL_METRICS",
     "DISTANCE_METRICS",
+    "ProbabilisticStateConfig",
+    "ProbabilisticStateModel",
+    "ProbabilisticStateProjection",
+    "DurationDiagnostics",
+    "HSMMCandidate",
+    "fit_probabilistic_states",
     "TransitionConfig",
     "TransitionModel",
     "fit_transitions",
