@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -66,6 +68,59 @@ def test_method_split_notebook_files_exist():
             assert (directory / relative_path).is_file(), (
                 f"{directory.relative_to(root)}/{relative_path}"
             )
+
+
+def test_all_notebooks_bootstrap_repository_imports():
+    root = Path(__file__).resolve().parents[1] / "notebooks"
+
+    for path in sorted(root.rglob("*.ipynb")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        first_code_cell = next(
+            cell for cell in payload["cells"] if cell["cell_type"] == "code"
+        )
+        source = "".join(first_code_cell["source"])
+
+        assert "_REPOSITORY_ROOT = next(" in source, path
+        assert 'str(_REPOSITORY_ROOT / "src")' in source, path
+        assert "str(_REPOSITORY_ROOT)" in source, path
+
+
+def test_all_notebooks_explain_live_and_resumed_progress():
+    root = Path(__file__).resolve().parents[1] / "notebooks"
+
+    for path in sorted(root.rglob("*.ipynb")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        markdown = "\n".join(
+            "".join(cell["source"])
+            for cell in payload["cells"]
+            if cell["cell_type"] == "markdown"
+        )
+        assert "iterative stages also display live progress bars" in markdown, path
+        assert "Reused checkpoints are reported explicitly" in markdown, path
+
+
+def test_notebook_setup_imports_from_nested_directories():
+    root = Path(__file__).resolve().parents[1]
+    paths = [
+        root / "notebooks" / "c_elegans" / "preprocessing" / "00_preprocess.ipynb",
+        root / "notebooks" / "c_elegans" / "effectomes" / "c-GC" / "01_connectivity.ipynb",
+    ]
+
+    for path in paths:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        code_cells = [cell for cell in payload["cells"] if cell["cell_type"] == "code"]
+        setup_source = "\n".join("".join(cell["source"]) for cell in code_cells[:2])
+
+        completed = subprocess.run(
+            [sys.executable, "-I", "-c", setup_source],
+            cwd=path.parent,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        assert completed.returncode == 0, f"{path}:\n{completed.stderr}"
 
 
 def test_preprocess_notebooks_use_configured_output_ids():

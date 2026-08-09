@@ -16,6 +16,7 @@ The legacy greedy label-matching baseline is kept as ``temporal_greedy``.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -329,6 +330,7 @@ class _TemporalRegularizedMixin:
         features: np.ndarray,
         *,
         boundary_indices: np.ndarray | None = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> tuple[list[np.ndarray], list[float]]:
         settings = self._settings()
         runs: list[np.ndarray] = []
@@ -351,6 +353,8 @@ class _TemporalRegularizedMixin:
                 raise ValueError(f"unknown temporal mode '{settings.mode}'")
             runs.append(labels)
             scores.append(score)
+            if progress_callback is not None:
+                progress_callback(run_idx + 1, settings.n_runs)
         return runs, scores
 
     def _package(
@@ -421,10 +425,19 @@ class TemporalCommunity(_TemporalRegularizedMixin, CommunityDetector):
     def detect_one(self, matrix: np.ndarray) -> np.ndarray:  # pragma: no cover - run() is primary API
         raise NotImplementedError("temporal communities are inferred jointly across windows")
 
-    def run(self, series: ConnectivitySeries) -> CommunitySeries:
+    def run(
+        self,
+        series: ConnectivitySeries,
+        *,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> CommunitySeries:
         features = self._feature_tensor(series)
         boundary_indices = boundary_indices_for_series(series)
-        runs, scores = self._fit_runs(features, boundary_indices=boundary_indices)
+        runs, scores = self._fit_runs(
+            features,
+            boundary_indices=boundary_indices,
+            progress_callback=progress_callback,
+        )
         return self._package(series, runs, scores, boundary_indices=boundary_indices)
 
 
@@ -447,9 +460,18 @@ class TemporalGreedyCommunity(CommunityDetector):
     def detect_one(self, matrix: np.ndarray) -> np.ndarray:
         return self._base.detect_one(matrix)
 
-    def run(self, series: ConnectivitySeries) -> CommunitySeries:
+    def run(
+        self,
+        series: ConnectivitySeries,
+        *,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> CommunitySeries:
         boundary_indices = set(boundary_indices_for_series(series).tolist())
-        raw = [self.detect_one(self._prepare(w)) for w in series.matrices]
+        raw = []
+        for index, matrix in enumerate(series.matrices):
+            raw.append(self.detect_one(self._prepare(matrix)))
+            if progress_callback is not None:
+                progress_callback(index + 1, series.n_windows)
         aligned = [raw[0]]
         for idx in range(1, len(raw)):
             if idx in boundary_indices:

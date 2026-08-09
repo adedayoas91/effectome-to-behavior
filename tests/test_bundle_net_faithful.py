@@ -64,7 +64,12 @@ def test_faithful_bunddle_fit_is_deterministic_and_records_spec(tmp_path) -> Non
         extra={"epochs": 2, "batch_size": 4},
     )
 
-    first = BundDLeManifold(cfg).fit(neural, behavior)
+    progress: list[tuple[int, int]] = []
+    first = BundDLeManifold(cfg).fit(
+        neural,
+        behavior,
+        progress_callback=lambda completed, total: progress.append((completed, total)),
+    )
     second = BundDLeManifold(cfg).fit(neural, behavior)
 
     first_embedding = first.transform(neural)
@@ -94,6 +99,7 @@ def test_faithful_bunddle_fit_is_deterministic_and_records_spec(tmp_path) -> Non
     assert first.fit_provenance["chronological_batches"] is True
     assert len(first.training_history) == 2
     assert first.training_history[0]["samples"] == 25
+    assert progress == [(1, 2), (2, 2)]
 
     model_path = first.save(tmp_path / "bunddle.pkl")
     loaded = ManifoldEmbedder.load(model_path)

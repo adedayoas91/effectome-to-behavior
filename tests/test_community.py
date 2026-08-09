@@ -61,6 +61,16 @@ def test_temporal_greedy_baseline_runs(windows):
     assert np.issubdtype(com.labels.dtype, np.integer)
 
 
+def test_static_community_progress_callback_reports_each_window(windows):
+    series = _series(windows)
+    det = CommunityFactory(CommunityConfig(name="leiden"))
+    progress: list[tuple[int, int]] = []
+    det.run(series, progress_callback=lambda done, total: progress.append((done, total)))
+    assert progress[0] == (1, series.n_windows)
+    assert progress[-1] == (series.n_windows, series.n_windows)
+    assert len(progress) == series.n_windows
+
+
 def test_temporal_viterbi_resets_coupling_at_boundaries():
     unary = np.array(
         [
@@ -149,6 +159,30 @@ def test_temporal_regularized_communities_expose_consensus_metrics():
     assert com.switching_rate > 0.0
     assert com.stability is not None
     assert 0.0 <= com.stability <= 1.0
+
+
+def test_temporal_community_progress_callback_reports_each_run():
+    base = np.array(
+        [
+            [0.0, 2.0, 2.0, -1.0],
+            [2.0, 0.0, 1.5, -1.0],
+            [2.0, 1.5, 0.0, -1.0],
+            [-1.0, -1.0, -1.0, 0.0],
+        ]
+    )
+    series = _manual_series(np.stack([base, base, base, base]))
+    det = CommunityFactory(
+        CommunityConfig(
+            name="temporal",
+            symmetrize=False,
+            use_absolute=False,
+            seed=0,
+            extra={"n_communities": 2, "n_runs": 3, "max_iter": 5, "temporal_penalty": 1.0},
+        )
+    )
+    progress: list[tuple[int, int]] = []
+    det.run(series, progress_callback=lambda done, total: progress.append((done, total)))
+    assert progress == [(1, 3), (2, 3), (3, 3)]
 
 
 def test_prospective_temporal_mode_is_future_invariant():

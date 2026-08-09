@@ -7,6 +7,7 @@ features, plus an explicit duration diagnostic that can motivate a later HSMM.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -328,6 +329,8 @@ def _fit_hmm(
     features: np.ndarray,
     boundary_indices: np.ndarray,
     cfg: ProbabilisticStateConfig,
+    *,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
     initial, transition, means, variances = _initialize_hmm(
         features,
@@ -339,7 +342,7 @@ def _fit_hmm(
     segments = _segment_slices(features.shape[0], boundary_indices)
     prev_loglik = -np.inf
     gamma = np.zeros((features.shape[0], cfg.n_states), dtype=np.float64)
-    for _ in range(cfg.n_iter):
+    for iteration in range(cfg.n_iter):
         initial, transition, means, variances, gamma, _, loglik = _em_update(
             features,
             initial,
@@ -349,6 +352,8 @@ def _fit_hmm(
             segments,
             cfg.covariance_floor,
         )
+        if progress_callback is not None:
+            progress_callback(iteration + 1, cfg.n_iter)
         if loglik - prev_loglik < cfg.tol:
             break
         prev_loglik = loglik
@@ -436,6 +441,7 @@ def fit_probabilistic_states(
     cfg: ProbabilisticStateConfig,
     *,
     fit_indices: np.ndarray | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> ProbabilisticStateModel:
     matrices = np.asarray(series.matrices, dtype=np.float64)
     n_windows = matrices.shape[0]
@@ -452,6 +458,7 @@ def fit_probabilistic_states(
         fit_features,
         boundary_indices=fit_boundaries,
         cfg=cfg,
+        progress_callback=progress_callback,
     )
 
     projection_all = _forward_backward(

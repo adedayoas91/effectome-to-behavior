@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 import numpy as np
 from sklearn.decomposition import PCA
@@ -20,7 +21,13 @@ class ClassicalManifold(ManifoldEmbedder):
         super().__init__(cfg)
         self._model = None
 
-    def fit(self, neural: np.ndarray, behavior: dict[str, np.ndarray]) -> ClassicalManifold:
+    def fit(
+        self,
+        neural: np.ndarray,
+        behavior: dict[str, np.ndarray],
+        *,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> ClassicalManifold:
         x = np.asarray(neural, dtype=np.float64)
         if self.cfg.method == "umap":
             try:

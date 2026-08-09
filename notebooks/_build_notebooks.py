@@ -16,6 +16,32 @@ METHOD_DIRECTORIES = {
     "correlation_partial": "partial-correlation",
 }
 
+PROGRESS_NOTE = (
+    "Progress: long stages print checkpoint-aware timing; iterative stages also display live "
+    "progress bars. Reused checkpoints are reported explicitly."
+)
+
+REPOSITORY_BOOTSTRAP = '''
+import sys
+from pathlib import Path
+
+try:
+    _REPOSITORY_ROOT = next(
+        path
+        for path in (Path.cwd(), *Path.cwd().parents)
+        if (path / "notebooks" / "_shared.py").is_file()
+    )
+except StopIteration as error:
+    raise RuntimeError(
+        "Could not locate the effectome repository from the notebook working directory"
+    ) from error
+sys.path[:0] = [
+    path
+    for path in (str(_REPOSITORY_ROOT / "src"), str(_REPOSITORY_ROOT))
+    if path not in sys.path
+]
+'''
+
 
 @dataclass(frozen=True)
 class DatasetSpec:
@@ -51,9 +77,18 @@ def code_cell(source: str) -> dict:
     }
 
 
+def with_repository_bootstrap(cells: list[dict]) -> list[dict]:
+    """Insert path initialization immediately before a notebook's first code cell."""
+    first_code = next(
+        (index for index, cell in enumerate(cells) if cell["cell_type"] == "code"),
+        len(cells),
+    )
+    return [*cells[:first_code], code_cell(REPOSITORY_BOOTSTRAP), *cells[first_code:]]
+
+
 def write_notebook(path: Path, cells: list[dict]) -> None:
     payload = {
-        "cells": cells,
+        "cells": with_repository_bootstrap(cells),
         "metadata": {
             "kernelspec": {
                 "display_name": "Python 3",
@@ -101,6 +136,7 @@ BUNDLE_NET_EXCLUDE_NAME_SOURCE = str(
             "",
             "This dataset-level notebook creates the immutable recording and temporal-window checkpoints shared by every method lane.",
             "Confirm the raw-data path, array keys, sampling rate, behavior mapping, valid ranges, and gaps in the named dataset config before running.",
+            PROGRESS_NOTE,
         ),
         code_cell(
             f'''
@@ -303,6 +339,7 @@ def notebook_connectivity(title: str, method: str, config_name: str) -> list[dic
             "",
             "Prerequisite: `outputs/artifacts/windows.pkl` must exist.",
             "Parallel lane: yes. This notebook owns only its method namespace under `outputs/notebook_runs/<RUN_ID>/<METHOD>/`.",
+            PROGRESS_NOTE,
         ),
         code_cell(
             """
@@ -362,6 +399,7 @@ def notebook_states(method: str, method_label: str) -> list[dict]:
             "",
             f"Prerequisite: the `{method}` connectivity stage must already exist for the selected `RUN_ID`.",
             "Parallel lane: yes, independent across method namespaces.",
+            PROGRESS_NOTE,
         ),
         code_cell(
             """
@@ -405,6 +443,7 @@ def notebook_probabilistic(method: str, method_label: str) -> list[dict]:
             "",
             f"Prerequisite: the `{method}` connectivity stage must already exist for the selected `RUN_ID`.",
             "This notebook fits the HMM and records duration diagnostics that indicate whether an HSMM is warranted later.",
+            PROGRESS_NOTE,
         ),
         code_cell(
             """
@@ -451,6 +490,7 @@ def notebook_community(method: str, method_label: str) -> list[dict]:
             "",
             f"Prerequisite: the `{method}` connectivity stage must already exist for the selected `RUN_ID`.",
             "Use `mode='prospective'` if you want positive-lag community prediction later in the linking notebook.",
+            PROGRESS_NOTE,
         ),
         code_cell(
             """
@@ -500,6 +540,7 @@ def notebook_manifold(method: str, method_label: str) -> list[dict]:
             "",
             f"Prerequisites: `outputs/artifacts/recording.pkl` and the `{method}` connectivity stage for the selected run.",
             "Parallel lane: yes, once the method-specific connectivity stage exists.",
+            PROGRESS_NOTE,
         ),
         code_cell(
             """
@@ -566,6 +607,7 @@ def notebook_linking(method: str, method_label: str, *, directed: bool) -> list[
             f"Prerequisites: `graph_states`, `community`, `manifold`, and `{method}` `connectivity` stages for the selected run, plus `outputs/artifacts/recording.pkl`.",
             "This notebook preserves the anchor-aware embargo and activity-covariate controls in the resumed stage artifact.",
             baseline_note,
+            PROGRESS_NOTE,
         ),
         code_cell(
             """
@@ -625,6 +667,7 @@ def notebook_attribution(method: str, method_label: str) -> list[dict]:
             "",
             f"Prerequisites: `community`, `manifold`, `{method}` `connectivity`, and `linking` stages, plus `outputs/artifacts/recording.pkl`.",
             "This notebook stops at validated in-silico counterfactual perturbations and stores the surrogate and perturbation checkpoints separately.",
+            PROGRESS_NOTE,
         ),
         code_cell(
             """

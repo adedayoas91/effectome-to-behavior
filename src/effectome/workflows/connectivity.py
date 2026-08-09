@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 
@@ -91,6 +92,7 @@ def estimate_connectivity_resumable(
     chunk_size: int = 16,
     input_artifacts: dict[str, str | Path] | None = None,
     force: bool = False,
+    progress_callback: Callable[[int, int, bool], None] | None = None,
 ) -> ConnectivitySeries:
     """Estimate independent windows in atomic chunks and resume completed chunks."""
     if chunk_size <= 0:
@@ -123,4 +125,5 @@ def estimate_connectivity_resumable(
         config=config,
         dependencies=input_artifacts,
         force=force,
+        progress_callback=progress_callback,
     )

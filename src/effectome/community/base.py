@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Any, cast
 
@@ -114,9 +115,20 @@ class CommunityDetector(ABC):
     def detect_one(self, matrix: np.ndarray) -> np.ndarray:
         """Return integer community labels, shape (N,), for one N x N matrix."""
 
-    def run(self, series: ConnectivitySeries) -> CommunitySeries:
+    def run(
+        self,
+        series: ConnectivitySeries,
+        *,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> CommunitySeries:
         """Detect communities per window -> CommunitySeries."""
-        labels = np.stack([self.detect_one(self._prepare(w)) for w in series.matrices])
+        labels_per_window = []
+        total = int(series.n_windows)
+        for index, window in enumerate(series.matrices):
+            labels_per_window.append(self.detect_one(self._prepare(window)))
+            if progress_callback is not None:
+                progress_callback(index + 1, total)
+        labels = np.stack(labels_per_window)
         counts = np.array([len(np.unique(row)) for row in labels])
         logger.info("Detected communities for %d windows (%s)", series.n_windows, self.cfg.name)
         return build_community_series(

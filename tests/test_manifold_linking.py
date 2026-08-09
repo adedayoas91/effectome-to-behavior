@@ -276,6 +276,23 @@ def test_state_behavior_association_and_leadlag(windows):
     assert ll.best_lag in ll.lags
 
 
+def test_association_with_null_progress_callback_reports_each_draw(windows):
+    series = ConnectivityFactory(ConnectivityConfig(name="cgc")).run(windows)
+    states = fit_graph_states(series, GraphStateConfig(n_states=3, metric="causal_kernel", seed=0))
+    beh = series.behavior_per_window["motif"]
+    progress: list[tuple[int, int]] = []
+
+    association_with_null(
+        states.labels,
+        beh,
+        n_null=7,
+        seed=0,
+        progress_callback=lambda done, total: progress.append((done, total)),
+    )
+
+    assert progress == [(1, 7), (2, 7), (3, 7), (4, 7), (5, 7), (6, 7), (7, 7)]
+
+
 def test_state_features_one_hot(windows):
     series = ConnectivityFactory(ConnectivityConfig(name="cgc")).run(windows)
     states = fit_graph_states(series, GraphStateConfig(n_states=3, metric="causal_kernel", seed=0))

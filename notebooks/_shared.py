@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, replace
 from pathlib import Path
-from typing import Any
+from time import perf_counter
+from typing import Any, TypeVar
 
 import numpy as np
+from tqdm.auto import tqdm
 
 from effectome.attribution import qualify_candidate_drivers
 from effectome.community import CommunityConfig, CommunityFactory
@@ -63,6 +66,78 @@ from effectome.utils.io import load_artifact
 from effectome.workflows import ResumableRun, estimate_connectivity_resumable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+T = TypeVar("T")
+
+
+class _ProgressReporter:
+    """Create a notebook-friendly progress bar only when work is actually performed."""
+
+    def __init__(self, description: str, unit: str) -> None:
+        self.description = description
+        self.unit = unit
+        self._bar: Any | None = None
+        self._reused = 0
+
+    def __call__(self, completed: int, total: int, reused: bool = False) -> None:
+        if self._bar is None:
+            self._bar = tqdm(
+                total=total,
+                desc=self.description,
+                unit=self.unit,
+                dynamic_ncols=True,
+                leave=True,
+            )
+        if reused:
+            self._reused += 1
+            self._bar.set_postfix(reused=self._reused, refresh=False)
+        self._bar.update(max(0, completed - self._bar.n))
+
+    def close(self) -> None:
+        if self._bar is not None:
+            self._bar.close()
+
+
+def _run_with_status(
+    run: ResumableRun,
+    stage: str,
+    operation: Callable[[], T],
+) -> T:
+    """Report checkpoint-aware stage timing without changing stage signatures."""
+    prefix = f"[{run.run_id}/{run.method}] {stage}"
+    print(f"{prefix}: checking checkpoint; computing if needed...")
+    started = perf_counter()
+    try:
+        value = operation()
+    except Exception:
+        print(f"{prefix}: failed after {perf_counter() - started:.1f}s")
+        raise
+    record = getattr(run, "last_record", None)
+    reused = record is not None and record.stage == stage and record.reused
+    action = "reused checkpoint" if reused else "completed"
+    print(f"{prefix}: {action} in {perf_counter() - started:.1f}s")
+    return value
+
+
+def _execute_stage(
+    run: ResumableRun,
+    stage: str,
+    compute: Callable[[], T],
+    *,
+    config: Any,
+    dependencies: Mapping[str, str | Path] | None = None,
+    force: bool = False,
+) -> T:
+    return _run_with_status(
+        run,
+        stage,
+        lambda: run.execute(
+            stage,
+            compute,
+            config=config,
+            dependencies=dependencies,
+            force=force,
+        ),
+    )
 
 
 def project_path(*parts: str) -> Path:
@@ -122,7 +197,8 @@ def _checkpoint_input(
 ) -> Any:
     artifact_path = Path(path).resolve()
     dependency_name = artifact_path.stem.replace(".", "_")
-    return run.execute(
+    return _execute_stage(
+        run,
         stage,
         lambda: load_artifact(artifact_path),
         config={"source_path": str(artifact_path)},
@@ -165,21 +241,24 @@ def run_preprocessing(
                 "Update the dataset config before running this notebook."
             )
 
-    raw_recording = run.execute(
+    raw_recording = _execute_stage(
+        run,
         "raw_recording",
         lambda: get_loader(str(data_cfg["name"]))(data_cfg),
         config=data_cfg,
         dependencies=source_dependencies,
         force=force,
     )
-    recording = run.execute(
+    recording = _execute_stage(
+        run,
         "recording",
         lambda: preprocess(raw_recording, preprocess_cfg),
         config=asdict(preprocess_cfg),
         dependencies={"raw_recording": stage_artifact_path(run, "raw_recording")},
         force=force,
     )
-    windows = run.execute(
+    windows = _execute_stage(
+        run,
         "windows",
         lambda: make_windows(recording, window_cfg),
         config=asdict(window_cfg),
@@ -206,7 +285,8 @@ def run_bundle_net_reference_preprocessing(
         "exclude_neuron_names": list(exclude_neuron_names),
         "exclude_neuron_name_source": exclude_neuron_name_source,
     }
-    reference_recording = run.execute(
+    reference_recording = _execute_stage(
+        run,
         "bundle_net_reference_recording",
         lambda: preprocess(
             exclude_named_neurons(
@@ -222,7 +302,8 @@ def run_bundle_net_reference_preprocessing(
     )
     if behavior_key not in reference_recording.behavior:
         raise KeyError(f"behavior key {behavior_key!r} is absent from the reference recording")
-    training_pairs = run.execute(
+    training_pairs = _execute_stage(
+        run,
         "bundle_net_training_pairs",
         lambda: build_bundle_training_batch(
             reference_recording.traces.T,
@@ -250,14 +331,23 @@ def run_connectivity(
 ):
     windows = _checkpoint_input(run, stage="windows_input", path=windows_path, force=False)
     estimator = ConnectivityFactory(connectivity_cfg.resolve(windows.fps))
-    return estimate_connectivity_resumable(
-        run,
-        estimator,
-        windows,
-        chunk_size=chunk_size,
-        input_artifacts={"windows": Path(windows_path).resolve()},
-        force=force,
-    )
+    progress = _ProgressReporter("Connectivity", "chunk")
+    try:
+        return _run_with_status(
+            run,
+            "connectivity",
+            lambda: estimate_connectivity_resumable(
+                run,
+                estimator,
+                windows,
+                chunk_size=chunk_size,
+                input_artifacts={"windows": Path(windows_path).resolve()},
+                force=force,
+                progress_callback=progress,
+            ),
+        )
+    finally:
+        progress.close()
 
 
 def run_graph_states_and_transitions(
@@ -268,26 +358,33 @@ def run_graph_states_and_transitions(
     force: bool = False,
 ):
     connectivity, connectivity_path = require_stage(run, "connectivity")
-    states = run.execute(
+    states = _execute_stage(
+        run,
         "graph_states",
         lambda: fit_graph_states(connectivity, graph_cfg),
         config=asdict(graph_cfg),
         dependencies={"connectivity": connectivity_path},
         force=force,
     )
-    transitions = run.execute(
-        "transitions",
-        lambda: fit_transitions(
-            states.labels,
-            states.n_states,
-            transition_cfg,
-            window_starts=states.window_starts,
-            boundary_indices=states.boundary_indices,
-        ),
-        config=asdict(transition_cfg),
-        dependencies={"graph_states": stage_artifact_path(run, "graph_states")},
-        force=force,
-    )
+    progress = _ProgressReporter("Transition null", "draw")
+    try:
+        transitions = _execute_stage(
+            run,
+            "transitions",
+            lambda: fit_transitions(
+                states.labels,
+                states.n_states,
+                transition_cfg,
+                window_starts=states.window_starts,
+                boundary_indices=states.boundary_indices,
+                progress_callback=progress,
+            ),
+            config=asdict(transition_cfg),
+            dependencies={"graph_states": stage_artifact_path(run, "graph_states")},
+            force=force,
+        )
+    finally:
+        progress.close()
     return states, transitions
 
 
@@ -298,13 +395,22 @@ def run_probabilistic_states(
     force: bool = False,
 ):
     connectivity, connectivity_path = require_stage(run, "connectivity")
-    return run.execute(
-        "probabilistic_states",
-        lambda: fit_probabilistic_states(connectivity, probabilistic_cfg),
-        config=asdict(probabilistic_cfg),
-        dependencies={"connectivity": connectivity_path},
-        force=force,
-    )
+    progress = _ProgressReporter("HMM expectation-maximization", "iteration")
+    try:
+        return _execute_stage(
+            run,
+            "probabilistic_states",
+            lambda: fit_probabilistic_states(
+                connectivity,
+                probabilistic_cfg,
+                progress_callback=progress,
+            ),
+            config=asdict(probabilistic_cfg),
+            dependencies={"connectivity": connectivity_path},
+            force=force,
+        )
+    finally:
+        progress.close()
 
 
 def run_community(
@@ -315,13 +421,19 @@ def run_community(
 ):
     connectivity, connectivity_path = require_stage(run, "connectivity")
     detector = CommunityFactory(community_cfg)
-    return run.execute(
-        "community",
-        lambda: detector.run(connectivity),
-        config=asdict(community_cfg),
-        dependencies={"connectivity": connectivity_path},
-        force=force,
-    )
+    unit = "run" if community_cfg.name == "temporal" else "window"
+    progress = _ProgressReporter("Community detection", unit)
+    try:
+        return _execute_stage(
+            run,
+            "community",
+            lambda: detector.run(connectivity, progress_callback=progress),
+            config=asdict(community_cfg),
+            dependencies={"connectivity": connectivity_path},
+            force=force,
+        )
+    finally:
+        progress.close()
 
 
 def _target_slices(window_starts: np.ndarray, history_length: int, target_length: int) -> list[TargetSlice]:
@@ -352,6 +464,7 @@ def _cross_fitted_window_embedding(
     target_slices: list[TargetSlice],
     manifold_cfg: ManifoldConfig,
     linking_cfg: dict[str, Any],
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, list[int]]:
     if not connectivity.anchors:
         raise ValueError("cross-fitted manifold learning requires typed temporal anchors")
@@ -414,6 +527,8 @@ def _cross_fitted_window_embedding(
         )
         fold_ids[test] = fold_id
         fit_sample_counts.append(int(fit_indices.size))
+        if progress_callback is not None:
+            progress_callback(fold_id + 1, len(splits))
     if np.any(fold_ids < 0) or not np.all(np.isfinite(embeddings)):
         raise RuntimeError("cross-fitted manifold embedding is incomplete")
     return embeddings, fold_ids, fit_sample_counts
@@ -449,10 +564,13 @@ def run_manifold(
         connectivity, history_length, manifold_cfg.target_length
     )
 
+    training_progress = _ProgressReporter("Manifold training", "iteration")
+    fold_progress = _ProgressReporter("Cross-fitted manifold", "fold")
+
     def _compute() -> ManifoldArtifact:
         neural, missing_value_contract = causal_forward_fill_nonfinite(recording.traces.T)
         embedder = ManifoldFactory(manifold_cfg)
-        embedder.fit(neural, recording.behavior)
+        embedder.fit(neural, recording.behavior, progress_callback=training_progress)
         full_embedding = embedder.transform(neural)
         fold_ids = None
         fit_sample_counts: list[int] = []
@@ -463,6 +581,7 @@ def run_manifold(
                 target_slices,
                 manifold_cfg,
                 linking_cfg,
+                progress_callback=fold_progress,
             )
             mode = "cross_fitted"
         else:
@@ -518,13 +637,25 @@ def run_manifold(
             },
         )
 
-    return run.execute(
-        "manifold",
-        _compute,
-        config={"manifold": asdict(manifold_cfg), "linking": linking_cfg, "history_length": history_length},
-        dependencies={"recording": Path(recording_path).resolve(), "connectivity": connectivity_path},
-        force=force,
-    )
+    try:
+        return _execute_stage(
+            run,
+            "manifold",
+            _compute,
+            config={
+                "manifold": asdict(manifold_cfg),
+                "linking": linking_cfg,
+                "history_length": history_length,
+            },
+            dependencies={
+                "recording": Path(recording_path).resolve(),
+                "connectivity": connectivity_path,
+            },
+            force=force,
+        )
+    finally:
+        training_progress.close()
+        fold_progress.close()
 
 
 def run_linking(
@@ -541,6 +672,13 @@ def run_linking(
     recording = _checkpoint_input(run, stage="recording_input", path=recording_path, force=False)
 
     def _compute() -> dict[str, Any]:
+        def association_with_progress(label: str, **kwargs: Any) -> Any:
+            progress = _ProgressReporter(label, "draw")
+            try:
+                return association_with_null(**kwargs, progress_callback=progress)
+            finally:
+                progress.close()
+
         anchors = list(connectivity.anchors) if connectivity.anchors else None
         groups = (
             anchor_group_labels(
@@ -633,9 +771,10 @@ def run_linking(
                 target_name="manifold_speed",
                 groups=manifold_groups,
             ),
-            "state_to_manifold_speed_association": association_with_null(
-                states.labels,
-                manifold_dyn[:, 0],
+            "state_to_manifold_speed_association": association_with_progress(
+                "State-manifold null",
+                states=states.labels,
+                behavior=manifold_dyn[:, 0],
                 n_null=int(linking_cfg["n_null"]),
                 seed=int(linking_cfg["seed"]),
                 n_bins=int(linking_cfg["n_bins"]),
@@ -643,9 +782,10 @@ def run_linking(
                 block_length=int(linking_cfg.get("block_length", 8)),
                 groups=manifold_groups,
             ),
-            "switching_count_to_manifold_speed_association": association_with_null(
-                switching_count,
-                manifold_dyn[:, 0],
+            "switching_count_to_manifold_speed_association": association_with_progress(
+                "Switching-manifold null",
+                states=switching_count,
+                behavior=manifold_dyn[:, 0],
                 n_null=int(linking_cfg["n_null"]),
                 seed=int(linking_cfg["seed"]) + 1,
                 n_bins=int(linking_cfg["n_bins"]),
@@ -784,6 +924,7 @@ def run_linking(
             )
         for behavior_key in linking_cfg["behavior_keys"]:
             if behavior_key not in connectivity.behavior_per_window:
+                print(f"[linking] skipping absent behavior: {behavior_key}")
                 continue
             behavior = np.asarray(connectivity.behavior_per_window[behavior_key])
             behavior = (
@@ -800,7 +941,12 @@ def run_linking(
                 feature_sets.append(("manifold_dynamics", manifold_dyn))
             if activity_feat.shape[1]:
                 feature_sets.append(("activity_magnitude", activity_feat))
+            print(
+                f"[linking] {behavior_key}: decoding {len(feature_sets)} feature sets "
+                "with blocked cross-validation"
+            )
             for name, features in feature_sets:
+                print(f"[linking] {behavior_key}: decoding {name}")
                 report["decoding"].append(
                     decode_behavior(
                         features,
@@ -815,9 +961,10 @@ def run_linking(
                         dependency_support=dependency_support,
                     )
                 )
-            report["association"][behavior_key] = association_with_null(
-                states.labels,
-                behavior,
+            report["association"][behavior_key] = association_with_progress(
+                f"{behavior_key} association null",
+                states=states.labels,
+                behavior=behavior,
                 n_null=int(linking_cfg["n_null"]),
                 seed=int(linking_cfg["seed"]),
                 n_bins=int(linking_cfg["n_bins"]),
@@ -917,7 +1064,8 @@ def run_linking(
             )
         return report
 
-    return run.execute(
+    return _execute_stage(
+        run,
         "linking",
         _compute,
         config=linking_cfg,
@@ -954,7 +1102,8 @@ def run_candidate_drivers(
     if behavior_key not in connectivity.behavior_per_window:
         raise KeyError(f"behavior key {behavior_key!r} is absent from connectivity windows")
     behavior = np.asarray(connectivity.behavior_per_window[behavior_key])
-    return run.execute(
+    return _execute_stage(
+        run,
         "candidate_drivers",
         lambda: qualify_candidate_drivers(
             connectivity,
@@ -1019,7 +1168,8 @@ def run_counterfactual_perturbation(
         chosen = [score.node for score in candidates.scores if score.is_candidate][:top_k]
         node_indices = chosen or [candidates.scores[0].node]
 
-    surrogate = run.execute(
+    surrogate = _execute_stage(
+        run,
         "surrogate_model",
         lambda: fit_linear_surrogate(
             connectivity,
@@ -1048,7 +1198,8 @@ def run_counterfactual_perturbation(
         },
         force=force,
     )
-    return run.execute(
+    return _execute_stage(
+        run,
         "virtual_perturbation",
         lambda: run_virtual_perturbation(
             surrogate,

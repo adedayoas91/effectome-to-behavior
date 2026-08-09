@@ -261,10 +261,12 @@ class ResumableRun:
         config: Any,
         dependencies: Mapping[str, str | Path] | None = None,
         force: bool = False,
+        progress_callback: Callable[[int, int, bool], None] | None = None,
     ) -> T:
         """Checkpoint each chunk independently, then checkpoint their combination."""
         results: list[T] = []
         chunk_artifacts: dict[str, Path] = {}
+        total = len(chunks)
         for index, chunk in enumerate(chunks):
             chunk_stage = f"{stage}.chunk-{index:05d}"
 
@@ -280,6 +282,8 @@ class ResumableRun:
             )
             results.append(result)
             chunk_artifacts[f"chunk_{index:05d}"] = self._paths(chunk_stage)[0]
+            if progress_callback is not None:
+                progress_callback(index + 1, total, bool(self.last_record and self.last_record.reused))
         return self.execute(
             stage,
             lambda: combine(results),

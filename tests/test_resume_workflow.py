@@ -57,6 +57,7 @@ def test_completed_stage_is_reused_only_for_matching_signature(tmp_path) -> None
 def test_chunks_and_combination_resume_independently(tmp_path) -> None:
     run = ResumableRun(tmp_path / "runs", "run-02", "cgc-star")
     calls: list[int] = []
+    progress_events: list[tuple[int, int, bool]] = []
 
     def compute_chunk(value: int) -> int:
         calls.append(value)
@@ -68,6 +69,7 @@ def test_chunks_and_combination_resume_independently(tmp_path) -> None:
         compute_chunk,
         sum,
         config={"chunk_size": 1},
+        progress_callback=lambda done, total, reused: progress_events.append((done, total, reused)),
     )
     second = run.execute_chunks(
         "connectivity",
@@ -75,6 +77,7 @@ def test_chunks_and_combination_resume_independently(tmp_path) -> None:
         compute_chunk,
         sum,
         config={"chunk_size": 1},
+        progress_callback=lambda done, total, reused: progress_events.append((done, total, reused)),
     )
     assert first == second == 14
     assert calls == [1, 2, 3]
@@ -84,6 +87,8 @@ def test_chunks_and_combination_resume_independently(tmp_path) -> None:
         "connectivity.chunk-00001",
         "connectivity.chunk-00002",
     ]
+    assert progress_events[:3] == [(1, 3, False), (2, 3, False), (3, 3, False)]
+    assert progress_events[3:] == [(1, 3, True), (2, 3, True), (3, 3, True)]
 
 
 def test_method_namespaces_do_not_share_checkpoints(tmp_path) -> None:

@@ -6,6 +6,7 @@ states/communities carry behavioral information beyond chance while preserving t
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -47,6 +48,7 @@ def circular_shift_null(
     n_bins: int = 5,
     min_shift: int = 1,
     groups: np.ndarray | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> np.ndarray:
     """MI null by circularly shifting behavior, preserving autocorrelation structure."""
     if len(states) != len(behavior):
@@ -58,7 +60,7 @@ def circular_shift_null(
     b = discretize(behavior, n_bins)
     slices = _continuous_slices(len(b), groups)
     out = []
-    for _ in range(n_null):
+    for index in range(n_null):
         surrogate = np.array(b, copy=True)
         for segment in slices:
             length = segment.stop - segment.start
@@ -66,6 +68,8 @@ def circular_shift_null(
             if valid_shifts.size:
                 surrogate[segment] = np.roll(b[segment], int(rng.choice(valid_shifts)))
         out.append(mutual_info_score(states, surrogate))
+        if progress_callback is not None:
+            progress_callback(index + 1, n_null)
     return np.asarray(out)
 
 
@@ -77,6 +81,7 @@ def block_shuffle_null(
     block_length: int,
     n_bins: int = 5,
     groups: np.ndarray | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> np.ndarray:
     """MI null by permuting contiguous behavior blocks rather than individual samples."""
     if block_length <= 0:
@@ -85,7 +90,7 @@ def block_shuffle_null(
     b = discretize(behavior, n_bins)
     slices = _continuous_slices(len(b), groups)
     out = []
-    for _ in range(n_null):
+    for index in range(n_null):
         shuffled = np.array(b, copy=True)
         for segment in slices:
             segment_values = b[segment]
@@ -94,6 +99,8 @@ def block_shuffle_null(
             order = rng.permutation(len(blocks))
             shuffled[segment] = np.concatenate([blocks[i] for i in order])[: len(segment_values)]
         out.append(mutual_info_score(states, shuffled))
+        if progress_callback is not None:
+            progress_callback(index + 1, n_null)
     return np.asarray(out)
 
 
@@ -154,14 +161,32 @@ def association_with_null(
     null_kind: str = "circular_shift",
     block_length: int | None = None,
     groups: np.ndarray | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> AssociationResult:
     """Mutual-information association of `states` with `behavior` vs a temporally aware null."""
     stat = state_behavior_mi(states, behavior, n_bins)
     if null_kind == "block_shuffle":
         block_length = block_length or max(2, len(states) // 10)
-        null = block_shuffle_null(states, behavior, n_null, seed, block_length, n_bins, groups=groups)
+        null = block_shuffle_null(
+            states,
+            behavior,
+            n_null,
+            seed,
+            block_length,
+            n_bins,
+            groups=groups,
+            progress_callback=progress_callback,
+        )
     else:
-        null = circular_shift_null(states, behavior, n_null, seed, n_bins, groups=groups)
+        null = circular_shift_null(
+            states,
+            behavior,
+            n_null,
+            seed,
+            n_bins,
+            groups=groups,
+            progress_callback=progress_callback,
+        )
         null_kind = "circular_shift"
     p = float((int(np.sum(null >= stat)) + 1) / (len(null) + 1))
     std = float(null.std()) or 1e-12

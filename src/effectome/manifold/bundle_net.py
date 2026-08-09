@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -211,7 +212,13 @@ class BundDLeManifold(ManifoldEmbedder):
         self.loss_history: list[dict[str, float | int]] = []
         self.fit_provenance: dict[str, Any] = {}
 
-    def fit(self, neural: np.ndarray, behavior: dict[str, np.ndarray]) -> BundDLeManifold:
+    def fit(
+        self,
+        neural: np.ndarray,
+        behavior: dict[str, np.ndarray],
+        *,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> BundDLeManifold:
         torch, nn = _load_torch()
         labels = behavior.get(self.cfg.behavior_key)
         if labels is None:
@@ -318,6 +325,8 @@ class BundDLeManifold(ManifoldEmbedder):
                 "behavior_loss": total_behavior / samples_seen,
             }
             history.append(epoch_record)
+            if progress_callback is not None:
+                progress_callback(epoch + 1, int(hyperparameters["epochs"]))
             if (epoch + 1) % max(1, int(hyperparameters["epochs"]) // 5) == 0 or epoch == 0:
                 logger.debug(
                     "BundDLe epoch=%d/%d loss=%.6f transition=%.6f behavior=%.6f",

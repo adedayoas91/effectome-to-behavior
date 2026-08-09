@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 
 from .base import ManifoldEmbedder, register_manifold
@@ -15,7 +17,13 @@ class CebraManifold(ManifoldEmbedder):
         super().__init__(cfg)
         self._model = None
 
-    def fit(self, neural: np.ndarray, behavior: dict[str, np.ndarray]) -> CebraManifold:
+    def fit(
+        self,
+        neural: np.ndarray,
+        behavior: dict[str, np.ndarray],
+        *,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> CebraManifold:
         try:
             import cebra
         except ImportError as exc:
@@ -31,7 +39,7 @@ class CebraManifold(ManifoldEmbedder):
             max_iterations=self.cfg.max_iter,
             distance="cosine",
             device="cuda_if_available",
-            verbose=False,
+            verbose=progress_callback is not None,
             **self.cfg.extra,
         )
         if aux is not None:

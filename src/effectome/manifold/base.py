@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import pickle
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -170,7 +171,13 @@ class ManifoldEmbedder(ABC):
         self._is_fitted = False
 
     @abstractmethod
-    def fit(self, neural: np.ndarray, behavior: dict[str, np.ndarray]) -> ManifoldEmbedder:
+    def fit(
+        self,
+        neural: np.ndarray,
+        behavior: dict[str, np.ndarray],
+        *,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> ManifoldEmbedder:
         """Fit the manifold model from neural (T, N) and aligned behavior arrays."""
 
     @abstractmethod

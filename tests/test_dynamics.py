@@ -100,6 +100,21 @@ def test_transitions_do_not_cross_recording_boundaries():
     assert np.array_equal(tm.segment_lengths, np.array([4, 4]))
 
 
+def test_transition_progress_callback_reports_all_null_draws(windows):
+    series = _series(windows)
+    states = fit_graph_states(series, GraphStateConfig(n_states=3, metric="causal_kernel", seed=0))
+    progress: list[tuple[int, int]] = []
+    fit_transitions(
+        states.labels,
+        states.n_states,
+        TransitionConfig(n_null=6, seed=0),
+        window_starts=states.window_starts,
+        boundary_indices=states.boundary_indices,
+        progress_callback=lambda done, total: progress.append((done, total)),
+    )
+    assert progress == [(1, 6), (2, 6), (3, 6), (4, 6), (5, 6), (6, 6)]
+
+
 def test_graph_states_use_typed_anchor_recording_boundaries():
     matrices = np.zeros((8, 3, 3), dtype=np.float32)
     matrices[:4, 0, 1] = 1.0
@@ -261,3 +276,18 @@ def test_probabilistic_states_flag_non_geometric_dwell():
     )
     assert np.any(model.hsmm_candidate.diagnostics.total_variation > 0.1)
     assert model.hsmm_candidate.status == "duration_diagnostic_only"
+
+
+def test_probabilistic_progress_callback_reports_em_iterations(windows):
+    series = _series(windows)
+    progress: list[tuple[int, int]] = []
+    fit_probabilistic_states(
+        series,
+        ProbabilisticStateConfig(n_states=2, n_components=2, n_iter=8, seed=0),
+        progress_callback=lambda done, total: progress.append((done, total)),
+    )
+    assert progress
+    assert progress[0] == (1, 8)
+    assert progress[-1][1] == 8
+    assert [done for done, _ in progress] == sorted(done for done, _ in progress)
+    assert progress[-1][0] <= 8

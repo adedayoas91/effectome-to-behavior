@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -198,6 +199,7 @@ def fit_transitions(
     *,
     window_starts: np.ndarray | None = None,
     boundary_indices: np.ndarray | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> TransitionModel:
     """Estimate transition structure with held-out temporal-order scoring."""
     labels = np.asarray(labels, dtype=int)
@@ -243,6 +245,8 @@ def fit_transitions(
             boundary_indices,
             cfg.heldout_fraction,
         )
+        if progress_callback is not None:
+            progress_callback(i + 1, cfg.n_null)
     p_value = float((1 + np.sum(null >= heldout_delta)) / (cfg.n_null + 1))
 
     segment_lengths = np.array(
