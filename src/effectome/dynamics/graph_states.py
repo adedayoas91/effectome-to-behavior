@@ -151,7 +151,13 @@ def _boundary_indices_from_anchors(anchors: list[TemporalAnchor]) -> np.ndarray:
     for idx in range(1, len(anchors)):
         prev = anchors[idx - 1]
         cur = anchors[idx]
-        if _key(cur) != _key(prev) or cur.gap_before or prev.gap_after:
+        if (
+            _key(cur) != _key(prev)
+            or cur.gap_before
+            or prev.gap_after
+            or cur.bad_frame_before
+            or prev.bad_frame_after
+        ):
             boundaries.append(idx)
     return np.asarray(boundaries, dtype=int)
 

@@ -1,4 +1,4 @@
-"""Registry wrappers for causalised Granger estimators."""
+"""Registered c-GC and c-GC* connectivity estimators."""
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ def _run_causalised_gc(
         ridge_alpha=float(extra.get("ridge_alpha", ridge)),
         seed=int(extra.get("seed", 42)),
         lag_aggregation=str(extra.get("lag_aggregation", "sum")),
+        min_valid_fraction=float(extra.get("min_valid_fraction", 0.95)),
     )
     estimator.fit(np.asarray(segment, dtype=np.float64).T, verbose=int(extra.get("verbose", 0)))
     matrix = estimator.get_connectivity_matrix(
@@ -50,12 +51,10 @@ def _run_causalised_gc(
     )
 
 
-@register_connectivity("granger")
-class GrangerConnectivity(ConnectivityEstimator):
-    """Windowed c-GC wrapper over the notebook-oriented core estimator."""
-
+class _CausalisedGCConnectivityBase(ConnectivityEstimator):
     directed = True
     weight_semantics = "signed_regularized_var_coefficient"
+    method: str
 
     def estimate(self, segment: np.ndarray) -> np.ndarray:
         matrix, lagged, _ = _run_causalised_gc(
@@ -64,7 +63,7 @@ class GrangerConnectivity(ConnectivityEstimator):
             max_lag=self.cfg.max_lag,
             alpha=self.cfg.alpha,
             extra=self.cfg.extra,
-            method="cgc",
+            method=self.method,
         )
         self._window_lagged = [lagged]
         return matrix
@@ -80,7 +79,7 @@ class GrangerConnectivity(ConnectivityEstimator):
                 max_lag=self.cfg.max_lag,
                 alpha=self.cfg.alpha,
                 extra=self.cfg.extra,
-                method="cgc",
+                method=self.method,
             )
             matrices.append(matrix)
             self._window_lagged.append(lagged)
@@ -97,7 +96,7 @@ class GrangerConnectivity(ConnectivityEstimator):
             {
                 "support_kind": "logical_and_of_marginal_and_conditional_evidence",
                 "support_description": "intersection_of_unconditional_and_conditional_evidence",
-                "support_variant": "cgc",
+                "support_variant": self.method,
                 "signed_weight_source": "ridge_var_on_selected_support",
                 "primary_tau_policy": "lagged_only_tau_ge_1",
                 "lag_resolved": list(getattr(self, "_window_diagnostics", [])),
@@ -106,57 +105,15 @@ class GrangerConnectivity(ConnectivityEstimator):
         return diagnostics
 
 
-@register_connectivity("granger_star")
-class GrangerStarConnectivity(ConnectivityEstimator):
-    """Windowed c-GC* wrapper over the notebook-oriented core estimator."""
+@register_connectivity("cgc")
+class CausalisedGCConnectivity(_CausalisedGCConnectivityBase):
+    """Windowed c-GC estimator."""
 
-    directed = True
-    weight_semantics = "signed_regularized_var_coefficient"
+    method = "cgc"
 
-    def estimate(self, segment: np.ndarray) -> np.ndarray:
-        matrix, lagged, _ = _run_causalised_gc(
-            segment,
-            ridge=self.cfg.ridge,
-            max_lag=self.cfg.max_lag,
-            alpha=self.cfg.alpha,
-            extra=self.cfg.extra,
-            method="fcgc",
-        )
-        self._window_lagged = [lagged]
-        return matrix
 
-    def estimate_sequence(self, segments) -> np.ndarray:
-        self._window_diagnostics = []
-        self._window_lagged = []
-        matrices = []
-        for segment in segments.segments:
-            matrix, lagged, diagnostics = _run_causalised_gc(
-                segment,
-                ridge=self.cfg.ridge,
-                max_lag=self.cfg.max_lag,
-                alpha=self.cfg.alpha,
-                extra=self.cfg.extra,
-                method="fcgc",
-            )
-            matrices.append(matrix)
-            self._window_lagged.append(lagged)
-            self._window_diagnostics.append(diagnostics)
-        return np.stack(matrices)
+@register_connectivity("cgc_star")
+class CausalisedGCStarConnectivity(_CausalisedGCConnectivityBase):
+    """Windowed full-conditioning c-GC* estimator."""
 
-    def _lagged_output(self) -> np.ndarray | None:
-        lagged = getattr(self, "_window_lagged", None)
-        return np.stack(lagged) if lagged else None
-
-    def _diagnostics(self, segments, mats):
-        diagnostics = super()._diagnostics(segments, mats)
-        diagnostics.update(
-            {
-                "support_kind": "logical_and_of_marginal_and_conditional_evidence",
-                "support_description": "intersection_of_unconditional_and_conditional_evidence",
-                "support_variant": "fcgc",
-                "signed_weight_source": "ridge_var_on_selected_support",
-                "primary_tau_policy": "lagged_only_tau_ge_1",
-                "lag_resolved": list(getattr(self, "_window_diagnostics", [])),
-            }
-        )
-        return diagnostics
+    method = "cgc_star"

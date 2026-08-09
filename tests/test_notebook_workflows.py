@@ -95,7 +95,11 @@ def test_preprocess_notebooks_use_configured_output_ids():
         )
         for snippet in snippets:
             assert snippet in text, f"{path.name} missing {snippet}"
-        assert "standardize_per_window=True" in text
+        assert (
+            'WINDOW_CONFIG_PATH = PROJECT_ROOT / "conf" / "windowing" '
+            '/ "primary_physical.yaml"'
+        ) in text
+        assert "WINDOW_CFG = WindowConfig(**WINDOWING_CFG)" in text
 
     c_elegans_text = "\n".join(
         "".join(cell.get("source", []))
@@ -130,6 +134,42 @@ def test_c_elegans_counterfactual_targets_manifold_not_motif_codes():
         )
         assert 'BEHAVIOR_KEY = "motif"' in text
         assert 'endpoint="manifold"' in text
+
+
+def test_c_elegans_manifold_notebooks_load_canonical_bunddle_profile():
+    root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans" / "manifolds"
+    for method_directory in ("c-GC", "c-GC-star", "partial-correlation"):
+        payload = json.loads(
+            (root / method_directory / "05_manifold.ipynb").read_text(encoding="utf-8")
+        )
+        text = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in payload["cells"]
+            if cell.get("cell_type") == "code"
+        )
+        assert 'MANIFOLD_CONFIG_NAME = "bunddle"' in text
+        assert 'MANIFOLD_BEHAVIOR_KEY = "motif"' in text
+        assert "OmegaConf.load(MANIFOLD_CONFIG_PATH)" in text
+
+
+def test_effectome_notebooks_load_canonical_connectivity_profiles():
+    root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans" / "effectomes"
+    expected = {
+        "c-GC": "cgc.yaml",
+        "c-GC-star": "cgc_star.yaml",
+        "partial-correlation": "correlation.yaml",
+    }
+    for method_directory, config_name in expected.items():
+        payload = json.loads(
+            (root / method_directory / "01_connectivity.ipynb").read_text(encoding="utf-8")
+        )
+        text = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in payload["cells"]
+            if cell.get("cell_type") == "code"
+        )
+        assert f'/ "{config_name}"' in text
+        assert "ConnectivityConfig(**CONNECTIVITY_YAML)" in text
 
 
 def test_attribution_helper_uses_window_aligned_behavior(monkeypatch, tmp_path):
@@ -250,7 +290,7 @@ def test_notebook_helpers_run_resumable_method_lane(tmp_path, windows):
         run,
         windows_path=windows_path,
         connectivity_cfg=ConnectivityConfig(
-            name="granger",
+            name="cgc",
             max_lag=1,
             extra={"support_test": "analytic", "n_perm": 0, "n_lags": 1, "seed": 0},
         ),

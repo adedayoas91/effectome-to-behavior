@@ -1,0 +1,16 @@
+# Longer-history sensitivity for temporal averaging/stability.
+length: 500
+history_length: null
+target_length: null
+stride: null
+history_seconds: 180.0
+target_seconds: 5.164169588779088
+stride_seconds: 5.164169588779088
+mode: temporal
+align_event: motif
+min_event_gap: 10
+behavior_summary: mean
+respect_boundaries: true
+drop_incomplete_tail: true
+standardize_per_window: true
+standardization_epsilon: 1.0e-8

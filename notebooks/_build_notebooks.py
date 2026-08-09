@@ -122,12 +122,16 @@ RUN_ID = "reference"
 METHOD = "shared"
 OUTPUT_ROOT = PROJECT_ROOT / "outputs" / "analysis" / DATASET_OUTPUT_ID / RECORDING_ID
 DATA_CONFIG_PATH = PROJECT_ROOT / "conf" / "data" / "{dataset.config_name}.yaml"
+WINDOW_CONFIG_PATH = PROJECT_ROOT / "conf" / "windowing" / "primary_physical.yaml"
 FORCE = False
 
 DATA_CFG = OmegaConf.to_container(OmegaConf.load(DATA_CONFIG_PATH), resolve=True)
 if not isinstance(DATA_CFG, dict):
     raise TypeError(f"Expected a mapping in {{DATA_CONFIG_PATH}}")
 DATA_CFG["path"] = str((PROJECT_ROOT / str(DATA_CFG["path"])).resolve())
+WINDOWING_CFG = OmegaConf.to_container(OmegaConf.load(WINDOW_CONFIG_PATH), resolve=True)
+if not isinstance(WINDOWING_CFG, dict):
+    raise TypeError(f"Expected a mapping in {{WINDOW_CONFIG_PATH}}")
 if str(DATA_CFG.get("dataset_id", "")) != DATASET_OUTPUT_ID:
     raise ValueError(
         f"Notebook output dataset id {{DATASET_OUTPUT_ID}} does not match config dataset id "
@@ -147,18 +151,7 @@ PREPROCESS_CFG = PreprocessConfig(
     drop_low_variance=0.0,
 )
 {reference_setup}
-WINDOW_CFG = WindowConfig(
-    length=500,
-    history_length=500,
-    target_length=15,
-    stride=15,
-    mode="temporal",
-    behavior_summary="mean",
-    respect_boundaries=True,
-    drop_incomplete_tail=True,
-    standardize_per_window=True,
-    standardization_epsilon=1.0e-8,
-)
+WINDOW_CFG = WindowConfig(**WINDOWING_CFG)
 EXPECTED_BEHAVIOR_KEYS = {behavior_keys}
 
 run = make_run(OUTPUT_ROOT, RUN_ID, METHOD)
@@ -180,12 +173,13 @@ if missing_behavior:
 
 print(f"recording: {recording.n_neurons} neurons x {recording.n_timepoints} samples")
 print(f"windows: {windows.n_windows}; shape={windows.segments.shape}")
+timing = windows.metadata["temporal_contract"]
 print(
-    "reference timing: "
-    f"history={WINDOW_CFG.effective_history_length / recording.fps:.3f}s, "
-    f"target={WINDOW_CFG.target_length / recording.fps:.3f}s, "
-    f"stride={WINDOW_CFG.stride / recording.fps:.3f}s, "
-    f"adjacent-context overlap={1.0 - WINDOW_CFG.stride / WINDOW_CFG.effective_history_length:.1%}"
+    "duration-first timing: "
+    f"history={timing['history_length']} frames/{timing['history']['resolved_seconds']:.3f}s, "
+    f"target={timing['target_length']} frames/{timing['target']['resolved_seconds']:.3f}s, "
+    f"stride={timing['stride_length']} frames/{timing['stride']['resolved_seconds']:.3f}s, "
+    f"adjacent-context overlap={1.0 - timing['stride_length'] / timing['history_length']:.1%}"
 )
 print(f"recording artifact: {stage_artifact_path(run, 'recording')}")
 print(f"windows artifact: {stage_artifact_path(run, 'windows')}")
@@ -276,13 +270,33 @@ def datasetize_cells(cells: list[dict], dataset: DatasetSpec) -> list[dict]:
             for old, new in replacements:
                 line = line.replace(old, new)
             source[index] = line
+    is_manifold_notebook = any(
+        "MANIFOLD_CFG" in line for cell in payload for line in cell.get("source", [])
+    )
+    if dataset.bundle_net_reference and is_manifold_notebook:
+        bundle_replacements = [
+            (
+                'RECORDING_PATH = OUTPUT_ROOT / RUN_ID / "shared" / "stages" / "recording" / "artifact.pkl"',
+                'RECORDING_PATH = (\n'
+                '    OUTPUT_ROOT / RUN_ID / "shared" / "stages"\n'
+                '    / "bundle_net_reference_recording" / "artifact.pkl"\n'
+                ')',
+            ),
+            ('MANIFOLD_CONFIG_NAME = "classical"', 'MANIFOLD_CONFIG_NAME = "bunddle"'),
+        ]
+        for cell in payload:
+            source = cell.get("source", [])
+            for index, line in enumerate(source):
+                for old, new in bundle_replacements:
+                    line = line.replace(old, new)
+                source[index] = line
     title_source = payload[0].get("source", [])
     if title_source:
         title_source[0] = title_source[0].replace("# ", f"# {dataset.label} — ", 1)
     return payload
 
 
-def notebook_connectivity(title: str, method: str, cfg_source: str) -> list[dict]:
+def notebook_connectivity(title: str, method: str, config_name: str) -> list[dict]:
     return [
         markdown_cell(
             f"# {title}",
@@ -292,6 +306,8 @@ def notebook_connectivity(title: str, method: str, cfg_source: str) -> list[dict
         ),
         code_cell(
             """
+from omegaconf import OmegaConf
+
 from effectome.connectivity import ConnectivityConfig
 from notebooks._shared import (
     PROJECT_ROOT,
@@ -305,15 +321,21 @@ RUN_ID = "demo"
 METHOD = "%s"
 ARTIFACT_ROOT = PROJECT_ROOT / "outputs" / "notebook_runs"
 WINDOWS_PATH = PROJECT_ROOT / "outputs" / "artifacts" / "windows.pkl"
+CONNECTIVITY_CONFIG_PATH = PROJECT_ROOT / "conf" / "connectivity" / "%s.yaml"
 FORCE = False
 CHUNK_SIZE = 16
 
-CONNECTIVITY_CFG = %s
+CONNECTIVITY_YAML = OmegaConf.to_container(
+    OmegaConf.load(CONNECTIVITY_CONFIG_PATH), resolve=True
+)
+if not isinstance(CONNECTIVITY_YAML, dict):
+    raise TypeError(f"Expected a mapping in {CONNECTIVITY_CONFIG_PATH}")
+CONNECTIVITY_CFG = ConnectivityConfig(**CONNECTIVITY_YAML)
 
 run = make_run(ARTIFACT_ROOT, RUN_ID, METHOD)
 print_stage_status(run)
 """
-            % (method, cfg_source)
+            % (method, config_name)
         ),
         code_cell(
             """
@@ -481,6 +503,8 @@ def notebook_manifold(method: str, method_label: str) -> list[dict]:
         ),
         code_cell(
             """
+from omegaconf import OmegaConf
+
 from effectome.manifold import ManifoldConfig
 from notebooks._shared import PROJECT_ROOT, make_run, print_stage_status, run_manifold
 
@@ -488,17 +512,16 @@ RUN_ID = "demo"
 METHOD = "%s"
 ARTIFACT_ROOT = PROJECT_ROOT / "outputs" / "notebook_runs"
 RECORDING_PATH = PROJECT_ROOT / "outputs" / "artifacts" / "recording.pkl"
+MANIFOLD_CONFIG_NAME = "classical"
+MANIFOLD_CONFIG_PATH = PROJECT_ROOT / "conf" / "manifold" / f"{MANIFOLD_CONFIG_NAME}.yaml"
+MANIFOLD_BEHAVIOR_KEY = "continuous"
 FORCE = False
 
+MANIFOLD_YAML = OmegaConf.to_container(OmegaConf.load(MANIFOLD_CONFIG_PATH), resolve=True)
+if not isinstance(MANIFOLD_YAML, dict):
+    raise TypeError(f"Expected a mapping in {MANIFOLD_CONFIG_PATH}")
 MANIFOLD_CFG = ManifoldConfig(
-    name="classical",
-    n_dims=3,
-    method="pca",
-    behavior_key="continuous",
-    target_length=15,
-    cross_fit=True,
-    n_folds=5,
-    seed=42,
+    **{**MANIFOLD_YAML, "behavior_key": MANIFOLD_BEHAVIOR_KEY}
 )
 LINKING_CFG = {
     "embargo": 4,
@@ -588,6 +611,7 @@ report = run_linking(
 print(len(report["decoding"]))
 print(report["splitter"])
 print(report["positive_lag_incremental"].keys())
+print(report["effectome_to_future_manifold"])
 print_stage_status(run)
 """
         ),
@@ -705,49 +729,19 @@ def main() -> None:
             "cgc",
             "c-GC",
             True,
-            """ConnectivityConfig(
-    name="granger",
-    max_lag=2,
-    ridge=1.0,
-    extra={
-        "support_test": "analytic",
-        "n_perm": 0,
-        "n_lags": 2,
-        "beta": 0.01,
-        "lag_aggregation": "sum",
-        "simulation": True,
-        "seed": 42,
-    },
-)""",
+            "cgc",
         ),
         (
             "cgc_star",
             "c-GC*",
             True,
-            """ConnectivityConfig(
-    name="granger_star",
-    max_lag=2,
-    ridge=1.0,
-    extra={
-        "support_test": "analytic",
-        "n_perm": 0,
-        "n_lags": 2,
-        "beta": 0.01,
-        "lag_aggregation": "sum",
-        "simulation": True,
-        "seed": 42,
-    },
-)""",
+            "cgc_star",
         ),
         (
             "correlation_partial",
             "Partial Correlation Baseline",
             False,
-            """ConnectivityConfig(
-    name="correlation",
-    partial=True,
-    ridge=1.0,
-)""",
+            "correlation",
         ),
     ]
     for dataset in datasets:
@@ -755,11 +749,11 @@ def main() -> None:
         preprocessing_path = Path("preprocessing") / "00_preprocess.ipynb"
         write_notebook(dataset_root / preprocessing_path, notebook_preprocessing(dataset))
         print(f"Wrote {dataset.relative_directory / preprocessing_path}")
-        for method, label, directed, connectivity_cfg in lanes:
+        for method, label, directed, connectivity_config_name in lanes:
             method_directory = METHOD_DIRECTORIES[method]
             notebooks = {
                 Path("effectomes") / method_directory / "01_connectivity.ipynb": notebook_connectivity(
-                    f"Connectivity Notebook: {label}", method, connectivity_cfg
+                    f"Connectivity Notebook: {label}", method, connectivity_config_name
                 ),
                 Path("clustering")
                 / method_directory

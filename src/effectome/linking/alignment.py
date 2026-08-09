@@ -62,6 +62,40 @@ def manifold_speed(embedding: np.ndarray, groups: np.ndarray | None = None) -> n
     return np.linalg.norm(vel, axis=1)
 
 
+def future_manifold_displacement(
+    embedding: np.ndarray,
+    origins: np.ndarray,
+    *,
+    lag: int = 1,
+    groups: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return future latent displacements and their chart-invariant magnitudes.
+
+    Each row is ``z[k + lag] - z[k]`` for a supplied effectome origin ``k``.
+    When fold/recording groups are provided, crossings between coordinate charts or
+    recording segments are rejected rather than silently differenced.
+    """
+
+    emb = np.asarray(embedding, dtype=float)
+    origin_arr = np.asarray(origins, dtype=int)
+    if emb.ndim != 2:
+        raise ValueError("embedding must have shape (anchor, latent_dimension)")
+    if lag <= 0:
+        raise ValueError("lag must be strictly positive")
+    if origin_arr.ndim != 1:
+        raise ValueError("origins must be a 1D integer array")
+    if origin_arr.size and (origin_arr.min() < 0 or origin_arr.max() + lag >= emb.shape[0]):
+        raise ValueError("origins and lag must select complete future embedding rows")
+    if groups is not None:
+        group_arr = np.asarray(groups, dtype=object)
+        if group_arr.shape[0] != emb.shape[0]:
+            raise ValueError("groups must align with embedding")
+        if np.any(group_arr[origin_arr] != group_arr[origin_arr + lag]):
+            raise ValueError("future manifold displacement cannot cross a continuity group")
+    displacement = emb[origin_arr + lag] - emb[origin_arr]
+    return displacement, np.linalg.norm(displacement, axis=1)
+
+
 def activity_magnitude_features(
     time_by_neuron: np.ndarray,
     anchors: list[TemporalAnchor] | tuple[TemporalAnchor, ...],
@@ -80,11 +114,20 @@ def activity_magnitude_features(
         target = traces[anchor.target_start : anchor.target_stop]
         if target.shape[0] != anchor.target_length:
             raise ValueError("anchor target interval falls outside activity samples")
+        if not np.any(np.isfinite(target)):
+            raise ValueError("anchor target interval has no finite activity samples")
+        finite_per_frame = np.isfinite(target).sum(axis=1)
+        population_mean = np.divide(
+            np.nansum(target, axis=1),
+            finite_per_frame,
+            out=np.full(target.shape[0], np.nan, dtype=float),
+            where=finite_per_frame > 0,
+        )
         rows.append(
             [
-                float(np.mean(np.abs(target))),
-                float(np.sqrt(np.mean(target**2))),
-                float(np.mean(np.abs(np.mean(target, axis=1)))),
+                float(np.nanmean(np.abs(target))),
+                float(np.sqrt(np.nanmean(target**2))),
+                float(np.nanmean(np.abs(population_mean))),
             ]
         )
     return np.asarray(rows, dtype=float)

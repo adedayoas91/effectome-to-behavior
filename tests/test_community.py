@@ -12,7 +12,7 @@ from effectome.data_module.schema import ConnectivitySeries, TemporalAnchor
 
 
 def _series(windows):
-    return ConnectivityFactory(ConnectivityConfig(name="granger")).run(windows)
+    return ConnectivityFactory(ConnectivityConfig(name="cgc")).run(windows)
 
 
 def _manual_series(matrices: np.ndarray) -> ConnectivitySeries:

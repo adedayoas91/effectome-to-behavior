@@ -137,7 +137,7 @@ class CausalisedGC:
     """c-GC / c-GC* estimator.
 
     ``method="cgc"`` uses the pairwise causalised conditioning set.
-    ``method="fcgc"`` uses the full-conditioning c-GC* variant.
+    ``method="cgc_star"`` uses the full-conditioning c-GC* variant.
     """
 
     n_perm: int = 0
@@ -151,14 +151,15 @@ class CausalisedGC:
     ridge_alpha: float = 1.0
     seed: int = 42
     lag_aggregation: str = "sum"
+    min_valid_fraction: float = 0.95
     corr_: np.ndarray | None = None
     pval_corr_: np.ndarray | None = None
     inv_corr_: np.ndarray | None = None
     pval_inv_corr_: np.ndarray | None = None
 
     def __post_init__(self) -> None:
-        if self.method not in {"cgc", "fcgc"}:
-            raise ValueError("method must be 'cgc' or 'fcgc'.")
+        if self.method not in {"cgc", "cgc_star"}:
+            raise ValueError("method must be 'cgc' or 'cgc_star'.")
         if self.support_test not in {"analytic", "circular_shift"}:
             raise ValueError("support_test must be 'analytic' or 'circular_shift'.")
         if self.support_test == "circular_shift" and self.n_perm <= 0:
@@ -169,6 +170,8 @@ class CausalisedGC:
             raise ValueError("n_lags must lie in [1, n_pasts].")
         if self.lag_aggregation not in {"sum", "mean", "max_abs"}:
             raise ValueError("lag_aggregation must be one of {'sum', 'mean', 'max_abs'}.")
+        if not 0.0 < self.min_valid_fraction <= 1.0:
+            raise ValueError("min_valid_fraction must lie in (0, 1].")
 
     def _lagged_rows(self, data: np.ndarray) -> np.ndarray:
         rows = []
@@ -179,9 +182,18 @@ class CausalisedGC:
     def _targets(self, data: np.ndarray) -> np.ndarray:
         return data[:, self.n_pasts :]
 
+    def _valid_design_rows_mask(self, data: np.ndarray) -> np.ndarray:
+        finite_by_time = np.all(np.isfinite(data), axis=0)
+        if data.shape[1] <= self.n_pasts:
+            return np.zeros(0, dtype=bool)
+        valid_rows = np.ones(data.shape[1] - self.n_pasts, dtype=bool)
+        for lag in range(self.n_pasts + 1):
+            valid_rows &= finite_by_time[lag : lag + valid_rows.shape[0]]
+        return valid_rows
+
     def _conditioning_indices(self, predictor_index: int) -> np.ndarray:
         all_indices = np.arange(self.n_pasts * self.n_neur, dtype=int)
-        if self.method == "fcgc":
+        if self.method == "cgc_star":
             return all_indices[all_indices != predictor_index]
 
         lag_index = predictor_index // self.n_neur
@@ -244,8 +256,20 @@ class CausalisedGC:
         self.n_neur = self.data.shape[0]
         if self.data.shape[1] <= self.n_pasts:
             raise ValueError("time series is too short for the requested lag depth")
-        self.shifted_data = self._lagged_rows(self.data)
-        self.target_data = self._targets(self.data)
+        self.total_design_rows_ = int(self.data.shape[1] - self.n_pasts)
+        self.valid_design_rows_mask_ = self._valid_design_rows_mask(self.data)
+        self.valid_design_rows_ = int(self.valid_design_rows_mask_.sum())
+        self.dropped_design_rows_ = int(self.total_design_rows_ - self.valid_design_rows_)
+        self.valid_row_fraction_ = self.valid_design_rows_ / max(self.total_design_rows_, 1)
+        self.invalid_timepoint_count_ = int(np.size(self.data) - np.isfinite(self.data).sum())
+        if self.valid_row_fraction_ + 1e-12 < self.min_valid_fraction:
+            raise ValueError(
+                "valid row fraction "
+                f"{self.valid_row_fraction_:.3f} fell below min_valid_fraction="
+                f"{self.min_valid_fraction:.3f}"
+            )
+        self.shifted_data = self._lagged_rows(self.data)[:, self.valid_design_rows_mask_]
+        self.target_data = self._targets(self.data)[:, self.valid_design_rows_mask_]
         self.design_ = self.shifted_data.T
         self._compute_support_statistics()
         return self
@@ -350,10 +374,12 @@ class CausalisedGC:
             "n_pasts": self.n_pasts,
             "n_lags": self.n_lags,
             "ridge_alpha": self.ridge_alpha,
+            "min_valid_fraction": self.min_valid_fraction,
             "lag_aggregation": aggregation or self.lag_aggregation,
             "primary_tau_policy": "lagged_only_tau_ge_1",
             "support_kind": "logical_and_of_marginal_and_conditional_evidence",
             "support_test": self.support_test,
+            "nonfinite_row_policy": "drop_only_rows_whose_lagged_chain_touches_nonfinite_samples",
             "support_test_assumption": (
                 "analytic correlation calibration; autocorrelation-aware sensitivity required"
                 if self.support_test == "analytic"
@@ -371,11 +397,14 @@ class CausalisedGC:
             "pvalue_resolution": (
                 float(resolution) if self.support_test == "circular_shift" else None
             ),
+            "total_design_rows": int(getattr(self, "total_design_rows_", self.design_.shape[0])),
+            "valid_design_rows": int(getattr(self, "valid_design_rows_", self.design_.shape[0])),
+            "dropped_design_rows": int(getattr(self, "dropped_design_rows_", 0)),
+            "valid_row_fraction": float(getattr(self, "valid_row_fraction_", 1.0)),
+            "invalid_timepoint_count": int(getattr(self, "invalid_timepoint_count_", 0)),
             "alpha": float(alpha),
             "beta": float(beta),
         }
 
 
-GcStar = CausalisedGC
-
-__all__ = ["CausalisedGC", "GcStar", "regression_residual"]
+__all__ = ["CausalisedGC", "regression_residual"]

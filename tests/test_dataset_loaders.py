@@ -151,6 +151,50 @@ def test_v2a_rsns_loader_interpolates_behavior_and_tracks_boundaries(tmp_path):
     assert rec.metadata["coords_source"] == "raw"
 
 
+def test_v2a_rsns_loader_masks_sparse_bad_frames_without_compressing_time(tmp_path):
+    base = tmp_path / "v2a"
+    base.mkdir()
+    info = {
+        "frameRateBeh": 10.0,
+        "frameRateSCAPE": 10.0,
+        "nCells": 2,
+        "nFramesSCAPE": 20,
+        "bad_frames": [2, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+    }
+    (base / "analysis_info.json").write_text(json.dumps(info), encoding="utf-8")
+    np.save(base / "traces.npy", np.arange(40, dtype=np.float32).reshape(2, 20))
+    np.save(base / "coords.npy", np.arange(6, dtype=np.float32).reshape(2, 3))
+    np.save(base / "tail.npy", np.arange(20, dtype=np.float32))
+    np.save(base / "emitters.npy", np.array([0], dtype=np.int64))
+    np.save(base / "receivers.npy", np.array([1], dtype=np.int64))
+
+    rec = get_loader("v2a_rsns")(
+        {
+            "name": "v2a_rsns",
+            "path": str(base),
+            "bad_frame_policy": "mask",
+            "max_masked_gap_seconds": 0.5,
+            "files": {
+                "analysis_info": "analysis_info.json",
+                "traces": "traces.npy",
+                "coords": "coords.npy",
+                "tail_angle": "tail.npy",
+                "emitter_cells": "emitters.npy",
+                "receiver_cells": "receivers.npy",
+            },
+        }
+    )
+
+    assert rec.n_timepoints == 20
+    assert np.array_equal(rec.time, np.arange(20, dtype=float) / 10.0)
+    assert np.all(np.isnan(rec.traces[:, 2]))
+    assert np.all(np.isnan(rec.traces[:, 10:20]))
+    assert rec.metadata["bad_frame_intervals"] == [(2, 3), (10, 20)]
+    assert rec.metadata["hard_bad_frame_intervals"] == [(10, 20)]
+    assert rec.metadata["gap_intervals"] == [(10, 20)]
+    assert rec.metadata["bad_frame_policy"] == "mask"
+
+
 def test_bundle_net_c_elegans_loader_builds_motif_and_canonical_names(tmp_path):
     base = tmp_path / "bundle"
     base.mkdir()

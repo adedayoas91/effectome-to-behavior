@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import pickle
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +14,42 @@ import numpy as np
 from effectome.data_module.schema import ArtifactProvenance, TemporalAnchor
 
 logger = logging.getLogger(__name__)
+
+
+def causal_forward_fill_nonfinite(neural: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
+    """Causally fill sparse nonfinite neural samples without changing the clock.
+
+    Each neuron uses its latest finite observation. Nonfinite values before the first
+    observation are set to zero. This is reserved for manifold estimation; c-GC/c-GC*
+    retain the original nonfinite values and mask affected lag-design rows.
+    """
+
+    values = np.asarray(neural, dtype=np.float64)
+    if values.ndim != 2:
+        raise ValueError("neural must have shape (time, neuron)")
+    filled = values.copy()
+    missing = ~np.isfinite(filled)
+    leading_count = 0
+    for neuron in range(filled.shape[1]):
+        last = 0.0
+        observed = False
+        for sample in range(filled.shape[0]):
+            if np.isfinite(filled[sample, neuron]):
+                last = float(filled[sample, neuron])
+                observed = True
+            else:
+                if not observed:
+                    leading_count += 1
+                filled[sample, neuron] = last
+    return filled, {
+        "policy": "causal_forward_fill",
+        "nonfinite_value_count": int(missing.sum()),
+        "nonfinite_frame_count": int(np.any(missing, axis=1).sum()),
+        "leading_zero_fill_count": int(leading_count),
+        "clock_compressed": False,
+        "future_samples_used": False,
+        "claim_boundary": "manifold_input_only; connectivity_uses_masked_original_samples",
+    }
 
 
 @dataclass(frozen=True)
@@ -27,7 +63,9 @@ class ManifoldConfig:
         behavior_key: Behavior variable used for supervised/contrastive embedders.
         max_iter: Training iterations for learned embedders.
         seed: Random seed.
-        target_length: Length of the target window aligned to each connectivity anchor.
+        target_length: Length of the target window aligned to each connectivity anchor when
+            using explicit samples.
+        target_seconds: Optional duration-first target length; overrides target_length when set.
         extra: Method-specific options.
     """
 
@@ -38,9 +76,21 @@ class ManifoldConfig:
     max_iter: int = 2000
     seed: int = 42
     target_length: int = 15
+    target_seconds: float | None = None
     cross_fit: bool = True
     n_folds: int = 5
     extra: dict = field(default_factory=dict)
+
+    def resolve(self, fps: float) -> ManifoldConfig:
+        """Resolve any duration-first target length to sample counts."""
+        if fps <= 0:
+            raise ValueError("fps must be positive")
+        if self.target_seconds is None:
+            return self
+        if self.target_seconds <= 0:
+            raise ValueError("target_seconds must be positive")
+        target_length = max(1, int(np.floor(self.target_seconds * fps + 0.5)))
+        return replace(self, target_length=target_length)
 
 
 @dataclass(frozen=True)

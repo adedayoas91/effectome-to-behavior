@@ -23,7 +23,7 @@ from effectome.dynamics import (
 
 
 def _series(windows):
-    return ConnectivityFactory(ConnectivityConfig(name="granger")).run(windows)
+    return ConnectivityFactory(ConnectivityConfig(name="cgc")).run(windows)
 
 
 def test_graph_states_recover_regimes(windows):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -11,8 +12,15 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from effectome.data_module.schema import ArtifactProvenance
+from effectome.data_module.windowing import WindowConfig
 from effectome.linking import DependencySupport, anchor_group_labels, purged_blocked_splits
-from effectome.manifold import ManifoldArtifact, ManifoldConfig, ManifoldFactory, TargetSlice
+from effectome.manifold import (
+    ManifoldArtifact,
+    ManifoldConfig,
+    ManifoldFactory,
+    TargetSlice,
+    causal_forward_fill_nonfinite,
+)
 from effectome.utils import set_seed
 from effectome.utils.io import load_artifact, save_artifact
 from effectome.viz import plot_manifold
@@ -84,7 +92,7 @@ def _cross_fitted_window_embedding(
         man_cfg.n_folds,
         embargo=int(linking_cfg.get("embargo", 0)),
         anchors=connectivity.anchors,
-        groups=groups,
+        groups=groups.tolist(),
         dependency_support=dependency_support,
     )
     embeddings = np.full(
@@ -94,7 +102,7 @@ def _cross_fitted_window_embedding(
     )
     fold_ids = np.full(connectivity.n_windows, -1, dtype=int)
     fit_sample_counts: list[int] = []
-    neural = np.asarray(recording.traces.T)
+    neural, _ = causal_forward_fill_nonfinite(recording.traces.T)
     for fold_id, (train, test) in enumerate(splits):
         fit_mask = np.zeros(recording.n_timepoints, dtype=bool)
         for idx in train:
@@ -134,20 +142,29 @@ def main(cfg: DictConfig) -> None:
 
     recording = load_artifact(art / "recording.pkl")
     man_cfg_data = cast(dict[str, Any], OmegaConf.to_container(cfg.manifold, resolve=True))
-    man_cfg = ManifoldConfig(**man_cfg_data)
+    man_cfg = ManifoldConfig(**man_cfg_data).resolve(recording.fps)
     connectivity = load_artifact(art / "connectivity.pkl")
-    history_length = int(
-        cfg.windowing.history_length
-        if cfg.windowing.mode == "temporal" and cfg.windowing.history_length is not None
-        else cfg.windowing.length
-    )
+    if connectivity.anchors:
+        anchor_target_lengths = {anchor.target_length for anchor in connectivity.anchors}
+        if len(anchor_target_lengths) != 1:
+            raise ValueError("all connectivity anchors must share one target length")
+        man_cfg = replace(man_cfg, target_length=anchor_target_lengths.pop())
+    window_cfg_data = cast(dict[str, Any], OmegaConf.to_container(cfg.windowing, resolve=True))
+    window_cfg = WindowConfig(**window_cfg_data).resolve(recording.fps)
+    if connectivity.anchors:
+        history_length = int(connectivity.anchors[0].history_length)
+    else:
+        history_length = int(window_cfg.effective_history_length)
     target_slices = _target_slices_for_connectivity(connectivity, history_length, man_cfg.target_length)
 
     # The full-data model is retained only for retrospective visualization and
     # serialization. Downstream predictive features use the fold-specific path.
+    manifold_neural, missing_value_contract = causal_forward_fill_nonfinite(
+        recording.traces.T
+    )
     embedder = ManifoldFactory(man_cfg)
-    embedder.fit(recording.traces.T, recording.behavior)
-    full_embedding = embedder.transform(recording.traces.T)
+    embedder.fit(manifold_neural, recording.behavior)
+    full_embedding = embedder.transform(manifold_neural)
     fold_ids = None
     fit_sample_counts: list[int] = []
     if man_cfg.cross_fit:
@@ -162,7 +179,7 @@ def main(cfg: DictConfig) -> None:
         window_embedding_mode = "cross_fitted"
     else:
         window_embedding = embedder.transform_targets(
-            recording.traces.T, target_slices, recording.behavior
+            manifold_neural, target_slices, recording.behavior
         )
         window_embedding_mode = "retrospective_full_fit"
 
@@ -198,10 +215,14 @@ def main(cfg: DictConfig) -> None:
             "history_length": history_length,
             "anchors": list(connectivity.anchors),
             "target_alignment": "anchor_target_interval" if connectivity.anchors else "window_start_fallback",
+            "target_length_source": (
+                "connectivity_anchor" if connectivity.anchors else "manifold_config"
+            ),
             "window_embedding_mode": window_embedding_mode,
             "cross_fit_fold_ids": fold_ids,
             "cross_fit_fit_sample_counts": fit_sample_counts,
             "prospective_eligible": bool(man_cfg.cross_fit),
+            "missing_value_contract": missing_value_contract,
             "fold_coordinate_contract": (
                 "ordered deterministic PCA coordinates; derivatives must break at fold boundaries"
                 if man_cfg.cross_fit

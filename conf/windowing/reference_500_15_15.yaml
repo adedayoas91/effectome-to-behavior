@@ -1,0 +1,16 @@
+# Sample-based reproduction/reference only; these frame counts are not physically matched across fps.
+length: 500
+history_length: 500
+target_length: 15
+stride: 15
+history_seconds: null
+target_seconds: null
+stride_seconds: null
+mode: temporal
+align_event: motif
+min_event_gap: 10
+behavior_summary: mean
+respect_boundaries: true
+drop_incomplete_tail: true
+standardize_per_window: true
+standardization_epsilon: 1.0e-8

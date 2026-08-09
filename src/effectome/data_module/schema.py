@@ -147,6 +147,8 @@ class TemporalAnchor:
     invalid_reason: str | None = None
     gap_before: bool = False
     gap_after: bool = False
+    bad_frame_before: bool = False
+    bad_frame_after: bool = False
     original_source_indices: tuple[int, int] | None = None
 
     def __post_init__(self) -> None:

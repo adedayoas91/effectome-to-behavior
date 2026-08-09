@@ -8,8 +8,8 @@ behavior/manifold targets align to the trailing target interval inside each hist
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, replace
+from typing import Any, Literal
 
 import numpy as np
 
@@ -24,9 +24,15 @@ class WindowConfig:
 
     Attributes:
         length: Legacy full-window length L in samples for ``sliding``/``behavior`` modes.
-        history_length: Context/history length for ``temporal`` mode. Defaults to ``length``.
-        target_length: Trailing target/core length for ``temporal`` mode.
-        stride: Step S between consecutive window starts in samples.
+        history_length: Context/history length for ``temporal`` mode when using explicit
+            samples. Defaults to ``length`` when no duration is provided.
+        target_length: Trailing target/core length for ``temporal`` mode when using explicit
+            samples. Defaults to 15 when no duration is provided.
+        stride: Step S between consecutive window starts in samples. Defaults to 25 when no
+            duration is provided.
+        history_seconds: Optional duration-first history length for ``temporal`` mode.
+        target_seconds: Optional duration-first trailing target/core length for ``temporal`` mode.
+        stride_seconds: Optional duration-first cadence for ``temporal`` mode.
         mode: ``sliding`` for regular tiling, ``behavior`` for event-aligned windows,
             ``temporal`` for trailing history/target anchors.
         align_event: Behavior key used for alignment when mode == ``behavior``.
@@ -40,8 +46,11 @@ class WindowConfig:
 
     length: int = 100
     history_length: int | None = None
-    target_length: int = 15
-    stride: int = 25
+    target_length: int | None = None
+    stride: int | None = None
+    history_seconds: float | None = None
+    target_seconds: float | None = None
+    stride_seconds: float | None = None
     mode: Literal["sliding", "behavior", "temporal"] = "sliding"
     align_event: str = "motif"
     min_event_gap: int = 10
@@ -54,6 +63,159 @@ class WindowConfig:
     @property
     def effective_history_length(self) -> int:
         return int(self.history_length if self.history_length is not None else self.length)
+
+    @property
+    def effective_target_length(self) -> int:
+        return int(self.target_length if self.target_length is not None else 15)
+
+    @property
+    def effective_stride(self) -> int:
+        return int(self.stride if self.stride is not None else 25)
+
+    def resolve(self, fps: float) -> WindowConfig:
+        """Resolve duration-first temporal parameters to sample counts."""
+        if self.mode != "temporal":
+            return self
+        if fps <= 0:
+            raise ValueError("fps must be positive")
+
+        history = _resolve_temporal_parameter(
+            name="history",
+            fps=fps,
+            explicit_samples=self.history_length,
+            explicit_seconds=self.history_seconds,
+            default_samples=self.length,
+        )
+        target = _resolve_temporal_parameter(
+            name="target",
+            fps=fps,
+            explicit_samples=self.target_length,
+            explicit_seconds=self.target_seconds,
+            default_samples=15,
+        )
+        stride = _resolve_temporal_parameter(
+            name="stride",
+            fps=fps,
+            explicit_samples=self.stride,
+            explicit_seconds=self.stride_seconds,
+            default_samples=25,
+        )
+        if int(target["resolved_samples"]) > int(history["resolved_samples"]):
+            raise ValueError("target_length must be in 1..history_length")
+        return replace(
+            self,
+            history_length=int(history["resolved_samples"]),
+            target_length=int(target["resolved_samples"]),
+            stride=int(stride["resolved_samples"]),
+        )
+
+
+def _round_samples_half_up(raw_samples: float) -> int:
+    return int(np.floor(raw_samples + 0.5))
+
+
+def _resolve_temporal_parameter(
+    *,
+    name: str,
+    fps: float,
+    explicit_samples: int | None,
+    explicit_seconds: float | None,
+    default_samples: int,
+) -> dict[str, Any]:
+    if fps <= 0:
+        raise ValueError("fps must be positive")
+    if explicit_samples is not None:
+        if explicit_samples <= 0:
+            raise ValueError(f"{name}_length must be positive")
+        resolved_samples = int(explicit_samples)
+        request_mode = "explicit_samples"
+        raw_samples_from_seconds = float(resolved_samples)
+        requested_samples: int | None = resolved_samples
+        requested_seconds = float(resolved_samples) / float(fps)
+    elif explicit_seconds is not None:
+        if explicit_seconds <= 0:
+            raise ValueError(f"{name}_seconds must be positive")
+        raw_samples_from_seconds = float(explicit_seconds) * float(fps)
+        resolved_samples = _round_samples_half_up(raw_samples_from_seconds)
+        if resolved_samples <= 0:
+            raise ValueError(
+                f"{name}_seconds={explicit_seconds} resolves to fewer than one sample at fps={fps}"
+            )
+        request_mode = "duration_first"
+        requested_samples = None
+        requested_seconds = float(explicit_seconds)
+    else:
+        if default_samples <= 0:
+            raise ValueError(f"default {name} length must be positive")
+        resolved_samples = int(default_samples)
+        request_mode = "default_samples"
+        raw_samples_from_seconds = float(resolved_samples)
+        requested_samples = resolved_samples
+        requested_seconds = float(resolved_samples) / float(fps)
+
+    resolved_seconds = float(resolved_samples) / float(fps)
+    return {
+        "request_mode": request_mode,
+        "requested_samples": requested_samples,
+        "requested_seconds": requested_seconds,
+        "raw_samples_from_seconds": raw_samples_from_seconds,
+        "resolved_samples": resolved_samples,
+        "resolved_seconds": resolved_seconds,
+        "rounding_policy": "nearest_half_up",
+        "rounding_error_seconds": resolved_seconds - requested_seconds,
+        "rounding_error_samples": float(resolved_samples) - raw_samples_from_seconds,
+    }
+
+
+def _resolve_temporal_contract(recording: NeuralRecording, cfg: WindowConfig) -> dict[str, Any]:
+    history = _resolve_temporal_parameter(
+        name="history",
+        fps=recording.fps,
+        explicit_samples=cfg.history_length,
+        explicit_seconds=cfg.history_seconds,
+        default_samples=cfg.length,
+    )
+    target = _resolve_temporal_parameter(
+        name="target",
+        fps=recording.fps,
+        explicit_samples=cfg.target_length,
+        explicit_seconds=cfg.target_seconds,
+        default_samples=15,
+    )
+    stride = _resolve_temporal_parameter(
+        name="stride",
+        fps=recording.fps,
+        explicit_samples=cfg.stride,
+        explicit_seconds=cfg.stride_seconds,
+        default_samples=25,
+    )
+    history_length = int(history["resolved_samples"])
+    target_length = int(target["resolved_samples"])
+    stride_length = int(stride["resolved_samples"])
+    if target_length > history_length:
+        raise ValueError("target_length must be in 1..history_length")
+
+    parameter_modes = {
+        "history": str(history["request_mode"]),
+        "target": str(target["request_mode"]),
+        "stride": str(stride["request_mode"]),
+    }
+    if set(parameter_modes.values()) == {"explicit_samples"}:
+        mode = "explicit_samples"
+    elif "duration_first" in parameter_modes.values():
+        mode = "duration_first"
+    else:
+        mode = "default_samples"
+    return {
+        "mode": mode,
+        "parameter_modes": parameter_modes,
+        "history": history,
+        "target": target,
+        "stride": stride,
+        "history_length": history_length,
+        "target_length": target_length,
+        "stride_length": stride_length,
+    }
 
 
 def _summarize(values: np.ndarray, how: str) -> float:
@@ -114,6 +276,28 @@ def _window_in_valid_range(start: int, stop: int, ranges: list[tuple[int, int]])
     return any(start >= range_start and stop <= range_stop for range_start, range_stop in ranges)
 
 
+def _crosses_interval(intervals: list[tuple[int, int]], start: int, stop: int) -> bool:
+    return any(start < interval_stop and stop > interval_start for interval_start, interval_stop in intervals)
+
+
+def _annotate_bad_frame_boundaries(
+    anchors: list[TemporalAnchor],
+    bad_frame_intervals: list[tuple[int, int]],
+) -> list[TemporalAnchor]:
+    if not anchors or not bad_frame_intervals:
+        return anchors
+    annotated = list(anchors)
+    for idx in range(1, len(annotated)):
+        previous = annotated[idx - 1]
+        current = annotated[idx]
+        interval_start = previous.anchor_sample + 1
+        interval_stop = current.anchor_sample + 1
+        if _crosses_interval(bad_frame_intervals, interval_start, interval_stop):
+            annotated[idx - 1] = replace(previous, bad_frame_after=True)
+            annotated[idx] = replace(current, bad_frame_before=True)
+    return annotated
+
+
 def _standardize_window_neurons(
     segments: np.ndarray,
     cfg: WindowConfig,
@@ -126,6 +310,7 @@ def _standardize_window_neurons(
         "ddof": 0,
         "epsilon": float(cfg.standardization_epsilon),
         "constant_neuron_policy": "center_to_zero",
+        "nonfinite_policy": "preserve_nonfinite_values_and_use_finite_samples_for_scaling",
         "claim_boundary": "uses only samples inside each causal history window",
     }
     values = np.asarray(segments, dtype=np.float64)
@@ -134,13 +319,20 @@ def _standardize_window_neurons(
     if cfg.standardization_epsilon <= 0:
         raise ValueError("standardization_epsilon must be positive")
 
-    means = values.mean(axis=1, keepdims=True)
-    scales = values.std(axis=1, keepdims=True)
-    constant = scales < float(cfg.standardization_epsilon)
+    finite_mask = np.isfinite(values)
+    finite_counts = finite_mask.sum(axis=1, keepdims=True)
+    safe_values = np.where(finite_mask, values, np.nan)
+    means = np.nanmean(safe_values, axis=1, keepdims=True)
+    means = np.where(finite_counts > 0, means, 0.0)
+    scales = np.nanstd(safe_values, axis=1, keepdims=True)
+    scales = np.where(finite_counts > 0, scales, 0.0)
+    constant = (scales < float(cfg.standardization_epsilon)) | (finite_counts == 0)
     safe_scales = np.where(constant, 1.0, scales)
     standardized = (values - means) / safe_scales
     standardized = np.where(constant, 0.0, standardized)
+    standardized = np.where(finite_mask, standardized, np.nan)
     metadata["constant_window_neuron_count"] = int(constant.sum())
+    metadata["nonfinite_sample_count"] = int((~finite_mask).sum())
     return standardized.astype(np.float32), metadata
 
 
@@ -191,15 +383,22 @@ def _build_anchor(
 
 
 def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> WindowedSegments:
-    history_length = cfg.effective_history_length
-    target_length = int(cfg.target_length)
+    temporal_contract = _resolve_temporal_contract(recording, cfg)
+    history_length = int(temporal_contract["history_length"])
+    target_length = int(temporal_contract["target_length"])
+    stride_length = int(temporal_contract["stride_length"])
     if history_length <= 0:
         raise ValueError("history_length must be positive")
     if target_length <= 0 or target_length > history_length:
         raise ValueError("target_length must be in 1..history_length")
+    if stride_length <= 0:
+        raise ValueError("stride must be positive")
 
     x = recording.traces.T
     valid_ranges = _valid_ranges(recording) if cfg.respect_boundaries else [(0, recording.n_timepoints)]
+    bad_frame_intervals = [
+        (int(start), int(stop)) for start, stop in recording.metadata.get("bad_frame_intervals", [])
+    ]
     windows: list[Window] = []
     anchors: list[TemporalAnchor] = []
     segments: list[np.ndarray] = []
@@ -208,7 +407,7 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
         last_start = range_stop - history_length
         if last_start < range_start:
             continue
-        for start in range(range_start, last_start + 1, cfg.stride):
+        for start in range(range_start, last_start + 1, stride_length):
             stop = start + history_length
             if cfg.respect_boundaries and not _window_in_valid_range(start, stop, valid_ranges):
                 continue
@@ -229,8 +428,10 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
 
     if not segments:
         raise ValueError(
-            "no temporal windows found; check history_length/stride or valid_ranges/gap_intervals"
+            "no temporal windows found; check history/stride settings or valid_ranges/gap_intervals"
         )
+
+    anchors = _annotate_bad_frame_boundaries(anchors, bad_frame_intervals)
 
     behavior_per_window: dict[str, np.ndarray] = {}
     for name, arr in recording.behavior.items():
@@ -245,17 +446,45 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
     )
     metadata = {
         "window_mode": "temporal",
+        "temporal_contract": temporal_contract,
         "history_length": history_length,
         "target_length": target_length,
-        "stride": cfg.stride,
+        "stride": stride_length,
+        "history_seconds": float(temporal_contract["history"]["resolved_seconds"]),
+        "target_seconds": float(temporal_contract["target"]["resolved_seconds"]),
+        "stride_seconds": float(temporal_contract["stride"]["resolved_seconds"]),
         "valid_ranges": valid_ranges,
+        "bad_frame_intervals": bad_frame_intervals,
         "drop_incomplete_tail": cfg.drop_incomplete_tail,
         "neural_standardization": standardization,
         "reference_profile": {
-            "history_length": 500,
-            "target_length": 15,
-            "stride": 15,
+            "mode": str(temporal_contract["mode"]),
+            "parameter_modes": dict(temporal_contract["parameter_modes"]),
+            "requested": {
+                "history_length": temporal_contract["history"]["requested_samples"],
+                "history_seconds": temporal_contract["history"]["requested_seconds"],
+                "target_length": temporal_contract["target"]["requested_samples"],
+                "target_seconds": temporal_contract["target"]["requested_seconds"],
+                "stride": temporal_contract["stride"]["requested_samples"],
+                "stride_seconds": temporal_contract["stride"]["requested_seconds"],
+            },
+            "resolved": {
+                "history_length": history_length,
+                "history_seconds": float(temporal_contract["history"]["resolved_seconds"]),
+                "target_length": target_length,
+                "target_seconds": float(temporal_contract["target"]["resolved_seconds"]),
+                "stride": stride_length,
+                "stride_seconds": float(temporal_contract["stride"]["resolved_seconds"]),
+            },
         },
+        "reference_profile_mode": (
+            "explicit_samples_reference"
+            if temporal_contract["mode"] == "explicit_samples"
+            and history_length == 500
+            and target_length == 15
+            and stride_length == 15
+            else "non_reference"
+        ),
     }
     return WindowedSegments(
         segments=standardized_segments,
@@ -273,6 +502,8 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
             axis_conventions={"segments": "window,time,neuron"},
             metadata={
                 "window_mode": "temporal",
+                "temporal_contract": temporal_contract,
+                "bad_frame_intervals": bad_frame_intervals,
                 "neural_standardization": standardization,
             },
         ),
@@ -285,7 +516,7 @@ def _make_legacy_windows(recording: NeuralRecording, cfg: WindowConfig) -> Windo
     valid_ranges = _valid_ranges(recording) if cfg.respect_boundaries else [(0, t)]
 
     if cfg.mode == "sliding":
-        starts = _sliding_starts(t, cfg.length, cfg.stride)
+        starts = _sliding_starts(t, cfg.length, cfg.effective_stride)
     else:
         if cfg.align_event not in recording.behavior:
             raise KeyError(f"align_event '{cfg.align_event}' not in behavior keys")
@@ -322,7 +553,13 @@ def _make_legacy_windows(recording: NeuralRecording, cfg: WindowConfig) -> Windo
         for w in windows
     ]
 
-    logger.info("Built %d windows (mode=%s, L=%d, S=%d)", len(windows), cfg.mode, cfg.length, cfg.stride)
+    logger.info(
+        "Built %d windows (mode=%s, L=%d, S=%d)",
+        len(windows),
+        cfg.mode,
+        cfg.length,
+        cfg.effective_stride,
+    )
     return WindowedSegments(
         segments=segments,
         windows=windows,
@@ -331,6 +568,8 @@ def _make_legacy_windows(recording: NeuralRecording, cfg: WindowConfig) -> Windo
         fps=recording.fps,
         metadata={
             "window_mode": cfg.mode,
+            "length": cfg.length,
+            "stride": cfg.effective_stride,
             "valid_ranges": valid_ranges,
             "neural_standardization": standardization,
         },

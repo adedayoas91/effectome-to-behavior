@@ -17,7 +17,7 @@ from effectome.experiments import analyze_with_cgc, analyze_with_cgc_star
 
 
 def test_registry_has_methods():
-    assert {"correlation", "granger", "granger_star", "pcmci", "jpcmci", "time_varying"} <= set(
+    assert {"correlation", "cgc", "cgc_star", "pcmci", "jpcmci", "time_varying"} <= set(
         CONNECTIVITY_REGISTRY
     )
 
@@ -34,9 +34,9 @@ def test_correlation_runs(windows):
     assert series.diagnostics["window_mode"] == windows.metadata.get("window_mode")
 
 
-def test_granger_recovers_ground_truth(windows, true_graph):
-    """Multivariate Granger should rank true edges above non-edges (AUROC > 0.6)."""
-    est = ConnectivityFactory(ConnectivityConfig(name="granger", max_lag=1, ridge=1.0))
+def test_cgc_recovers_ground_truth(windows, true_graph):
+    """c-GC should rank true edges above non-edges (AUROC > 0.6)."""
+    est = ConnectivityFactory(ConnectivityConfig(name="cgc", max_lag=1, ridge=1.0))
     series = est.run(windows)
     mean_influence = series.matrices.mean(axis=0)
 
@@ -45,7 +45,7 @@ def test_granger_recovers_ground_truth(windows, true_graph):
     scores = np.abs(mean_influence[off])
     labels = true_graph[off]
     auroc = roc_auc_score(labels, scores)
-    assert auroc > 0.6, f"Granger AUROC too low: {auroc:.3f}"
+    assert auroc > 0.6, f"c-GC AUROC too low: {auroc:.3f}"
     assert series.weight_semantics == "signed_regularized_var_coefficient"
     assert series.diagnostics["estimation_mode"] == "rolling_window"
     assert series.diagnostics["support_kind"] == "logical_and_of_marginal_and_conditional_evidence"
@@ -59,12 +59,19 @@ def test_granger_recovers_ground_truth(windows, true_graph):
     assert series.lagged_matrices.shape[:2] == (windows.n_windows, 1)
 
 
-def test_granger_preserves_sign(windows):
-    est = ConnectivityFactory(ConnectivityConfig(name="granger", max_lag=1, ridge=1.0))
+def test_cgc_preserves_sign(windows):
+    est = ConnectivityFactory(ConnectivityConfig(name="cgc", max_lag=1, ridge=1.0))
     series = est.run(windows)
     mats = series.matrices[:, ~np.eye(series.n_neurons, dtype=bool)]
     assert np.any(mats > 0.0)
     assert np.any(mats < 0.0)
+
+
+def test_cgc_star_uses_the_shared_causalised_gc_backend(windows):
+    estimator = ConnectivityFactory(ConnectivityConfig(name="cgc_star", max_lag=1, ridge=1.0))
+    series = estimator.run(windows)
+    assert series.diagnostics["support_variant"] == "cgc_star"
+    assert series.weight_semantics == "signed_regularized_var_coefficient"
 
 
 def test_sequence_level_estimator_hook_runs_once_for_full_series(windows):
@@ -145,18 +152,88 @@ def test_notebook_cgc_adapters_return_weighted_matrices(synthetic_recording):
     assert cgc_star[1].shape == (X.shape[1], X.shape[1])
 
 
-def test_granger_analytic_support_can_disable_permutations(windows):
+def test_cgc_analytic_support_can_disable_permutations(windows):
     estimator = ConnectivityFactory(
-        ConnectivityConfig(name="granger", max_lag=1, extra={"n_perm": 0, "support_test": "analytic"})
+        ConnectivityConfig(name="cgc", max_lag=1, extra={"n_perm": 0, "support_test": "analytic"})
     )
     series = estimator.run(windows)
     assert series.diagnostics["lag_resolved"][0]["support_test"] == "analytic"
 
 
-def test_granger_permutation_support_requires_positive_n_perm(windows):
+def test_cgc_masks_only_rows_touched_by_nonfinite_samples():
+    rng = np.random.default_rng(0)
+    data = rng.normal(size=(3, 41))
+    data[1, 10] = np.nan
+
+    estimator = CausalisedGC(
+        n_pasts=1,
+        n_lags=1,
+        min_valid_fraction=0.95,
+        seed=0,
+    ).fit(data)
+
+    assert estimator.design_.shape[0] == 38
+    assert estimator.total_design_rows_ == 40
+    assert estimator.valid_design_rows_ == 38
+    assert estimator.dropped_design_rows_ == 2
+    assert np.isclose(estimator.valid_row_fraction_, 0.95)
+    assert np.isfinite(estimator.design_).all()
+
+
+def test_cgc_reports_valid_row_diagnostics_for_masked_windows():
+    rng = np.random.default_rng(1)
+    segment = rng.normal(size=(41, 3)).astype(np.float32)
+    segment[10, 1] = np.nan
+    anchors = [
+        TemporalAnchor(
+            dataset_id="ds",
+            recording_id="rec",
+            animal_id=None,
+            session_id=None,
+            segment_id=None,
+            context_start=0,
+            context_stop=41,
+            target_start=40,
+            target_stop=41,
+            anchor_sample=40,
+            anchor_time_seconds=4.0,
+            sampling_rate_hz=10.0,
+        )
+    ]
+    windows = WindowedSegments(
+        segments=segment[None, :, :],
+        windows=[Window(0, 41)],
+        behavior_per_window={},
+        n_neurons=3,
+        fps=10.0,
+        anchors=anchors,
+    )
+
+    series = ConnectivityFactory(ConnectivityConfig(name="cgc", max_lag=1, ridge=1.0)).run(windows)
+    resolved = series.diagnostics["lag_resolved"][0]
+
+    assert resolved["total_design_rows"] == 40
+    assert resolved["valid_design_rows"] == 38
+    assert resolved["dropped_design_rows"] == 2
+    assert np.isclose(resolved["valid_row_fraction"], 0.95)
+    assert (
+        resolved["nonfinite_row_policy"]
+        == "drop_only_rows_whose_lagged_chain_touches_nonfinite_samples"
+    )
+
+
+def test_cgc_rejects_histories_below_min_valid_fraction():
+    data = np.random.default_rng(2).normal(size=(3, 40))
+    data[0, 10] = np.nan
+
+    with np.testing.assert_raises_regex(ValueError, "min_valid_fraction"):
+        CausalisedGC(n_pasts=1, n_lags=1, min_valid_fraction=0.95).fit(data)
+
+
+def test_cgc_permutation_support_requires_positive_n_perm(windows):
     estimator = ConnectivityFactory(
         ConnectivityConfig(
-            name="granger",
+            name="cgc",
             max_lag=1,
             extra={"n_perm": 0, "support_test": "circular_shift"},
         )

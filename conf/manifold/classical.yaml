@@ -5,5 +5,6 @@ method: pca          # pca | umap
 behavior_key: continuous
 seed: 42
 target_length: 15
+target_seconds: 5.164169588779088
 cross_fit: true
 n_folds: 5

@@ -80,7 +80,7 @@ class SmoothTimeVaryingConnectivity(ConnectivityEstimator):
         self.temporal_lambda = float(options.pop("temporal_lambda", 1.0))
         if self.temporal_lambda < 0:
             raise ValueError("temporal_lambda must be non-negative")
-        base_name = str(options.pop("base_estimator", "granger"))
+        base_name = str(options.pop("base_estimator", "cgc"))
         if base_name == "time_varying":
             raise ValueError("time_varying cannot use itself as its base_estimator")
         base_extra = options.pop("base_extra", options)

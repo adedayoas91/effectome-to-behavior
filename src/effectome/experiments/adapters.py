@@ -195,8 +195,8 @@ def make_causalised_gc_analyzer(
     lag_aggregation: str = "sum",
     seed: int = 42,
 ) -> Callable[[np.ndarray, list[int]], dict[int, np.ndarray]]:
-    if method not in {"cgc", "fcgc"}:
-        raise ValueError("method must be 'cgc' or 'fcgc'.")
+    if method not in {"cgc", "cgc_star"}:
+        raise ValueError("method must be 'cgc' or 'cgc_star'.")
 
     def analyze(x: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
         return {
@@ -228,7 +228,7 @@ def analyze_with_cgc(x: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray
 
 
 def analyze_with_cgc_star(x: np.ndarray, p_values: list[int]) -> dict[int, np.ndarray]:
-    return make_causalised_gc_analyzer("fcgc")(x, p_values)
+    return make_causalised_gc_analyzer("cgc_star")(x, p_values)
 
 
 def make_pcmciplus_analyzer(

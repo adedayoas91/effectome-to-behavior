@@ -65,6 +65,9 @@ published paired inputs from overlapping 15-sample slices. The pairing uses each
 16-sample block as `X[t:t+15]` and `X[t+1:t+16]`, with behavior at `t+15`, so a
 recording of length `T` produces `T-15` pairs. These are saved as
 `bundle_net_reference_recording` and `bundle_net_training_pairs`.
+The C. elegans manifold notebooks load that reference recording and fit the
+pinned faithful BunDLe architecture as a retrospective correspondence lane.
+They do not mark the full-fit/noncausally filtered chart as prospective.
 
 That exact filter is global and noncausal: every filtered time point can depend
 on future samples, and its unpadded reversal retains endpoint transients. It is
@@ -89,13 +92,15 @@ normalizes the signed ridge-VAR coefficients without changing the saved recordin
 or using samples outside the causal history. Raw activity magnitude remains
 available from the unscaled `recording` artifact for separate covariate analyses.
 
-With strict bad-frame boundaries, the 500/15/15 reference profile currently
-produces 176 C. elegans windows, 51 V2a-01 windows, and 76 V2a-02 windows. These
-are highly overlapping observations (97% shared history), not independent
-replicates. The 500 samples also represent different physical durations across
-species (about 172 s for worm 0 versus 83--94 s for the two fish). Keep this as
-the reproducible reference/sensitivity profile; freeze a primary physical-time
-profile only after the planned synthetic and held-out stability checks.
+The primary notebook contract is 120 seconds of history and a 5.164-second
+target/stride, resolved from each recording's sampling frequency. It yields
+`349/15/15` frames and 186 windows for C. elegans, `723/31/31` and 94 windows
+for V2a-01, and `636/27/27` and 95 windows for V2a-02. Adjacent histories still
+share about 96% of their samples and are not independent replicates. Sparse V2a
+bad frames remain on the native clock: c-GC/c-GC* mask only contaminated VAR
+rows, while state/community/manifold transitions reset across their intervals.
+The explicit `500/15/15` profile and strict all-bad-frames-as-boundaries policy
+remain labeled sensitivities.
 
 ## Order and parallelism for each dataset
 
@@ -139,3 +144,6 @@ of stages writing to another recording because each notebook writes under its ow
 - The probabilistic notebook fits a diagonal-Gaussian HMM. Its dwell diagnostic
   may justify a later HSMM but is not an HSMM fit.
 - Prospective manifold cross-fitting currently supports classical PCA only.
+- The prospective manifold outcome is the within-fold Euclidean displacement
+  from the current anchor to the next valid anchor; its magnitude is invariant
+  to fold-chart rotation/reflection. The exact BunDLe reference is descriptive.

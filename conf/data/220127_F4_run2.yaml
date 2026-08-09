@@ -6,7 +6,8 @@ animal_id: 220127_F4
 path: data/v2a-RSNs/220127_F4_run2
 signal_type: fluorescence
 cell_subset: emitter_receiver
-bad_frame_policy: boundaries
+bad_frame_policy: mask
+max_masked_gap_seconds: 1.0
 bad_frame_indexing: zero_based
 valid_ranges: []
 gap_intervals: []

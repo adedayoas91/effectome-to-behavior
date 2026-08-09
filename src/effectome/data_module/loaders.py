@@ -147,6 +147,36 @@ def _merge_gap_intervals(*interval_groups: list[tuple[int, int]]) -> list[tuple[
     return [(start, stop) for start, stop in merged]
 
 
+def _resolve_bad_frame_policy(
+    cfg: dict,
+    *,
+    bad_frame_intervals: list[tuple[int, int]],
+    fps: float,
+) -> tuple[str, float | None, list[tuple[int, int]]]:
+    """Resolve bad frames into hard boundaries without compressing recording time.
+
+    ``mask`` preserves short invalid runs on the native clock so lagged estimators can
+    discard only affected design rows. Runs longer than ``max_masked_gap_seconds``
+    remain hard boundaries. ``boundaries`` retains the stricter legacy sensitivity in
+    which every invalid run splits the recording.
+    """
+
+    policy = str(cfg.get("bad_frame_policy", "mask")).lower()
+    if policy == "boundaries":
+        return policy, None, list(bad_frame_intervals)
+    if policy != "mask":
+        raise ValueError("bad_frame_policy must be 'mask' or 'boundaries'")
+    max_masked_gap_seconds = float(cfg.get("max_masked_gap_seconds", 1.0))
+    if not np.isfinite(max_masked_gap_seconds) or max_masked_gap_seconds < 0:
+        raise ValueError("max_masked_gap_seconds must be finite and non-negative")
+    hard = [
+        (start, stop)
+        for start, stop in bad_frame_intervals
+        if (stop - start) / float(fps) > max_masked_gap_seconds
+    ]
+    return policy, max_masked_gap_seconds, hard
+
+
 def _interp_to_target_rate(
     values: np.ndarray,
     *,
@@ -404,9 +434,20 @@ def load_v2a_rsns(cfg: dict) -> NeuralRecording:
         raise ValueError("bad_frame_indexing must be 'zero_based' or 'one_based'")
     bad_frames = [idx for idx in raw_bad_frames if 0 <= idx < n_frames]
     bad_frame_intervals = _merge_index_ranges(bad_frames)
-    gap_intervals = _normalize_ranges(cfg.get("gap_intervals"))
-    if str(cfg.get("bad_frame_policy", "")).lower() == "boundaries":
-        gap_intervals = _merge_gap_intervals(gap_intervals, bad_frame_intervals)
+    bad_frame_policy, max_masked_gap_seconds, hard_bad_frame_intervals = (
+        _resolve_bad_frame_policy(
+            cfg,
+            bad_frame_intervals=bad_frame_intervals,
+            fps=fps,
+        )
+    )
+    gap_intervals = _merge_gap_intervals(
+        _normalize_ranges(cfg.get("gap_intervals")),
+        hard_bad_frame_intervals,
+    )
+    if bad_frame_policy == "mask" and bad_frames:
+        traces = traces.copy()
+        traces[:, bad_frames] = np.nan
 
     behavior_sources = {"tail_angle": tail_interp}
     behavior = {
@@ -426,7 +467,10 @@ def load_v2a_rsns(cfg: dict) -> NeuralRecording:
             "receiver_cell_indices": receiver_cells.tolist(),
             "bad_frames": bad_frames,
             "bad_frame_indexing": bad_frame_indexing,
+            "bad_frame_policy": bad_frame_policy,
+            "max_masked_gap_seconds": max_masked_gap_seconds,
             "bad_frame_intervals": bad_frame_intervals,
+            "hard_bad_frame_intervals": hard_bad_frame_intervals,
             "gap_intervals": gap_intervals,
             "source_files": {name: str((base / str(relative)).resolve()) for name, relative in files.items()},
         }

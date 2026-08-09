@@ -35,7 +35,7 @@ uv pip install -e ".[full,dev]"      # + PCMCI, Leiden, CEBRA, UMAP (heavier)
 ```bash
 # Generate synthetic neural data with a known effective-interaction graph and run the full chain
 python pipeline/00_preprocess.py   data=synthetic
-python pipeline/01_connectivity.py connectivity=granger
+python pipeline/01_connectivity.py connectivity=cgc
 python pipeline/02_dynamics.py
 python pipeline/03_community.py    community=leiden
 python pipeline/04_manifold.py     manifold=classical
@@ -45,6 +45,13 @@ python pipeline/07_intervention.py
 ```
 
 Each script writes typed artifacts under `outputs/` (gitignored) that the next stage consumes.
+
+The default temporal profile is duration-first: 120 seconds of history, a
+5.164-second manifold target/reporting cadence, and a 0.7-second c-GC lag
+horizon. Each recording's `fps` resolves these to samples with rounding
+provenance. Use `windowing=reference_500_15_15` only for the explicit sample
+reference; named 90/180-second and fast/slow-cadence sensitivity profiles live
+under `conf/windowing/`.
 
 ## Tests
 
@@ -64,7 +71,7 @@ ruff check . && mypy src/
 ```
 src/effectome/
 ├── data_module/     # loaders, preprocessing, windowing (shifted segments)
-├── connectivity/    # correlation, Granger, PCMCI+  (ConnectivityFactory)
+├── connectivity/    # correlation plus c-GC/c-GC* from causalised_gc.py
 ├── dynamics/        # graph-state clustering + Markov/HMM transitions
 ├── community/       # static / multiscale / temporal community detection
 ├── manifold/        # CEBRA / BundDLe-Net / classical behavioral manifolds

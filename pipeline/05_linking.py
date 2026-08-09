@@ -13,12 +13,15 @@ from omegaconf import DictConfig, OmegaConf
 from effectome.linking import (
     DependencySupport,
     activity_magnitude_features,
+    anchor_continuity_labels,
     anchor_group_labels,
     association_with_null,
     combined_continuity_groups,
     community_features,
+    community_reconfiguration_features,
     connectivity_features,
     decode_behavior,
+    future_manifold_displacement,
     incremental_decode_behavior,
     lead_lag,
     manifold_speed,
@@ -79,6 +82,14 @@ def main(cfg: DictConfig) -> None:
     manifold = load_artifact(art / "manifold.pkl")
     recording = load_artifact(art / "recording.pkl")
     anchors, groups = _split_inputs_for_linking(series, manifold, str(lk.get("group_by", "recording")))
+    continuity_groups = (
+        anchor_continuity_labels(
+            series.anchors,
+            group_by=str(lk.get("group_by", "recording")),
+        )
+        if series.anchors
+        else None
+    )
     preprocess_dependency = recording.metadata.get("preprocess_dependency", {})
     if (
         preprocess_dependency.get("kind") == "global"
@@ -104,10 +115,11 @@ def main(cfg: DictConfig) -> None:
     conn_feat = connectivity_features(series)
     state_feat = state_features(states.labels, states.n_states)
     com_feat = community_features(community)
+    reconfiguration_feat = community_reconfiguration_features(community)
     manifold_prospective = bool(manifold.metadata.get("prospective_eligible", False))
     fold_ids = manifold.metadata.get("cross_fit_fold_ids") if manifold_prospective else None
     manifold_groups = combined_continuity_groups(
-        groups,
+        continuity_groups,
         None if fold_ids is None else np.asarray(fold_ids),
         series.n_windows,
     )
@@ -128,9 +140,11 @@ def main(cfg: DictConfig) -> None:
         "lead_lag_activity_adjusted": {},
         "incremental": {},
         "positive_lag_incremental": {},
+        "effectome_to_future_manifold": {},
         "splitter": {
             "mode": "anchor_aware_grouped_purged" if anchors is not None else "purged_blocked",
             "group_by": str(lk.get("group_by", "recording")) if anchors is not None else None,
+            "continuity_boundaries": "recording_hard_gap_and_sparse_bad_frame",
             "embargo": int(lk["embargo"]),
             "raw_dependency_support": {
                 "lag_extension": dependency_support.lag_extension,
@@ -142,8 +156,151 @@ def main(cfg: DictConfig) -> None:
         "manifold_feature_mode": manifold.metadata.get(
             "window_embedding_mode", "undeclared_retrospective"
         ),
-        "manifold_derivative_boundaries": "recording_and_cross_fit_fold",
+        "manifold_derivative_boundaries": (
+            "recording_hard_gap_sparse_bad_frame_and_cross_fit_fold"
+        ),
     }
+    switching_count = np.rint(
+        reconfiguration_feat[:, 0] * float(community.labels.shape[1])
+    ).astype(int)
+    report["manifold_alignment"] = {
+        "state_to_manifold_speed_lead_lag": lead_lag(
+            states.labels,
+            manifold_dyn[:, 0],
+            max_lag=lk["max_lag"],
+            n_bins=lk["n_bins"],
+            target_name="manifold_speed",
+            groups=manifold_groups,
+        ),
+        "state_to_manifold_speed_association": association_with_null(
+            states.labels,
+            manifold_dyn[:, 0],
+            n_null=lk["n_null"],
+            seed=lk["seed"],
+            n_bins=lk["n_bins"],
+            null_kind=lk["null_kind"],
+            block_length=lk["block_length"],
+            groups=manifold_groups,
+        ),
+        "switching_count_to_manifold_speed_association": association_with_null(
+            switching_count,
+            manifold_dyn[:, 0],
+            n_null=lk["n_null"],
+            seed=lk["seed"] + 1,
+            n_bins=lk["n_bins"],
+            null_kind=lk["null_kind"],
+            block_length=lk["block_length"],
+            groups=manifold_groups,
+        ),
+        "mode": "prospective_cross_fitted" if manifold_prospective else "retrospective_descriptive",
+        "claim_boundary": (
+            "cross_fitted_current_state_alignment"
+            if manifold_prospective
+            else "full_fit_manifold_correspondence_only_not_prospective_or_causal"
+        ),
+    }
+    positive_lag = int(lk.get("positive_lag", 1))
+    if not manifold_prospective:
+        report["effectome_to_future_manifold"] = {
+            "lag": positive_lag,
+            "status": "invalid_non_cross_fitted_manifold",
+            "claim_boundary": "retrospective_manifold_not_eligible_for_prospective_prediction",
+        }
+    else:
+        manifold_origins = valid_positive_lag_origins(
+            series.n_windows,
+            positive_lag,
+            anchors=series.anchors if series.anchors else None,
+        )
+        if manifold_groups is not None and manifold_origins.size:
+            group_arr = np.asarray(manifold_groups, dtype=object)
+            within_chart = (
+                group_arr[manifold_origins]
+                == group_arr[manifold_origins + positive_lag]
+            )
+            manifold_origins = manifold_origins[within_chart]
+        if manifold_origins.size < 4:
+            report["effectome_to_future_manifold"] = {
+                "lag": positive_lag,
+                "status": "too_few_within_segment_within_chart_transitions",
+            }
+        else:
+            _, future_manifold_distance = future_manifold_displacement(
+                manifold.window_embedding,
+                manifold_origins,
+                lag=positive_lag,
+                groups=manifold_groups,
+            )
+            manifold_lag_anchors = (
+                [series.anchors[int(idx)] for idx in manifold_origins]
+                if series.anchors
+                else None
+            )
+            manifold_future_anchors = (
+                [series.anchors[int(idx + positive_lag)] for idx in manifold_origins]
+                if series.anchors
+                else None
+            )
+            manifold_lag_groups = (
+                np.asarray(manifold_groups, dtype=object)[manifold_origins].tolist()
+                if manifold_groups is not None
+                else None
+            )
+            raw_effectome_result = decode_behavior(
+                conn_feat[manifold_origins],
+                future_manifold_distance,
+                "connectivity",
+                "future_manifold_displacement",
+                n_folds=lk["n_folds"],
+                seed=lk["seed"],
+                embargo=lk["embargo"],
+                anchors=manifold_lag_anchors,
+                groups=manifold_lag_groups,
+                dependency_support=dependency_support,
+                outcome_anchors=manifold_future_anchors,
+            )
+            manifold_report: dict[str, Any] = {
+                "lag": positive_lag,
+                "n_transitions": int(manifold_origins.size),
+                "outcome": "euclidean_norm_of_z_future_minus_z_current",
+                "raw_effectome_decode": raw_effectome_result,
+                "coordinate_contract": (
+                    "magnitude_is_rotation_reflection_invariant; transitions never cross folds, "
+                    "recordings, or declared gaps"
+                ),
+                "claim_boundary": "prospective_prediction_not_interventional_causation",
+            }
+            if getattr(community, "mode", None) == "prospective":
+                manifold_baseline = np.concatenate(
+                    [
+                        manifold_dyn[manifold_origins],
+                        activity_feat[manifold_origins],
+                        conn_feat[manifold_origins],
+                    ],
+                    axis=1,
+                )
+                manifold_report["community_reconfiguration_increment"] = (
+                    incremental_decode_behavior(
+                        manifold_baseline,
+                        reconfiguration_feat[manifold_origins],
+                        future_manifold_distance,
+                        n_folds=lk["n_folds"],
+                        seed=lk["seed"],
+                        embargo=lk["embargo"],
+                        anchors=manifold_lag_anchors,
+                        groups=manifold_lag_groups,
+                        dependency_support=dependency_support,
+                        outcome_anchors=manifold_future_anchors,
+                    )
+                )
+                manifold_report["community_feature_contract"] = (
+                    "switching_fraction_plus_neuron_resolved_allegiance_changes"
+                )
+            else:
+                manifold_report["community_reconfiguration_status"] = (
+                    "invalid_future_aware_community_features"
+                )
+            report["effectome_to_future_manifold"] = manifold_report
     if manifold_prospective:
         report["lead_lag"]["manifold_speed"] = lead_lag(
             states.labels,
@@ -201,7 +358,7 @@ def main(cfg: DictConfig) -> None:
             n_bins=lk["n_bins"],
             null_kind=lk["null_kind"],
             block_length=lk["block_length"],
-            groups=groups,
+            groups=continuity_groups,
         )
         report["association"][bkey] = assoc
 
@@ -211,7 +368,7 @@ def main(cfg: DictConfig) -> None:
             max_lag=lk["max_lag"],
             n_bins=lk["n_bins"],
             target_name=bkey,
-            groups=groups,
+            groups=continuity_groups,
         )
         report["lead_lag"][bkey] = ll
         report["lead_lag_activity_adjusted"][bkey] = lead_lag(
@@ -220,7 +377,7 @@ def main(cfg: DictConfig) -> None:
             max_lag=lk["max_lag"],
             n_bins=lk["n_bins"],
             target_name=bkey,
-            groups=groups,
+            groups=continuity_groups,
             controls=activity_feat if activity_feat.shape[1] else None,
         )
 
@@ -241,7 +398,6 @@ def main(cfg: DictConfig) -> None:
         )
         report["incremental"][bkey] = inc
 
-        positive_lag = int(lk.get("positive_lag", 1))
         community_mode = getattr(community, "mode", None)
         if not manifold_prospective:
             report["positive_lag_incremental"][bkey] = {

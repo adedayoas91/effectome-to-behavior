@@ -2,10 +2,17 @@
 name: bunddle
 n_dims: 3
 behavior_key: motif        # discrete behavior works well for the behavior-decoder loss
-max_iter: 1500
+max_iter: 3000
 seed: 42
 target_length: 15
+target_seconds: 5.164169588779088
 # Fold-safe segmented BundDLe training is not yet exposed by the model API; keep
 # this retrospective and ineligible for prospective linking until it is.
 cross_fit: false
 n_folds: 5
+extra:
+  batch_size: 100
+  gamma: 0.9
+  learning_rate: 0.001
+  noise_std: 0.05
+  behavior_classes: 8

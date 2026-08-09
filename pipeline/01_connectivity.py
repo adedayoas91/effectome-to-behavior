@@ -25,7 +25,7 @@ def main(cfg: DictConfig) -> None:
 
     windows = load_artifact(art / "windows.pkl")
     connectivity_cfg = cast(dict[str, Any], OmegaConf.to_container(cfg.connectivity, resolve=True))
-    conn_cfg = ConnectivityConfig(**connectivity_cfg)
+    conn_cfg = ConnectivityConfig(**connectivity_cfg).resolve(windows.fps)
     estimator = ConnectivityFactory(conn_cfg)
     series = estimator.run(windows)
 

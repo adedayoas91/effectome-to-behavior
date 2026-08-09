@@ -8,7 +8,7 @@ ridge: 1.0
 absolute: false
 threshold: 0.0
 extra:
-  base_estimator: granger
+  base_estimator: cgc
   temporal_lambda: 1.0
   base_extra:
     support_test: analytic

@@ -1,15 +1,16 @@
-# Multivariate (conditional) Granger causality from a ridge-VAR fit ("causalised Granger").
-name: granger
+# Full-conditioning c-GC* with signed ridge-VAR weights on selected lagged support.
+name: cgc_star
 max_lag: 2
+max_lag_seconds: 0.7
 alpha: 0.05
 partial: false
 ridge: 1.0
-absolute: false      # preserve signed effective influence
+absolute: false
 threshold: 0.0
 extra:
   support_test: analytic
   n_perm: 0           # only used when support_test=circular_shift
-  n_lags: 2
+  min_valid_fraction: 0.95
   beta: 0.01
   lag_aggregation: sum
   simulation: true

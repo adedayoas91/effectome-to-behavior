@@ -101,7 +101,7 @@ def test_bundle_training_batch_uses_one_sample_offset_pairs(synthetic_recording)
 
 def test_connectivity_decodes_regime_behavior(windows):
     """The dynamic effectome should decode the regime-linked 'motif' behavior above chance."""
-    series = ConnectivityFactory(ConnectivityConfig(name="granger")).run(windows)
+    series = ConnectivityFactory(ConnectivityConfig(name="cgc")).run(windows)
     beh = series.behavior_per_window["motif"]
     res = decode_behavior(connectivity_features(series), beh, "connectivity", "motif", n_folds=4, embargo=2)
     assert res.task == "classification"
@@ -218,12 +218,19 @@ def test_default_temporal_config_uses_signed_temporal_communities_and_grouped_li
     cfg = OmegaConf.load(repo_root / "conf" / "config.yaml")
     defaults = OmegaConf.to_container(cfg.defaults, resolve=False)
     linking_cfg = OmegaConf.load(repo_root / "conf" / "linking" / "default.yaml")
+    windowing_cfg = OmegaConf.load(
+        repo_root / "conf" / "windowing" / "primary_physical.yaml"
+    )
 
     assert {"community": "temporal"} in defaults
-    assert cfg.windowing.mode == "temporal"
-    assert cfg.windowing.history_length == 500
-    assert cfg.windowing.target_length == 15
-    assert cfg.windowing.stride == 15
+    assert {"windowing": "primary_physical"} in defaults
+    assert windowing_cfg.mode == "temporal"
+    assert windowing_cfg.history_length is None
+    assert windowing_cfg.target_length is None
+    assert windowing_cfg.stride is None
+    assert windowing_cfg.history_seconds == 120.0
+    assert np.isclose(windowing_cfg.target_seconds, 5.164169588779088)
+    assert np.isclose(windowing_cfg.stride_seconds, 5.164169588779088)
     assert linking_cfg.group_by == "recording"
     assert linking_cfg.embargo == 4
 
@@ -255,7 +262,7 @@ def test_positive_lag_origins_exclude_cross_recording_pair():
 
 def test_state_behavior_association_and_leadlag(windows):
     """Inferred connectivity states should carry information about the regime-linked behavior."""
-    series = ConnectivityFactory(ConnectivityConfig(name="granger")).run(windows)
+    series = ConnectivityFactory(ConnectivityConfig(name="cgc")).run(windows)
     states = fit_graph_states(series, GraphStateConfig(n_states=3, metric="causal_kernel", seed=0))
     beh = series.behavior_per_window["motif"]
 
@@ -270,7 +277,7 @@ def test_state_behavior_association_and_leadlag(windows):
 
 
 def test_state_features_one_hot(windows):
-    series = ConnectivityFactory(ConnectivityConfig(name="granger")).run(windows)
+    series = ConnectivityFactory(ConnectivityConfig(name="cgc")).run(windows)
     states = fit_graph_states(series, GraphStateConfig(n_states=3, metric="causal_kernel", seed=0))
     feats = state_features(states.labels, states.n_states)
     assert feats.shape == (series.n_windows, 3)

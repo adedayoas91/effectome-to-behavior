@@ -190,10 +190,113 @@ def test_temporal_reference_windows_match_goal_contract():
     assert windows.anchors[1].target_stop == 515
     assert windows.anchors[1].anchor_sample == 514
     assert windows.metadata["reference_profile"] == {
-        "history_length": 500,
-        "target_length": 15,
-        "stride": 15,
+        "mode": "explicit_samples",
+        "parameter_modes": {
+            "history": "explicit_samples",
+            "target": "explicit_samples",
+            "stride": "explicit_samples",
+        },
+        "requested": {
+            "history_length": 500,
+            "history_seconds": pytest.approx(500 / rec.fps),
+            "target_length": 15,
+            "target_seconds": pytest.approx(15 / rec.fps),
+            "stride": 15,
+            "stride_seconds": pytest.approx(15 / rec.fps),
+        },
+        "resolved": {
+            "history_length": 500,
+            "history_seconds": pytest.approx(500 / rec.fps),
+            "target_length": 15,
+            "target_seconds": pytest.approx(15 / rec.fps),
+            "stride": 15,
+            "stride_seconds": pytest.approx(15 / rec.fps),
+        },
     }
+    assert windows.metadata["reference_profile_mode"] == "explicit_samples_reference"
+    assert windows.metadata["temporal_contract"]["mode"] == "explicit_samples"
+    assert windows.provenance.metadata["temporal_contract"]["history"]["resolved_samples"] == 500
+    assert windows.provenance.metadata["temporal_contract"]["target"]["resolved_samples"] == 15
+    assert windows.provenance.metadata["temporal_contract"]["stride"]["resolved_samples"] == 15
+
+
+def test_temporal_windows_resolve_duration_first_contract_and_record_rounding():
+    t = 120
+    recording = NeuralRecording(
+        traces=np.arange(2 * t, dtype=np.float32).reshape(2, t),
+        time=np.arange(t, dtype=np.float64) / 10.0,
+        coords=None,
+        neuron_ids=np.arange(2),
+        behavior={"motif": np.zeros(t, dtype=np.int64)},
+        fps=10.0,
+        identity=RecordingIdentity(dataset="synthetic", dataset_id="duration-test", recording_id="rec-0"),
+    )
+
+    windows = make_windows(
+        recording,
+        WindowConfig(
+            mode="temporal",
+            history_seconds=2.55,
+            target_seconds=0.45,
+            stride_seconds=0.45,
+        ),
+    )
+
+    contract = windows.metadata["temporal_contract"]
+    assert contract["mode"] == "duration_first"
+    assert contract["history"]["resolved_samples"] == 26
+    assert contract["target"]["resolved_samples"] == 5
+    assert contract["stride"]["resolved_samples"] == 5
+    assert contract["history"]["rounding_policy"] == "nearest_half_up"
+    assert np.isclose(contract["history"]["rounding_error_seconds"], 0.05)
+    assert np.isclose(contract["target"]["rounding_error_seconds"], 0.05)
+    assert windows.metadata["history_seconds"] == 2.6
+    assert windows.metadata["target_seconds"] == 0.5
+    assert windows.windows[0].stop - windows.windows[0].start == 26
+    assert windows.anchors[0].target_length == 5
+    assert windows.provenance.metadata["temporal_contract"]["stride"]["requested_seconds"] == 0.45
+
+
+def test_temporal_windows_scale_shared_duration_profile_by_recording_fps():
+    cfg = WindowConfig(
+        mode="temporal",
+        history_seconds=120.0,
+        target_seconds=5.164169588779088,
+        stride_seconds=5.164169588779088,
+    )
+
+    def _recording(*, fps: float, timepoints: int, recording_id: str) -> NeuralRecording:
+        return NeuralRecording(
+            traces=np.zeros((3, timepoints), dtype=np.float32),
+            time=np.arange(timepoints, dtype=np.float64) / fps,
+            coords=None,
+            neuron_ids=np.arange(3),
+            behavior={"motif": np.zeros(timepoints, dtype=np.int64)},
+            fps=fps,
+            identity=RecordingIdentity(
+                dataset="synthetic",
+                dataset_id="shared-duration-profile",
+                recording_id=recording_id,
+            ),
+        )
+
+    worm = make_windows(_recording(fps=2.9046, timepoints=1600, recording_id="worm"), cfg)
+    fish = make_windows(_recording(fps=6.0268, timepoints=2000, recording_id="fish"), cfg)
+
+    assert worm.metadata["history_length"] == 349
+    assert worm.metadata["target_length"] == 15
+    assert worm.metadata["stride"] == 15
+    assert worm.windows[0].stop == 349
+    assert worm.anchors[0].target_start == 334
+    assert worm.anchors[0].target_stop == 349
+
+    assert fish.metadata["history_length"] == 723
+    assert fish.metadata["target_length"] == 31
+    assert fish.metadata["stride"] == 31
+    assert fish.windows[1].start == 31
+    assert fish.windows[1].stop == 754
+    assert fish.anchors[1].target_start == 723
+    assert fish.anchors[1].target_stop == 754
 
 
 def test_temporal_windows_respect_gap_boundaries():
@@ -234,6 +337,31 @@ def test_temporal_windows_respect_gap_boundaries():
     assert all(not (window.start < 60 and window.stop > 40) for window in windows.windows)
     assert [idx for idx, anchor in enumerate(windows.anchors) if anchor.gap_before] == [5]
     assert [idx for idx, anchor in enumerate(windows.anchors) if anchor.gap_after] == [4]
+
+
+def test_temporal_windows_expose_sparse_bad_frame_boundaries_without_retiming():
+    t = 80
+    recording = NeuralRecording(
+        traces=np.arange(2 * t, dtype=np.float32).reshape(2, t),
+        time=np.arange(t, dtype=np.float64) / 10.0,
+        coords=None,
+        neuron_ids=np.arange(2),
+        behavior={"motif": np.zeros(t, dtype=np.int64)},
+        fps=10.0,
+        metadata={"bad_frame_intervals": [(24, 25)]},
+        identity=RecordingIdentity(dataset="synthetic", dataset_id="bad-frame-test", recording_id="rec-0"),
+    )
+
+    windows = make_windows(
+        recording,
+        WindowConfig(mode="temporal", history_length=20, target_length=5, stride=5),
+    )
+
+    assert windows.metadata["bad_frame_intervals"] == [(24, 25)]
+    assert [idx for idx, anchor in enumerate(windows.anchors) if anchor.bad_frame_after] == [0]
+    assert [idx for idx, anchor in enumerate(windows.anchors) if anchor.bad_frame_before] == [1]
+    assert windows.windows[0].stop == 20
+    assert windows.windows[1].start == 5
 
 
 def test_artifact_schema_rejects_unknown_version():

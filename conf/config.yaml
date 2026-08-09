@@ -2,7 +2,8 @@
 defaults:
   - data: synthetic
   - preprocess: default
-  - connectivity: granger
+  - windowing: primary_physical
+  - connectivity: cgc
   - states: default
   - community: temporal
   - manifold: classical
@@ -10,22 +11,6 @@ defaults:
   - _self_
 
 seed: 42
-
-# Window definition (Stage 1). Default goal-aligned profile keeps a 500-sample history,
-# aligns each effectome matrix to the trailing 15-sample target interval, and reports every 15 samples.
-windowing:
-  length: 500                # legacy fallback; mirrors the default temporal history length
-  history_length: 500
-  target_length: 15
-  stride: 15
-  mode: temporal             # temporal | sliding | behavior
-  align_event: motif
-  min_event_gap: 10
-  behavior_summary: mean
-  respect_boundaries: true
-  drop_incomplete_tail: true
-  standardize_per_window: true
-  standardization_epsilon: 1.0e-8
 
 # Where pipeline artifacts are written/read (relative to the Hydra run dir's project root).
 paths:

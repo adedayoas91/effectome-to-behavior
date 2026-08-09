@@ -35,6 +35,31 @@ def community_features(series: CommunitySeries) -> np.ndarray:
     return np.asarray(feats)
 
 
+def community_reconfiguration_features(series: CommunitySeries) -> np.ndarray:
+    """Represent when and which neurons changed temporal community allegiance.
+
+    The first column is the fraction of neurons switching at an anchor; remaining
+    columns retain neuron-resolved switching indicators. Temporal community methods
+    already zero transitions at declared recording/gap boundaries.
+    """
+
+    k, n = series.labels.shape
+    switching = series.switching
+    if switching is None:
+        switching_arr = np.zeros((k, n), dtype=float)
+        if k > 1:
+            switching_arr[1:] = series.labels[1:] != series.labels[:-1]
+    else:
+        switch = np.asarray(switching, dtype=float)
+        if switch.shape != (max(k - 1, 0), n):
+            raise ValueError("community switching must align with adjacent windows and neurons")
+        switching_arr = np.zeros((k, n), dtype=float)
+        if k > 1:
+            switching_arr[1:] = switch
+    switching_fraction = switching_arr.mean(axis=1, keepdims=True)
+    return np.concatenate([switching_fraction, switching_arr], axis=1)
+
+
 def _anchor_source_key(anchor: TemporalAnchor) -> tuple[str, str | None, str | None, str, str | None]:
     return (
         anchor.dataset_id,
@@ -79,6 +104,30 @@ def anchor_group_labels(anchors: Sequence[TemporalAnchor], group_by: str = "reco
     return np.asarray(labels, dtype=object)
 
 
+def anchor_continuity_labels(
+    anchors: Sequence[TemporalAnchor],
+    group_by: str = "recording",
+) -> np.ndarray:
+    """Return group labels split at every hard-gap or sparse-invalid transition."""
+
+    base = anchor_group_labels(anchors, group_by=group_by)
+    continuity = np.empty(len(anchors), dtype=object)
+    segment = 0
+    for index, anchor in enumerate(anchors):
+        if index > 0:
+            previous = anchors[index - 1]
+            if (
+                base[index] != base[index - 1]
+                or anchor.gap_before
+                or previous.gap_after
+                or anchor.bad_frame_before
+                or previous.bad_frame_after
+            ):
+                segment += 1
+        continuity[index] = (base[index], segment)
+    return continuity
+
+
 def valid_positive_lag_origins(
     n_samples: int,
     lag: int,
@@ -96,8 +145,9 @@ def valid_positive_lag_origins(
     for origin in range(n_samples - lag):
         path = anchors[origin : origin + lag + 1]
         same_source = all(_anchor_source_key(anchor) == _anchor_source_key(path[0]) for anchor in path)
-        crosses_gap = any(anchor.gap_after for anchor in path[:-1]) or any(
-            anchor.gap_before for anchor in path[1:]
+        crosses_gap = (
+            any(anchor.gap_after or anchor.bad_frame_after for anchor in path[:-1])
+            or any(anchor.gap_before or anchor.bad_frame_before for anchor in path[1:])
         )
         if same_source and not crosses_gap:
             origins.append(origin)
