@@ -16,6 +16,7 @@ from effectome.connectivity import ConnectivityConfig
 from effectome.data_module import PreprocessConfig, WindowConfig
 from effectome.data_module.schema import WindowedSegments
 from effectome.dynamics import GraphStateConfig, ProbabilisticStateConfig, TransitionConfig
+from effectome.manifold import ManifoldConfig
 from effectome.utils.io import save_artifact
 from notebooks._shared import (
     make_run,
@@ -205,6 +206,76 @@ def test_c_elegans_manifold_notebooks_load_canonical_bunddle_profile():
         assert 'MANIFOLD_CONFIG_NAME = "bunddle"' in text
         assert 'MANIFOLD_BEHAVIOR_KEY = "motif"' in text
         assert "OmegaConf.load(MANIFOLD_CONFIG_PATH)" in text
+
+
+def test_bunddle_notebook_manifold_uses_target_window_indexing(
+    monkeypatch, tmp_path, synthetic_recording, windows
+):
+    target_length = 15
+    connectivity = SimpleNamespace(
+        anchors=[],
+        n_windows=2,
+        window_starts=np.array(
+            [0, synthetic_recording.n_timepoints - 80],
+            dtype=np.int64,
+        ),
+        provenance=windows.provenance,
+    )
+
+    class FakeBunddleEmbedder:
+        def fit(self, neural, _behavior, *, progress_callback=None):
+            del neural, progress_callback
+            return self
+
+        def transform(self, neural):
+            return np.zeros(
+                (neural.shape[0] - target_length + 1, 3),
+                dtype=np.float32,
+            )
+
+        def transform_targets(self, _neural, target_slices, _behavior):
+            return np.zeros((len(target_slices), 3), dtype=np.float32)
+
+        def save(self, path):
+            return path
+
+    class ImmediateRun:
+        run_id = "reference"
+        run_dir = tmp_path
+
+        def __init__(self, method):
+            self.method = method
+
+        def execute(self, _stage, compute, **_kwargs):
+            return compute()
+
+    monkeypatch.setattr(shared, "ManifoldFactory", lambda _cfg: FakeBunddleEmbedder())
+    monkeypatch.setattr(shared, "_checkpoint_input", lambda *_args, **_kwargs: synthetic_recording)
+    monkeypatch.setattr(
+        shared,
+        "require_stage",
+        lambda _run, _stage: (connectivity, tmp_path / "connectivity.pkl"),
+    )
+
+    for method in ("cgc", "cgc_star", "correlation_partial"):
+        artifact = shared.run_manifold(
+            ImmediateRun(method),
+            recording_path=tmp_path / "recording.pkl",
+            manifold_cfg=ManifoldConfig(
+                name="bunddle",
+                n_dims=3,
+                behavior_key="motif",
+                target_length=target_length,
+                target_seconds=None,
+                cross_fit=False,
+            ),
+            linking_cfg={},
+            history_length=80,
+        )
+
+        assert artifact.full_embedding.shape[0] == synthetic_recording.n_timepoints - 14
+        assert artifact.metadata["full_embedding_indexing"] == "target_window_end"
+        assert artifact.metadata["full_embedding_sample_offset"] == 14
 
 
 def test_effectome_notebooks_load_canonical_connectivity_profiles():

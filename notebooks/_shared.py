@@ -632,8 +632,12 @@ def run_manifold(
                 "target_length_source": (
                     "connectivity_anchor" if connectivity.anchors else "manifold_config"
                 ),
-                "full_embedding_indexing": "sample",
-                "full_embedding_sample_offset": 0,
+                "full_embedding_indexing": (
+                    "target_window_end" if manifold_cfg.name == "bunddle" else "sample"
+                ),
+                "full_embedding_sample_offset": (
+                    manifold_cfg.target_length - 1 if manifold_cfg.name == "bunddle" else 0
+                ),
             },
         )
 
