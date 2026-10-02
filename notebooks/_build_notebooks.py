@@ -14,6 +14,7 @@ METHOD_DIRECTORIES = {
     "cgc": "c-GC",
     "cgc_star": "c-GC-star",
     "correlation_partial": "partial-correlation",
+    "sparse_var": "sparse-VAR",
 }
 
 PROGRESS_NOTE = (
@@ -787,6 +788,12 @@ def main() -> None:
             "Partial Correlation Baseline",
             False,
             "correlation",
+        ),
+        (
+            "sparse_var",
+            "Sparse VAR Baseline",
+            True,
+            "sparse_var",
         ),
     ]
     for dataset in datasets:

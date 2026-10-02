@@ -12,6 +12,14 @@ import numpy as np
 
 from effectome.data_module.schema import ArtifactProvenance, ConnectivitySeries, WindowedSegments
 
+from .predictive import (
+    FilterState,
+    GraphEstimate,
+    NeuralForecast,
+    PredictiveCapabilities,
+    UnsupportedForecastError,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,6 +106,26 @@ class ConnectivityEstimator(ABC):
 
     def __init__(self, cfg: ConnectivityConfig) -> None:
         self.cfg = cfg
+
+    @property
+    def capabilities(self) -> PredictiveCapabilities:
+        return PredictiveCapabilities()
+
+    def initial_state(self, **kwargs: Any) -> FilterState:
+        del kwargs
+        raise UnsupportedForecastError(f"{self.cfg.name} does not provide neural forecast state")
+
+    def observe(self, state: FilterState, samples: np.ndarray, **kwargs: Any) -> FilterState:
+        del state, samples, kwargs
+        raise UnsupportedForecastError(f"{self.cfg.name} does not provide neural forecast state")
+
+    def forecast(self, state: FilterState, **kwargs: Any) -> NeuralForecast:
+        del state, kwargs
+        raise UnsupportedForecastError(f"{self.cfg.name} does not provide neural forecasts")
+
+    def graph_at(self, state: FilterState | None = None) -> GraphEstimate:
+        del state
+        raise UnsupportedForecastError(f"{self.cfg.name} does not provide fitted graph snapshots")
 
     @abstractmethod
     def estimate(self, segment: np.ndarray) -> np.ndarray:

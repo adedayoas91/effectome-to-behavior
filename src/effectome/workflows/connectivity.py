@@ -97,6 +97,15 @@ def estimate_connectivity_resumable(
     """Estimate independent windows in atomic chunks and resume completed chunks."""
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
+    if (
+        segments.n_windows > chunk_size
+        and not estimator.capabilities.independent_window
+        and estimator.estimation_mode != "rolling_window"
+    ):
+        raise ValueError(
+            f"{estimator.cfg.name} is a sequence estimator; run it on the complete "
+            "WindowedSegments artifact instead of independent resume chunks"
+        )
     chunks = [
         (start, min(start + chunk_size, segments.n_windows))
         for start in range(0, segments.n_windows, chunk_size)
