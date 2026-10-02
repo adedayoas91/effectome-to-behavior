@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, replace
 from pathlib import Path
 from time import perf_counter
@@ -63,7 +63,14 @@ from effectome.manifold import (
     causal_forward_fill_nonfinite,
 )
 from effectome.utils.io import load_artifact
-from effectome.workflows import ResumableRun, estimate_connectivity_resumable
+from effectome.workflows import (
+    EvaluationConfig,
+    ResumableRun,
+    combine_primary_evaluation_results,
+    estimate_connectivity_resumable,
+    primary_evaluation_fold_ids,
+    run_primary_evaluation,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 T = TypeVar("T")
@@ -152,21 +159,41 @@ def stage_artifact_path(run: ResumableRun, stage: str) -> Path:
     return run.run_dir / "stages" / stage / "artifact.pkl"
 
 
+def stage_status_path(run: ResumableRun, stage: str) -> Path:
+    return run.run_dir / "stages" / stage / "status.json"
+
+
 def require_stage(run: ResumableRun, stage: str) -> tuple[Any, Path]:
     path = stage_artifact_path(run, stage)
-    if not path.is_file():
+    try:
+        artifact = run.load_completed(stage)
+    except RuntimeError as exc:
         raise FileNotFoundError(
             f"Missing stage '{stage}' for run_id={run.run_id!r}, method={run.method!r}. "
             f"Expected {path}. Run the prerequisite notebook first."
-        )
-    return load_artifact(path), path
+        ) from exc
+    return artifact, path
 
 
 def completed_stage_records(run: ResumableRun) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for stage in run.completed_stages():
-        status_path = run.run_dir / "stages" / stage / "status.json"
+        status_path = stage_status_path(run, stage)
         rows.append(load_artifact_json(status_path))
+    return rows
+
+
+def stage_status_records(run: ResumableRun) -> list[dict[str, Any]]:
+    """Return every visible stage status record, including failed or running stages."""
+    stages_dir = run.run_dir / "stages"
+    if not stages_dir.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for status_path in sorted(stages_dir.glob("*/status.json")):
+        record = load_artifact_json(status_path)
+        record.setdefault("stage", status_path.parent.name)
+        record["status_path"] = str(status_path)
+        rows.append(record)
     return rows
 
 
@@ -177,15 +204,66 @@ def load_artifact_json(path: str | Path) -> dict[str, Any]:
         return json.load(handle)
 
 
-def print_stage_status(run: ResumableRun) -> None:
-    completed = run.completed_stages()
-    if not completed:
-        print(f"No completed stages for {run.run_id}/{run.method}")
+def _stage_lock_state(run: ResumableRun, stage: str) -> str:
+    lock_path = run.run_dir / "stages" / stage / ".lock"
+    if not lock_path.exists():
+        return ""
+    try:
+        lock_text = lock_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        lock_text = "present"
+    return f"; lock={lock_text or 'present'}"
+
+
+def print_stage_status(
+    run: ResumableRun,
+    expected_stages: Iterable[str] | None = None,
+) -> None:
+    records = {str(record.get("stage")): record for record in stage_status_records(run)}
+    expected = list(expected_stages or [])
+    stages = sorted(set(records) | set(expected))
+    if not stages:
+        print(f"No stage records for {run.run_id}/{run.method}")
         return
-    print(f"Completed stages for {run.run_id}/{run.method}:")
-    for stage in completed:
-        status = load_artifact_json(run.run_dir / "stages" / stage / "status.json")
-        print(f"  - {stage}: {status['status']} (signature={status['signature'][:10]})")
+    print(f"Stage status for {run.run_id}/{run.method}:")
+    for stage in stages:
+        record = records.get(stage)
+        if record is None:
+            print(f"  - {stage}: not started")
+            continue
+        status = str(record.get("status", "unknown"))
+        signature = str(record.get("signature", ""))[:10]
+        artifact = Path(str(record.get("artifact_path", stage_artifact_path(run, stage))))
+        artifact_state = "artifact=yes" if artifact.is_file() else "artifact=no"
+        extra = f"signature={signature}, {artifact_state}{_stage_lock_state(run, stage)}"
+        if status == "failed" and record.get("error"):
+            extra = f"{extra}, error={record['error']}"
+        print(f"  - {stage}: {status} ({extra})")
+
+
+def print_notebook_header(
+    run: ResumableRun,
+    *,
+    title: str,
+    expected_stages: Iterable[str],
+    force: bool,
+) -> None:
+    """Print the resume contract at the top of a notebook."""
+    print("=" * 72)
+    print(title)
+    print(f"run_id={run.run_id} method={run.method}")
+    print(f"run_dir={run.run_dir}")
+    print(
+        "resume mode: "
+        + (
+            "FORCE=True, matching checkpoints will be recomputed"
+            if force
+            else "FORCE=False, matching completed checkpoints will be reused"
+        )
+    )
+    print("Rerun interrupted notebooks from the top; completed stages resume from checkpoints.")
+    print_stage_status(run, expected_stages=expected_stages)
+    print("=" * 72)
 
 
 def _checkpoint_input(
@@ -201,7 +279,7 @@ def _checkpoint_input(
         run,
         stage,
         lambda: load_artifact(artifact_path),
-        config={"source_path": str(artifact_path)},
+        config={"source_name": artifact_path.name},
         dependencies={dependency_name: artifact_path},
         force=force,
     )
@@ -348,6 +426,53 @@ def run_connectivity(
         )
     finally:
         progress.close()
+
+
+def run_primary_probability_evaluation(
+    run: ResumableRun,
+    *,
+    windows_path: str | Path,
+    evaluation_cfg: EvaluationConfig,
+    force: bool = False,
+):
+    """Checkpoint the outer-owned M0/M1 evaluation used by primary notebooks."""
+    windows = _checkpoint_input(run, stage="windows_input", path=windows_path, force=False)
+    fold_ids = primary_evaluation_fold_ids(windows, evaluation_cfg)
+    if not fold_ids:
+        return _execute_stage(
+            run,
+            "primary_evaluation",
+            lambda: run_primary_evaluation(windows, evaluation_cfg),
+            config=asdict(evaluation_cfg),
+            dependencies={"windows": Path(windows_path).resolve()},
+            force=force,
+        )
+    progress = _ProgressReporter("Primary evaluation", "fold")
+    try:
+        result = run.execute_chunks(
+            "primary_evaluation",
+            fold_ids,
+            lambda fold_id: run_primary_evaluation(
+                windows,
+                evaluation_cfg,
+                selected_fold_ids=frozenset({fold_id}),
+            ),
+            lambda results: combine_primary_evaluation_results(results, cfg=evaluation_cfg),
+            config=asdict(evaluation_cfg),
+            dependencies={"windows": Path(windows_path).resolve()},
+            force=force,
+            progress_callback=progress,
+        )
+    finally:
+        progress.close()
+    for fold_id, diagnostics in result.diagnostics.get("folds", {}).items():
+        print(
+            f"{fold_id}: lambda1={diagnostics['lambda1']}, "
+            f"M0 {diagnostics['decoder_parameter']}={diagnostics['m0_decoder_value']}, "
+            f"M1 {diagnostics['decoder_parameter']}={diagnostics['m1_decoder_value']}, "
+            f"train={diagnostics['training_examples']}, test={diagnostics['test_examples']}"
+        )
+    return result
 
 
 def run_graph_states_and_transitions(

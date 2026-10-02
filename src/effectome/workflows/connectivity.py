@@ -97,19 +97,6 @@ def estimate_connectivity_resumable(
     """Estimate independent windows in atomic chunks and resume completed chunks."""
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
-    if (
-        segments.n_windows > chunk_size
-        and not estimator.capabilities.independent_window
-        and estimator.estimation_mode != "rolling_window"
-    ):
-        raise ValueError(
-            f"{estimator.cfg.name} is a sequence estimator; run it on the complete "
-            "WindowedSegments artifact instead of independent resume chunks"
-        )
-    chunks = [
-        (start, min(start + chunk_size, segments.n_windows))
-        for start in range(0, segments.n_windows, chunk_size)
-    ]
     config = {
         "estimator": asdict(estimator.cfg),
         "chunk_size": chunk_size,
@@ -126,6 +113,26 @@ def estimate_connectivity_resumable(
             }
         ),
     }
+    is_sequence = (
+        not estimator.capabilities.independent_window
+        and estimator.estimation_mode != "rolling_window"
+    )
+    if is_sequence:
+        result = run.execute(
+            "connectivity",
+            lambda: estimator.run(segments),
+            config={**config, "checkpoint_mode": "complete_sequence"},
+            dependencies=input_artifacts,
+            force=force,
+        )
+        if progress_callback is not None:
+            progress_callback(1, 1, bool(run.last_record and run.last_record.reused))
+        return result
+
+    chunks = [
+        (start, min(start + chunk_size, segments.n_windows))
+        for start in range(0, segments.n_windows, chunk_size)
+    ]
     return run.execute_chunks(
         "connectivity",
         chunks,

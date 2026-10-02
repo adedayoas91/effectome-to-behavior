@@ -97,7 +97,22 @@ def test_all_notebooks_explain_live_and_resumed_progress():
             if cell["cell_type"] == "markdown"
         )
         assert "iterative stages also display live progress bars" in markdown, path
-        assert "Reused checkpoints are reported explicitly" in markdown, path
+        assert "Reused, failed, running, and missing checkpoints are reported explicitly" in markdown, path
+
+
+def test_all_notebooks_print_resume_header():
+    root = Path(__file__).resolve().parents[1] / "notebooks"
+
+    for path in sorted(root.rglob("*.ipynb")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        code = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in payload["cells"]
+            if cell.get("cell_type") == "code"
+        )
+        assert "print_notebook_header" in code, path
+        assert "expected_stages=" in code, path
+        assert "force=" in code, path
 
 
 def test_notebook_setup_imports_from_nested_directories():

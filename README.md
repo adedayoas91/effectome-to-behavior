@@ -10,6 +10,18 @@ The parent workspace [`goal.md`](../goal.md) is the current scientific source of
 `goals.md` is retained only as background. See [`manuscript/main.tex`](../manuscript/main.tex) for
 the LaTeX manuscript.
 
+## Analysis Profiles
+
+The revised primary analysis is the outer-fold-owned M0 activity versus M1 effectome comparison.
+It runs from `pipeline/08_evaluate.py` or each dataset's
+`evaluation/08_primary_m0_m1.ipynb` and does not require graph states, communities, or a manifold.
+The historical stitched workflow remains available under the explicit `legacy_descriptive`
+evaluation profile and must not be interpreted as confirmatory prospective evidence.
+
+Connectivity notebook lanes cover c-GC, c-GC*, partial correlation, constant and windowed sparse
+VAR, switching VAR, and smooth/fused TVVAR. Notebook stages are checkpointed; sequence estimators
+checkpoint the complete sequence, while the primary evaluator resumes at outer-fold boundaries.
+
 ## Pipeline
 
 ```
@@ -42,6 +54,7 @@ python pipeline/04_manifold.py     manifold=classical
 python pipeline/05_linking.py
 python pipeline/06_attribution.py
 python pipeline/07_intervention.py
+python pipeline/08_evaluate.py evaluation=revised_primary
 ```
 
 Each script writes typed artifacts under `outputs/` (gitignored) that the next stage consumes.
@@ -71,7 +84,7 @@ ruff check . && mypy src/
 ```
 src/effectome/
 ├── data_module/     # loaders, preprocessing, windowing (shifted segments)
-├── connectivity/    # correlation plus c-GC/c-GC* from causalised_gc.py
+├── connectivity/    # c-GC, correlation, sparse/switching/time-varying VAR methods
 ├── dynamics/        # graph-state clustering + Markov/HMM transitions
 ├── community/       # static / multiscale / temporal community detection
 ├── manifold/        # CEBRA / BundDLe-Net / classical behavioral manifolds

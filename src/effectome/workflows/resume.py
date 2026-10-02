@@ -19,6 +19,7 @@ import numpy as np
 T = TypeVar("T")
 U = TypeVar("U")
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+_CHECKPOINT_SCHEMA_VERSION = "2"
 
 
 def _utc_now() -> str:
@@ -72,13 +73,46 @@ def _dependency_fingerprints(paths: Mapping[str, str | Path] | None) -> dict[str
     return fingerprints
 
 
-def _signature(config: Any, dependencies: Mapping[str, str | Path] | None) -> tuple[str, dict[str, Any]]:
-    payload = {
+def _implementation_fingerprint() -> str:
+    """Hash package sources and lock metadata without depending on checkout location."""
+    package_root = Path(__file__).resolve().parents[1]
+    repository_root = package_root.parents[1]
+    paths = sorted(package_root.rglob("*.py"))
+    paths.extend(
+        path
+        for path in (repository_root / "pyproject.toml", repository_root / "uv.lock")
+        if path.is_file()
+    )
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(path.relative_to(repository_root).as_posix().encode())
+        digest.update(_file_digest(path).encode())
+    return digest.hexdigest()
+
+
+def _signature(
+    config: Any,
+    dependencies: Mapping[str, str | Path] | None,
+    *,
+    implementation_version: str,
+) -> tuple[str, dict[str, Any]]:
+    dependency_records = _dependency_fingerprints(dependencies)
+    identity_payload = {
+        "checkpoint_schema_version": _CHECKPOINT_SCHEMA_VERSION,
+        "implementation_version": implementation_version,
         "config": _jsonable(config),
-        "dependencies": _dependency_fingerprints(dependencies),
+        "dependencies": {
+            name: {"size": record["size"], "sha256": record["sha256"]}
+            for name, record in dependency_records.items()
+        },
     }
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded).hexdigest(), payload
+    encoded = json.dumps(identity_payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest(), {
+        **identity_payload,
+        "dependency_locations": {
+            name: record["path"] for name, record in dependency_records.items()
+        },
+    }
 
 
 def content_fingerprint(value: Any) -> str:
@@ -124,10 +158,18 @@ class ResumableRun:
     write contention when notebooks run in parallel.
     """
 
-    def __init__(self, root: str | Path, run_id: str, method: str) -> None:
+    def __init__(
+        self,
+        root: str | Path,
+        run_id: str,
+        method: str,
+        *,
+        implementation_version: str | None = None,
+    ) -> None:
         self.root = Path(root).resolve()
         self.run_id = _safe_name(run_id, "run_id")
         self.method = _safe_name(method, "method")
+        self.implementation_version = implementation_version or _implementation_fingerprint()
         self.run_dir = self.root / self.run_id / self.method
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.last_record: StageRecord | None = None
@@ -154,6 +196,21 @@ class ResumableRun:
                 completed.append(status_path.parent.name)
         return sorted(completed)
 
+    def load_completed(self, stage: str) -> Any:
+        """Load a current completed artifact, rejecting failed or tampered stages."""
+        artifact_path, status_path, _ = self._paths(stage)
+        record = self._load_record(status_path)
+        if record is None or record.get("status") != "completed":
+            state = "missing" if record is None else str(record.get("status", "unknown"))
+            raise RuntimeError(f"stage {stage!r} is not completed (status={state})")
+        if not artifact_path.is_file():
+            raise RuntimeError(f"stage {stage!r} is completed but its artifact is missing")
+        expected = record.get("artifact_sha256")
+        if not expected or expected != _file_digest(artifact_path):
+            raise RuntimeError(f"stage {stage!r} artifact integrity check failed")
+        with artifact_path.open("rb") as handle:
+            return pickle.load(handle)
+
     def execute(
         self,
         stage: str,
@@ -165,7 +222,11 @@ class ResumableRun:
     ) -> T:
         artifact_path, status_path, lock_path = self._paths(stage)
         lock_path.parent.mkdir(parents=True, exist_ok=True)
-        signature, signature_payload = _signature(config, dependencies)
+        signature, signature_payload = _signature(
+            config,
+            dependencies,
+            implementation_version=self.implementation_version,
+        )
         existing = self._load_record(status_path)
         if (
             not force
@@ -173,6 +234,7 @@ class ResumableRun:
             and existing.get("status") == "completed"
             and existing.get("signature") == signature
             and artifact_path.is_file()
+            and existing.get("artifact_sha256") == _file_digest(artifact_path)
         ):
             with artifact_path.open("rb") as handle:
                 value = pickle.load(handle)
@@ -211,8 +273,14 @@ class ResumableRun:
             _atomic_json(running, status_path)
             value = compute()
             _atomic_pickle(value, artifact_path)
+            artifact_sha256 = _file_digest(artifact_path)
             completed_at = _utc_now()
-            complete = {**running, "status": "completed", "completed_at": completed_at}
+            complete = {
+                **running,
+                "status": "completed",
+                "completed_at": completed_at,
+                "artifact_sha256": artifact_sha256,
+            }
             _atomic_json(complete, status_path)
             self.last_record = StageRecord(
                 stage=stage,

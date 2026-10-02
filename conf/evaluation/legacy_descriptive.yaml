@@ -1,0 +1,38 @@
+# Reproducibility profile for the historical stitched full-pipeline analysis.
+profile: legacy_descriptive
+mode: legacy_descriptive
+protocol: purged_blocked
+n_outer_folds: 5
+embargo: 4
+group_by: recording
+min_train_examples: 2
+min_test_examples: 1
+update_policy: frozen
+states_enabled: true
+groups_enabled: true
+endpoint_name: motif
+endpoint_kind: unknown
+endpoint_type: categorical
+positive_lag: 1
+class_vocabulary: []
+probability_floor: 1.0e-12
+practical_gain_nats: null
+neural_lambda1_grid: [0.0, 0.01, 0.05]
+neural_lambda2: 0.001
+neural_max_lag: 1
+decoder_c_grid: [0.1, 1.0, 10.0]
+decoder_alpha_grid: [0.1, 1.0, 10.0]
+selection_seed: 260926
+training_calibration_policy: outer_training_only
+neural_selection_metric: standardized_one_step_mse
+decoder_selection_metric: log_loss
+max_missing_fraction: 0.05
+failure_policy: record_and_continue
+artifact_schema_version: "2.0"
+reject_legacy_for_confirmation: true
+endpoint_verified: false
+panel_mapping_id: null
+calibration_status: unresolved
+resource_budget_id: null
+source_manifest_hash: null
+claim_to_test_map: []

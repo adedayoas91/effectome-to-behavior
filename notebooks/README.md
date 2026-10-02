@@ -127,7 +127,10 @@ of stages writing to another recording because each notebook writes under its ow
 
 ## Resume contract
 
-- Keep `FORCE=False` for normal execution and resume.
+- Keep `FORCE=False` for normal execution and resume. Every generated notebook
+  starts by printing its `run_dir`, expected stages, current `completed`,
+  `failed`, `running`, and `not started` states, and whether `FORCE` will
+  recompute matching checkpoints.
 - Completed stages are reused only when their configuration and declared input
   hashes match. Same-shaped changed window data also invalidates connectivity
   chunks through an in-memory content digest.
@@ -136,6 +139,21 @@ of stages writing to another recording because each notebook writes under its ow
 - Atomic replacement prevents incomplete artifacts from appearing completed.
 - A lock prevents concurrent writers to the same dataset/recording/run/method/stage.
   Different methods, stages, or recordings have independent locks.
+- If a run is interrupted, rerun the same notebook from the top. Failed stage
+  records are shown in the header and are recomputed automatically as long as no
+  stale `.lock` remains from a still-running process. Remove a lock only after
+  confirming the original process has stopped.
+
+## Faster-machine run checklist
+
+1. Copy the repository, `data/`, and any wanted `outputs/analysis/` checkpoints.
+2. Install the project environment. C. elegans BunDLe manifold notebooks require
+   PyTorch; the V2a classical-manifold notebooks do not.
+3. Open notebooks in the order above. Leave `FORCE=False` for resume.
+4. Watch each notebook's first printed header before running expensive cells; it
+   should point to the intended dataset/recording/method namespace.
+5. For parallel execution, use different method or recording namespaces. Do not
+   run two notebooks that write the same `run_id/method/stage`.
 
 ## Method boundaries
 
