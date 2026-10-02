@@ -39,4 +39,5 @@ class MarkovStabilityCommunity(CommunityDetector):
         communities = nx.community.greedy_modularity_communities(
             g, weight="weight", resolution=self.cfg.resolution
         )
+        self._last_backend = "markov_stability_proxy.networkx_greedy_modularity"
         return _labels_from_sets([set(c) for c in communities], n)

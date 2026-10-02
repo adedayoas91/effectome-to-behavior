@@ -131,11 +131,27 @@ class CommunityDetector(ABC):
         labels = np.stack(labels_per_window)
         counts = np.array([len(np.unique(row)) for row in labels])
         logger.info("Detected communities for %d windows (%s)", series.n_windows, self.cfg.name)
+        backend = getattr(self, "_last_backend", self.cfg.name)
         return build_community_series(
             series=series,
             labels=labels.astype(np.int64),
             method=self.cfg.name,
             n_communities_per_window=counts,
+            extras={
+                "metadata": {
+                    "connectivity_diagnostics": dict(series.diagnostics),
+                    "connectivity_method": series.method,
+                    "actual_backend": backend,
+                    "input_transform": {
+                        "use_absolute": bool(self.cfg.use_absolute),
+                        "symmetrize": bool(self.cfg.symmetrize),
+                        "weight_threshold": float(self.cfg.weight_threshold),
+                    },
+                    "supported_input": "symmetric_nonnegative"
+                    if self.cfg.use_absolute and self.cfg.symmetrize
+                    else "explicit_transform_recorded",
+                }
+            },
         )
 
 
