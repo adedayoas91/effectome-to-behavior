@@ -6,7 +6,7 @@ states/communities carry behavioral information beyond chance while preserving t
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -122,6 +122,102 @@ class ConfidenceInterval:
     high: float
 
 
+@dataclass(frozen=True)
+class RegisteredFamily:
+    """A frozen secondary-testing family that retains unavailable attempts."""
+
+    members: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.members or len(self.members) != len(set(self.members)):
+            raise ValueError("registered family members must be non-empty and unique")
+
+    def adjust(self, results: Mapping[str, tuple[float | None, str]]) -> dict[str, dict]:
+        if set(results) != set(self.members):
+            raise ValueError("results must contain every registered family member exactly once")
+        correction_values: list[float] = []
+        for name in self.members:
+            p_value = results[name][0]
+            correction_values.append(1.0 if p_value is None else float(p_value))
+        correction_input = np.asarray(correction_values, dtype=float)
+        q_values = benjamini_yekutieli(correction_input)
+        adjusted: dict[str, dict] = {}
+        for index, name in enumerate(self.members):
+            p_value, status = results[name]
+            adjusted[name] = {
+                "p_value": p_value,
+                "q_value": float(q_values[index]),
+                "status": status,
+            }
+        return adjusted
+
+
+@dataclass(frozen=True)
+class RawBlockSample:
+    """Aligned raw-process block sample with explicit artificial joins."""
+
+    arrays: dict[str, np.ndarray]
+    source_indices: np.ndarray
+    segment_ids: np.ndarray
+    join_before: np.ndarray
+
+    def valid_origins(self, *, history: int, horizon: int) -> np.ndarray:
+        if history < 0 or horizon < 0:
+            raise ValueError("history and horizon must be non-negative")
+        n_samples = self.source_indices.size
+        valid = np.zeros(n_samples, dtype=bool)
+        for origin in range(history, n_samples - horizon):
+            support = self.segment_ids[origin - history : origin + horizon + 1]
+            valid[origin] = support.size > 0 and np.all(support == support[0])
+        return valid
+
+
+def raw_block_resample(
+    arrays: Mapping[str, Sequence],
+    *,
+    block_length: int,
+    seed: int,
+) -> RawBlockSample:
+    """Resample contiguous source blocks while carrying all aligned channels together."""
+    if block_length <= 0:
+        raise ValueError("block_length must be positive")
+    converted = {name: np.asarray(values) for name, values in arrays.items()}
+    if not converted:
+        raise ValueError("at least one aligned array is required")
+    lengths = {values.shape[0] for values in converted.values()}
+    if len(lengths) != 1:
+        raise ValueError("all arrays must share their first dimension")
+    n_samples = lengths.pop()
+    if n_samples == 0:
+        raise ValueError("cannot resample empty arrays")
+
+    rng = np.random.default_rng(seed)
+    sampled: list[np.ndarray] = []
+    while sum(block.size for block in sampled) < n_samples:
+        width = min(block_length, n_samples)
+        start = int(rng.integers(0, n_samples - width + 1))
+        sampled.append(np.arange(start, start + width, dtype=np.int64))
+    source_indices = np.concatenate(sampled)[:n_samples]
+
+    segment_ids = np.empty(n_samples, dtype=np.int64)
+    join_before = np.zeros(n_samples, dtype=bool)
+    cursor = 0
+    for segment, block in enumerate(sampled):
+        stop = min(cursor + block.size, n_samples)
+        segment_ids[cursor:stop] = segment
+        if cursor:
+            join_before[cursor] = True
+        cursor = stop
+        if cursor == n_samples:
+            break
+    return RawBlockSample(
+        arrays={name: values[source_indices] for name, values in converted.items()},
+        source_indices=source_indices,
+        segment_ids=segment_ids,
+        join_before=join_before,
+    )
+
+
 def bootstrap_mean_ci(
     x: np.ndarray, seed: int = 42, n_boot: int = 500, alpha: float = 0.05
 ) -> ConfidenceInterval:
@@ -150,6 +246,77 @@ def benjamini_hochberg(p_values: np.ndarray, alpha: float = 0.05) -> np.ndarray:
     out = np.empty(m, dtype=float)
     out[order] = np.clip(q, 0.0, 1.0)
     return out
+
+
+def benjamini_yekutieli(p_values: np.ndarray) -> np.ndarray:
+    """Return BY-adjusted q-values in original order, including ties and empty families."""
+    p = np.asarray(p_values, dtype=float)
+    if p.size == 0:
+        return np.asarray([], dtype=float)
+    if np.any(~np.isfinite(p)) or np.any((p < 0.0) | (p > 1.0)):
+        raise ValueError("p-values must be finite and lie in [0, 1]")
+    order = np.argsort(p, kind="mergesort")
+    ranked = p[order]
+    m = ranked.size
+    harmonic = float(np.sum(1.0 / np.arange(1, m + 1)))
+    adjusted_ranked = ranked * m * harmonic / np.arange(1, m + 1)
+    adjusted_ranked = np.minimum.accumulate(adjusted_ranked[::-1])[::-1]
+    out = np.empty_like(adjusted_ranked)
+    out[order] = np.clip(adjusted_ranked, 0.0, 1.0)
+    return out
+
+
+def classification_log_loss(
+    probabilities: np.ndarray,
+    observed: np.ndarray,
+    *,
+    class_order: np.ndarray | list,
+) -> float:
+    probs = np.asarray(probabilities, dtype=np.float64)
+    obs = np.asarray(observed)
+    classes = list(class_order)
+    if probs.ndim != 2 or probs.shape[0] != obs.shape[0] or probs.shape[1] != len(classes):
+        raise ValueError("probabilities must align with observations and class_order")
+    totals = probs.sum(axis=1, keepdims=True)
+    if np.any(~np.isfinite(probs)) or np.any(probs < 0.0) or np.any(totals <= 0.0):
+        raise ValueError("probabilities must be finite, nonnegative and have positive row mass")
+    normalized = probs / totals
+    indices = np.array([classes.index(item) for item in obs], dtype=int)
+    return float(-np.mean(np.log(np.clip(normalized[np.arange(len(obs)), indices], 1e-12, 1.0))))
+
+
+def brier_score(
+    probabilities: np.ndarray,
+    observed: np.ndarray,
+    *,
+    class_order: np.ndarray | list,
+) -> float:
+    probs = np.asarray(probabilities, dtype=np.float64)
+    obs = np.asarray(observed)
+    classes = list(class_order)
+    if probs.ndim != 2 or probs.shape[0] != obs.shape[0] or probs.shape[1] != len(classes):
+        raise ValueError("probabilities must align with observations and class_order")
+    totals = probs.sum(axis=1, keepdims=True)
+    if np.any(~np.isfinite(probs)) or np.any(probs < 0.0) or np.any(totals <= 0.0):
+        raise ValueError("probabilities must be finite, nonnegative and have positive row mass")
+    normalized = probs / totals
+    target = np.zeros_like(normalized)
+    for row, item in enumerate(obs):
+        target[row, classes.index(item)] = 1.0
+    return float(np.mean(np.sum((normalized - target) ** 2, axis=1)))
+
+
+def plus_one_monte_carlo_pvalue(n_extreme: int, n_draws: int) -> float:
+    if n_draws < 1 or n_extreme < 0 or n_extreme > n_draws:
+        raise ValueError("expected 0 <= n_extreme <= n_draws and n_draws >= 1")
+    return float((n_extreme + 1) / (n_draws + 1))
+
+
+def require_monte_carlo_resolution(n_draws: int, alpha_min: float) -> None:
+    if alpha_min <= 0 or alpha_min >= 1:
+        raise ValueError("alpha_min must lie in (0, 1)")
+    if n_draws + 1 < 1.0 / alpha_min:
+        raise ValueError("Monte Carlo pool is too small for the requested alpha_min")
 
 
 def association_with_null(

@@ -17,6 +17,17 @@ from .notebook_utils import (
     plot_depth_summary,
     summarize_stack,
 )
+from .validation import (
+    REVISED_VALIDATION_SUITES,
+    ValidationAttempt,
+    ValidationBudget,
+    ValidationCell,
+    ValidationSuiteSpec,
+    benchmark_cells,
+    deterministic_seed,
+    run_validation_cells,
+    validation_totals,
+)
 
 __all__ = [
     "METHODS",
@@ -31,5 +42,14 @@ __all__ = [
     "make_pcmciplus_analyzer",
     "normalize_multiple_recordings",
     "plot_depth_summary",
+    "REVISED_VALIDATION_SUITES",
+    "ValidationAttempt",
+    "ValidationBudget",
+    "ValidationCell",
     "summarize_stack",
+    "ValidationSuiteSpec",
+    "benchmark_cells",
+    "deterministic_seed",
+    "run_validation_cells",
+    "validation_totals",
 ]

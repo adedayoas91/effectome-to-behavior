@@ -1,0 +1,23 @@
+# Revised validation manifest scaffold from Appendix C WP9.
+development_seed: 260925
+evaluation_master_seed: 260926
+baseline:
+  max_lag: 2
+  support_density: 0.05
+  retained_samples: 3137
+  clock_source: worm_0_manifest
+suites:
+  core:
+    recordings: 500
+  stress:
+    recordings: 270
+  nonlinear:
+    recordings: 30
+  grouping:
+    recordings: 120
+    optional: true
+  independent_calibration:
+    recordings: 600
+smoke:
+  label: smoke
+  may_select_thresholds: false

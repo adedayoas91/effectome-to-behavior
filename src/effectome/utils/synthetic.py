@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
+from scipy.linalg import eigvalsh, solve_discrete_lyapunov
 
 if TYPE_CHECKING:  # avoid import cycle at runtime
     from effectome.data_module.schema import NeuralRecording
@@ -58,9 +59,20 @@ class SyntheticConfig:
     calcium_gain_heterogeneity: float = 0.0
     fps: float = 10.0
     seed: int = 42
+    graph_seed: int | None = None
+    endpoint_seed: int | None = None
+    scenario: str = "recurrent_geometric"
+    contraction: float = 0.98
+    burn_in: int = 1000
+    native_time: tuple[float, ...] | None = None
+    variance_ratio: float = 1.0
+    innovation_correlation: float = 0.0
+    measurement_snr: float | None = None
+    missing_fraction: float = 0.0
+    nonlinear_saturation: bool = False
 
 
-def _random_dag_coeffs(n: int, density: float, coupling: float, rng: np.random.Generator) -> np.ndarray:
+def _random_var_coeffs(n: int, density: float, coupling: float, rng: np.random.Generator) -> np.ndarray:
     """Build a stable NxN causal graph in source->target convention.
 
     Returns G where G[i, j] is the influence of source neuron i on target neuron j (so the
@@ -78,8 +90,138 @@ def _random_dag_coeffs(n: int, density: float, coupling: float, rng: np.random.G
     return g
 
 
+# Historical private name retained while the generator migrates to explicit VAR terminology.
+_random_dag_coeffs = _random_var_coeffs
+
+
+TEMPORAL_SCENARIOS = (
+    "constant", "smooth_drift", "nonrecurring_epochs",
+    "recurrent_geometric", "recurrent_non_geometric",
+)
+
+
+def effective_companion(lags: np.ndarray, instantaneous: np.ndarray) -> np.ndarray:
+    """Companion of structural [lag, source, target] coefficients after the solve."""
+    p, n, _ = lags.shape
+    reduced = np.linalg.solve(np.eye(n) - instantaneous.T, np.concatenate(lags.transpose(0, 2, 1), axis=1))
+    companion = np.zeros((n * p, n * p))
+    companion[:n] = reduced
+    companion[n:, :-n] = np.eye(n * (p - 1))
+    return companion
+
+
+def certify_common_metric(companions: np.ndarray, *, rho: float = 0.98,
+                          metric: np.ndarray | None = None) -> dict:
+    """Certify arbitrary switching in one fixed positive-definite Lyapunov metric.
+
+    A failure means this certificate was not established, not necessarily instability.
+    Lyapunov's equation is transposed because SciPy solves A Q A.T - Q = -I.
+    """
+    matrices = np.asarray(companions, dtype=float)
+    if (matrices.ndim != 3 or matrices.shape[0] == 0 or matrices.shape[1] != matrices.shape[2]
+            or not np.all(np.isfinite(matrices)) or not 0 < rho < 1):
+        raise ValueError("invalid common certificate inputs")
+    if metric is None:
+        if max(abs(np.linalg.eigvals(matrices[0]))) >= rho:
+            raise ValueError("base cannot satisfy target certificate")
+        metric = solve_discrete_lyapunov((matrices[0] / rho).T, np.eye(matrices.shape[1]))
+    metric = np.asarray(metric, dtype=float)
+    if not np.allclose(metric, metric.T) or not np.all(np.isfinite(metric)):
+        raise ValueError("certificate metric must be finite and symmetric")
+    minimum = float(eigvalsh(metric)[0])
+    if minimum <= 0:
+        raise ValueError("certificate metric must be positive definite")
+    factors = np.array([eigvalsh(c.T @ metric @ c, metric)[-1] for c in matrices])
+    worst = float(factors.max())
+    if worst > rho ** 2 + 1e-12:
+        raise ValueError("common switching certificate failed")
+    return {"metric": metric, "rho": rho, "worst_factor": worst,
+            "margin": rho ** 2 - worst, "minimum_metric_eigenvalue": minimum}
+
+
+def _coefficient_family(cfg: SyntheticConfig, rng: np.random.Generator) -> tuple:
+    n, p = cfg.n_neurons, cfg.max_lag
+    base = np.array([_random_var_coeffs(n, cfg.density, cfg.coupling / p, rng) for _ in range(p)])
+    instant = _instantaneous_dag(n, cfg.instantaneous_density, cfg.instantaneous_strength, rng)
+    # Scale only the top companion blocks; the multi-lag shift rows stay intact.
+    for _ in range(100):
+        try:
+            certificate = certify_common_metric(np.array([effective_companion(base, instant)]),
+                                                rho=cfg.contraction)
+            break
+        except ValueError:
+            base *= 0.8
+    else:
+        raise ValueError("could not certify base at the fixed target contraction")
+    proposals: list[np.ndarray] = []
+    flips: list[np.ndarray] = []
+    for state in range(cfg.n_states):
+        candidate = base.copy()
+        mask = (rng.random((n, n)) < cfg.regime_sign_flip_fraction) & np.any(base != 0, axis=0)
+        np.fill_diagonal(mask, False)
+        candidate[:, mask] *= -1
+        support_edit = rng.random(base.shape) < cfg.regime_sparsity_jitter
+        candidate[support_edit] = 0
+        candidate *= rng.uniform(0.65, 1.35, size=base.shape)
+        if state == 0 or cfg.scenario == "constant":
+            candidate = base.copy()
+            mask[:] = False
+        proposals.append(candidate)
+        flips.append(mask)
+    proposal_array = np.asarray(proposals)
+    for shrink in range(100):
+        graphs = base + (proposal_array - base) * 0.8 ** shrink
+        companions = np.array([effective_companion(g, instant) for g in graphs])
+        try:
+            certificate = certify_common_metric(companions, rho=cfg.contraction,
+                                                metric=certificate["metric"])
+            certificate["perturbation_scale"] = 0.8 ** shrink
+            return (
+                graphs,
+                np.repeat(instant[None], cfg.n_states, axis=0),
+                companions,
+                certificate,
+                base,
+                flips,
+            )
+        except ValueError:
+            pass
+    raise ValueError("could not certify shared-base perturbations")
+
+
+def _temporal_weights(cfg: SyntheticConfig, length: int, rng: np.random.Generator) -> tuple:
+    k = cfg.n_states
+    if cfg.scenario == "constant" or k == 1:
+        states = np.zeros(length, dtype=int)
+    elif cfg.scenario in {"smooth_drift", "nonrecurring_epochs"}:
+        states = np.minimum(np.arange(length) * k // length, k - 1)
+    elif cfg.scenario == "recurrent_geometric":
+        states = _regime_sequence(length, k, cfg.regime_dwell, rng)
+    else:
+        states = np.zeros(length, dtype=int)
+        start, state = 0, 0
+        while start < length:
+            dwell = max(1, int(round(rng.gamma(4, cfg.regime_dwell / 4))))
+            states[start:start + dwell] = state
+            start += dwell
+            state = int(rng.choice([s for s in range(k) if s != state]))
+    weights = np.eye(k)[states]
+    if cfg.scenario == "smooth_drift" and k > 1:
+        position = np.linspace(0, k - 1, length)
+        left = np.minimum(position.astype(int), k - 2)
+        fraction = position - left
+        weights[:] = 0
+        weights[np.arange(length), left] = 1 - fraction
+        weights[np.arange(length), left + 1] = fraction
+    return states, weights
+
+
 def _regime_sequence(t: int, n_states: int, dwell: int, rng: np.random.Generator) -> np.ndarray:
     """Sample a piecewise-constant regime label sequence (a slow Markov chain)."""
+    if n_states < 1:
+        raise ValueError("n_states must be at least one")
+    if n_states == 1:
+        return np.zeros(t, dtype=np.int64)
     seq = np.empty(t, dtype=np.int64)
     state = 0
     switch_p = 1.0 / max(1, dwell)
@@ -122,8 +264,27 @@ def _stabilize_lag_stack(graphs: list[np.ndarray], radius_limit: float = 0.95) -
 
 
 def _validate_config(cfg: SyntheticConfig) -> None:
+    if cfg.scenario not in TEMPORAL_SCENARIOS:
+        raise ValueError("unknown temporal scenario")
+    if not 0 < cfg.contraction < 1 or cfg.burn_in < 0:
+        raise ValueError("invalid contraction or burn_in")
+    if (not np.isfinite(cfg.variance_ratio) or cfg.variance_ratio <= 0
+            or not 0 <= cfg.innovation_correlation < 1 or not 0 <= cfg.missing_fraction < 1):
+        raise ValueError("invalid variance, correlation or missingness")
+    if cfg.measurement_snr is not None and (not np.isfinite(cfg.measurement_snr) or cfg.measurement_snr <= 0):
+        raise ValueError("measurement_snr must be positive")
+    if cfg.native_time is not None:
+        clock = np.asarray(cfg.native_time)
+        if (
+            clock.shape != (cfg.n_timepoints,)
+            or not np.all(np.isfinite(clock))
+            or np.any(np.diff(clock) <= 0)
+        ):
+            raise ValueError("native_time must be a finite strictly increasing length-T clock")
     if cfg.n_neurons < 2 or cfg.n_timepoints <= cfg.max_lag or cfg.max_lag < 1:
         raise ValueError("synthetic dimensions require N>=2, max_lag>=1, and T>max_lag")
+    if cfg.n_states < 1:
+        raise ValueError("n_states must be at least one")
     if not 0 <= cfg.density <= 1:
         raise ValueError("density must be in [0, 1]")
     for name, value in (
@@ -153,75 +314,75 @@ def make_synthetic_recording(cfg: SyntheticConfig) -> NeuralRecording:
     from effectome.data_module.schema import NeuralRecording
 
     _validate_config(cfg)
-    rng = np.random.default_rng(cfg.seed)
+    trajectory_rng = np.random.default_rng(cfg.seed)
+    graph_rng = np.random.default_rng(cfg.seed if cfg.graph_seed is None else cfg.graph_seed)
+    endpoint_rng = np.random.default_rng(
+        cfg.seed + 1 if cfg.endpoint_seed is None else cfg.endpoint_seed
+    )
     n, t = cfg.n_neurons, cfg.n_timepoints
+    certified_burn = int(np.ceil(np.log(1e-6) / np.log(cfg.contraction)))
+    burn_in = max(1000, cfg.burn_in, certified_burn)
+    total = burn_in + t
 
-    # One lag-resolved graph stack per latent regime.  The legacy ``true_graphs``
-    # metadata remains the sum across lags so existing edge-recovery consumers keep
-    # working while new tests can inspect the exact lag structure.
-    lag_graphs: list[list[np.ndarray]] = []
-    sign_flip_masks: list[np.ndarray] = []
-    for _state in range(cfg.n_states):
-        density_scale = 1.0 + rng.uniform(
-            -cfg.regime_sparsity_jitter, cfg.regime_sparsity_jitter
-        )
-        state_density = float(np.clip(cfg.density * density_scale, 0.0, 1.0))
-        state_lags = [
-            _random_dag_coeffs(n, state_density, cfg.coupling / cfg.max_lag, rng)
-            for _ in range(cfg.max_lag)
-        ]
-        flip_mask = np.zeros((n, n), dtype=bool)
-        if cfg.regime_sign_flip_fraction > 0:
-            candidates = np.argwhere(np.abs(state_lags[0]) > 1e-12)
-            candidates = candidates[candidates[:, 0] != candidates[:, 1]]
-            n_flip = int(round(cfg.regime_sign_flip_fraction * len(candidates)))
-            if n_flip > 0:
-                selected = candidates[rng.choice(len(candidates), size=n_flip, replace=False)]
-                flip_mask[selected[:, 0], selected[:, 1]] = True
-                for graph in state_lags:
-                    graph[flip_mask] *= -1.0
-        _stabilize_lag_stack(state_lags)
-        lag_graphs.append(state_lags)
-        sign_flip_masks.append(flip_mask)
-    true_graphs = [np.sum(np.stack(graphs), axis=0) for graphs in lag_graphs]
-    instantaneous_graphs = [
-        _instantaneous_dag(
-            n,
-            cfg.instantaneous_density,
-            cfg.instantaneous_strength,
-            rng,
-        )
-        for _ in range(cfg.n_states)
-    ]
-    state_seq = _regime_sequence(t, cfg.n_states, cfg.regime_dwell, rng)
+    (
+        lag_graphs,
+        instantaneous_graphs,
+        companions,
+        certificate,
+        base_lags,
+        sign_flip_masks,
+    ) = _coefficient_family(cfg, graph_rng)
+    state_seq_full, temporal_weights_full = _temporal_weights(cfg, total, trajectory_rng)
 
-    latent_factors = np.zeros((t, cfg.n_latent_confounders), dtype=np.float64)
+    latent_factors_full = np.zeros((total, cfg.n_latent_confounders), dtype=np.float64)
     latent_loadings = np.zeros((n, cfg.n_latent_confounders), dtype=np.float64)
     if cfg.n_latent_confounders:
-        latent_loadings = rng.normal(
+        latent_loadings = graph_rng.normal(
             0.0,
             cfg.latent_strength / np.sqrt(cfg.n_latent_confounders),
             size=(n, cfg.n_latent_confounders),
         )
-        latent_factors[0] = rng.normal(size=cfg.n_latent_confounders)
-        for tt in range(1, t):
-            latent_factors[tt] = 0.8 * latent_factors[tt - 1] + rng.normal(
+        latent_factors_full[0] = trajectory_rng.normal(size=cfg.n_latent_confounders)
+        for tt in range(1, total):
+            latent_factors_full[tt] = 0.8 * latent_factors_full[tt - 1] + trajectory_rng.normal(
                 0.0, 0.6, size=cfg.n_latent_confounders
             )
 
-    x = np.zeros((t, n), dtype=np.float64)
-    x[: cfg.max_lag] = rng.normal(0, cfg.noise_std, size=(cfg.max_lag, n))
+    innovation_covariance = cfg.noise_std**2 * (
+        (1.0 - cfg.innovation_correlation) * np.eye(n)
+        + cfg.innovation_correlation * np.ones((n, n))
+    )
+    x_full = np.zeros((total, n), dtype=np.float64)
+    x_full[: cfg.max_lag] = trajectory_rng.multivariate_normal(
+        np.zeros(n), innovation_covariance, size=cfg.max_lag
+    )
     identity = np.eye(n)
-    for tt in range(cfg.max_lag, t):
-        state = int(state_seq[tt])
+    for tt in range(cfg.max_lag, total):
+        weights = temporal_weights_full[tt]
+        effective_lags = np.tensordot(weights, lag_graphs, axes=(0, 0))
+        effective_instantaneous = np.tensordot(weights, instantaneous_graphs, axes=(0, 0))
         lagged = np.zeros(n, dtype=float)
-        for lag, graph in enumerate(lag_graphs[state], start=1):
-            lagged += graph.T @ x[tt - lag]
-        common = latent_loadings @ latent_factors[tt] if cfg.n_latent_confounders else 0.0
-        innovation = lagged + common + rng.normal(0, cfg.noise_std, size=n)
+        for lag, graph in enumerate(effective_lags, start=1):
+            lagged += graph.T @ x_full[tt - lag]
+        common = (
+            latent_loadings @ latent_factors_full[tt]
+            if cfg.n_latent_confounders
+            else 0.0
+        )
+        state_fraction = float(state_seq_full[tt]) / max(1, cfg.n_states - 1)
+        variance_scale = np.sqrt(1.0 + state_fraction * (cfg.variance_ratio - 1.0))
+        noise = trajectory_rng.multivariate_normal(np.zeros(n), innovation_covariance)
+        innovation = lagged + common + variance_scale * noise
+        if cfg.nonlinear_saturation:
+            innovation = np.tanh(innovation)
         # For B[source,target], x = B.T x + innovation.  B is a DAG, so
         # (I-B.T) is nonsingular and the contemporaneous solution is exact.
-        x[tt] = np.linalg.solve(identity - instantaneous_graphs[state].T, innovation)
+        x_full[tt] = np.linalg.solve(identity - effective_instantaneous.T, innovation)
+
+    x = x_full[burn_in:]
+    state_seq = state_seq_full[burn_in:]
+    temporal_weights = temporal_weights_full[burn_in:]
+    latent_factors = latent_factors_full[burn_in:]
 
     # Behavior:
     #   * 'motif' is tied to the connectivity *regime* (a subset of regimes is 'active'),
@@ -229,51 +390,74 @@ def make_synthetic_recording(cfg: SyntheticConfig) -> NeuralRecording:
     #   * 'continuous' tracks the mean activity of a fixed driver set (fast, activity-linked).
     active_states = set(range(int(np.ceil(cfg.n_states / 2))))
     behavior_motif = np.array([1 if s in active_states else 0 for s in state_seq], dtype=np.int64)
-    flip = rng.random(t) < 0.03  # small label noise
+    flip = endpoint_rng.random(t) < 0.03  # small label noise
     behavior_motif = np.where(flip, 1 - behavior_motif, behavior_motif)
 
-    drivers = rng.choice(n, size=cfg.behavior_drivers, replace=False)
-    behavior_continuous = x[:, drivers].mean(axis=1) + rng.normal(0, 0.1, size=t)
+    drivers = endpoint_rng.choice(n, size=cfg.behavior_drivers, replace=False)
+    behavior_continuous = x[:, drivers].mean(axis=1) + endpoint_rng.normal(0, 0.1, size=t)
 
-    observed = x
+    observed_full = x_full
     calcium_decay = np.zeros(n, dtype=float)
     calcium_gain = np.ones(n, dtype=float)
     if cfg.calcium_decay_range is not None:
         low, high = cfg.calcium_decay_range
-        calcium_decay = rng.uniform(low, high, size=n)
+        calcium_decay = graph_rng.uniform(low, high, size=n)
         if cfg.calcium_gain_heterogeneity > 0:
             calcium_gain = np.exp(
-                rng.normal(0.0, cfg.calcium_gain_heterogeneity, size=n)
+                graph_rng.normal(0.0, cfg.calcium_gain_heterogeneity, size=n)
             )
-        observed = np.zeros_like(x)
-        observed[0] = calcium_gain * x[0]
-        for tt in range(1, t):
-            observed[tt] = calcium_decay * observed[tt - 1] + calcium_gain * x[tt]
+        observed_full = np.zeros_like(x_full)
+        observed_full[0] = calcium_gain * x_full[0]
+        for tt in range(1, total):
+            observed_full[tt] = (
+                calcium_decay * observed_full[tt - 1] + calcium_gain * x_full[tt]
+            )
+    observed = observed_full[burn_in:].copy()
+    if cfg.measurement_snr is not None:
+        signal_variance = np.var(observed, axis=0)
+        noise_scale = np.sqrt(signal_variance / cfg.measurement_snr)
+        observed += endpoint_rng.normal(size=observed.shape) * noise_scale
+    observation_mask = np.ones_like(observed, dtype=bool)
+    if cfg.missing_fraction:
+        observation_mask = endpoint_rng.random(observed.shape) >= cfg.missing_fraction
+        observed[~observation_mask] = np.nan
 
     traces = observed.T.astype(np.float32)  # N x T
-    coords = rng.normal(0, 1, size=(n, 3)).astype(np.float32)
+    coords = graph_rng.normal(0, 1, size=(n, 3)).astype(np.float32)
     neuron_ids = np.arange(n)
+    clock = np.asarray(cfg.native_time) if cfg.native_time is not None else np.arange(t) / cfg.fps
 
     return NeuralRecording(
         traces=traces,
-        time=np.arange(t) / cfg.fps,
+        time=clock,
         coords=coords,
         neuron_ids=neuron_ids,
         behavior={"continuous": behavior_continuous, "motif": behavior_motif},
         fps=cfg.fps,
         metadata={
             "source": "synthetic",
-            "true_graphs": np.stack(true_graphs),
-            "true_lag_graphs": np.asarray(lag_graphs),
-            "true_instantaneous_graphs": np.stack(instantaneous_graphs),
+            "true_graphs": np.sum(lag_graphs, axis=1),
+            "true_lag_graphs": lag_graphs,
+            "true_instantaneous_graphs": instantaneous_graphs,
             "true_states": state_seq,
-            "regime_sign_flip_masks": np.stack(sign_flip_masks),
+            "temporal_weights": temporal_weights,
+            "regime_sign_flip_masks": np.asarray(sign_flip_masks),
+            "base_lag_graphs": base_lags,
+            "effective_companions": companions,
+            "stability_certificate": certificate,
+            "burn_in": burn_in,
             "latent_factors": latent_factors,
             "latent_loadings": latent_loadings,
             "latent_neural_activity": x,
+            "observation_mask": observation_mask,
             "calcium_decay": calcium_decay,
             "calcium_gain": calcium_gain,
             "behavior_drivers": drivers,
+            "truth_contract": {
+                "latent_coefficients": "true_lag_graphs",
+                "instantaneous_structure": "true_instantaneous_graphs",
+                "observed_projection": "unavailable",
+            },
             "stress_config": {
                 "max_lag": cfg.max_lag,
                 "sign_flip_fraction": cfg.regime_sign_flip_fraction,
