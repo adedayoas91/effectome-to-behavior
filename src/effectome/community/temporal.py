@@ -366,19 +366,28 @@ class _TemporalRegularizedMixin:
         boundary_indices: np.ndarray | None = None,
     ) -> CommunitySeries:
         settings = self._settings()
-        ref_idx = int(np.argmin(scores))
-        reference = runs[ref_idx]
-        aligned = [reference]
-        for idx, labels in enumerate(runs):
-            if idx == ref_idx:
-                continue
-            aligned.append(_align_run_labels(reference, labels, settings.n_communities))
+        if settings.mode == "prospective":
+            # Prospective output cannot choose a reference run or align labels by using layers
+            # that occur after the issued origin. Pairwise coassignment is label-invariant across
+            # runs, and the hard label surface uses a fixed, seed-ordered reference run.
+            ref_idx = 0
+            aligned = list(runs)
+            consensus = runs[ref_idx].astype(np.int64)
+        else:
+            ref_idx = int(np.argmin(scores))
+            reference = runs[ref_idx]
+            aligned = [reference]
+            for idx, labels in enumerate(runs):
+                if idx == ref_idx:
+                    continue
+                aligned.append(_align_run_labels(reference, labels, settings.n_communities))
+            stack = np.stack(aligned)
+            consensus = np.apply_along_axis(
+                lambda x: np.bincount(x, minlength=settings.n_communities).argmax(),
+                0,
+                stack,
+            ).astype(np.int64)
         stack = np.stack(aligned)
-        consensus = np.apply_along_axis(
-            lambda x: np.bincount(x, minlength=settings.n_communities).argmax(),
-            0,
-            stack,
-        ).astype(np.int64)
         counts = np.array([len(np.unique(row)) for row in consensus])
         coupled_steps = _coupled_step_mask(consensus.shape[0], boundary_indices)
         switching = consensus[1:] != consensus[:-1]
@@ -413,6 +422,8 @@ class _TemporalRegularizedMixin:
                     "connectivity_diagnostics": dict(series.diagnostics),
                     "temporal_mode": settings.mode,
                     "temporal_penalty": float(settings.temporal_penalty),
+                    "reference_run": ref_idx,
+                    "grouping_target": "roles",
                 },
             },
         )

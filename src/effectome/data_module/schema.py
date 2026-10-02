@@ -11,8 +11,113 @@ from typing import Any
 
 import numpy as np
 
-CURRENT_ARTIFACT_SCHEMA_VERSION = "1.0"
-SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = frozenset({CURRENT_ARTIFACT_SCHEMA_VERSION})
+CURRENT_ARTIFACT_SCHEMA_VERSION = "2.0"
+LEGACY_ARTIFACT_SCHEMA_VERSIONS = frozenset({"1.0"})
+SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = frozenset(
+    {CURRENT_ARTIFACT_SCHEMA_VERSION, *LEGACY_ARTIFACT_SCHEMA_VERSIONS}
+)
+
+
+@dataclass(frozen=True)
+class RawInterval:
+    """Half-open support in one immutable raw recording or segment."""
+
+    source_id: str
+    start: int
+    stop: int
+
+    def __post_init__(self) -> None:
+        if not self.source_id:
+            raise ValueError("source_id must be non-empty")
+        if self.start < 0 or self.start >= self.stop:
+            raise ValueError("raw intervals must satisfy 0 <= start < stop")
+
+    def overlaps(self, other: RawInterval) -> bool:
+        return (
+            self.source_id == other.source_id
+            and max(self.start, other.start) < min(self.stop, other.stop)
+        )
+
+
+@dataclass(frozen=True)
+class ExampleSupport:
+    """Raw observations used by one issued feature/outcome example."""
+
+    feature_intervals: tuple[RawInterval, ...]
+    outcome_intervals: tuple[RawInterval, ...]
+    available_after_sample: int
+
+    def __post_init__(self) -> None:
+        if not self.feature_intervals or not self.outcome_intervals:
+            raise ValueError("example support requires feature and outcome intervals")
+        if self.available_after_sample < 0:
+            raise ValueError("available_after_sample must be non-negative")
+        if any(
+            interval.stop > self.available_after_sample
+            for interval in (*self.feature_intervals, *self.outcome_intervals)
+        ):
+            raise ValueError("example support extends beyond its declared availability")
+
+
+@dataclass(frozen=True)
+class FoldSpec:
+    """Complete outer/inner ownership for one evaluation fold."""
+
+    fold_id: str
+    train_example_ids: tuple[str, ...]
+    test_example_ids: tuple[str, ...]
+    calibration_intervals: tuple[RawInterval, ...] = ()
+    protocol: str = "purged_blocked"
+    update_policy: str = "frozen"
+
+    def __post_init__(self) -> None:
+        if not self.fold_id:
+            raise ValueError("fold_id must be non-empty")
+        if len(set(self.train_example_ids)) != len(self.train_example_ids):
+            raise ValueError("train example ownership must be unique")
+        if len(set(self.test_example_ids)) != len(self.test_example_ids):
+            raise ValueError("test example ownership must be unique")
+        if set(self.train_example_ids) & set(self.test_example_ids):
+            raise ValueError("train and test example ownership must be disjoint")
+        if self.protocol not in {"purged_blocked", "chronological_online", "leave_animal_out"}:
+            raise ValueError("unsupported evaluation protocol")
+        if self.update_policy not in {"frozen", "declared_past_only"}:
+            raise ValueError("unsupported update policy")
+
+
+@dataclass(frozen=True)
+class EndpointMetadata:
+    """Lineage and timing declaration for an outcome channel."""
+
+    endpoint_kind: str = "unknown"
+    label_vocabulary: tuple[Any, ...] = ()
+    source_files: tuple[str, ...] = ()
+    source_hashes: tuple[str, ...] = ()
+    annotation_method: str = "unknown"
+    label_defining_roi_ids: tuple[int, ...] = ()
+    past_support_samples: int | None = None
+    future_support_samples: int | None = None
+    availability_rule: str = "unknown"
+    verification_status: str = "unknown"
+
+    def __post_init__(self) -> None:
+        if self.endpoint_kind not in {"observed", "fictive", "learned", "synthetic", "unknown"}:
+            raise ValueError("unsupported endpoint_kind")
+        if len(self.source_hashes) not in {0, len(self.source_files)}:
+            raise ValueError("source hashes must align with source files")
+        if len(set(self.label_vocabulary)) != len(self.label_vocabulary):
+            raise ValueError("endpoint label vocabulary must be unique")
+        for value in (self.past_support_samples, self.future_support_samples):
+            if value is not None and value < 0:
+                raise ValueError("endpoint support must be non-negative when known")
+
+    @property
+    def prospective_input_verified(self) -> bool:
+        return (
+            self.verification_status == "verified"
+            and self.availability_rule != "unknown"
+            and self.future_support_samples is not None
+        )
 
 
 def _validate_anchor_alignment(
@@ -64,6 +169,18 @@ class ArtifactProvenance:
     created_at: str | None = None
     warnings: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
+    analysis_mode: str = "descriptive"
+    fit_scope_id: str | None = None
+    split_manifest_hash: str | None = None
+    fitted_raw_intervals: tuple[RawInterval, ...] = ()
+    issue_sample: int | None = None
+    update_policy: str = "frozen"
+    scale_id: str | None = None
+    source_hash: str | None = None
+    lock_hash: str | None = None
+    config_hash: str | None = None
+    solver_status: str = "unknown"
+    claim_eligibility: str = "development_only"
 
     def __post_init__(self) -> None:
         if self.schema_version not in SUPPORTED_ARTIFACT_SCHEMA_VERSIONS:
@@ -71,6 +188,10 @@ class ArtifactProvenance:
             raise ValueError(
                 f"unsupported artifact schema version '{self.schema_version}'; supported: {supported}"
             )
+        if self.issue_sample is not None and self.issue_sample < 0:
+            raise ValueError("issue_sample must be non-negative")
+        if self.update_policy not in {"frozen", "declared_past_only", "not_applicable"}:
+            raise ValueError("unsupported artifact update policy")
 
 
 @dataclass
@@ -96,6 +217,10 @@ class NeuralRecording:
     fps: float
     metadata: dict[str, Any] = field(default_factory=dict)
     identity: RecordingIdentity = field(default_factory=RecordingIdentity)
+    endpoint_metadata: dict[str, EndpointMetadata] = field(default_factory=dict)
+    neural_validity: np.ndarray | None = None
+    outcome_validity: dict[str, np.ndarray] = field(default_factory=dict)
+    source_indices: np.ndarray | None = None
 
     @property
     def n_neurons(self) -> int:
@@ -125,6 +250,23 @@ class NeuralRecording:
         for name, arr in self.behavior.items():
             if arr.shape[0] != t:
                 raise ValueError(f"behavior['{name}'] length {arr.shape[0]} != T {t}")
+        if len(np.unique(self.neuron_ids)) != n:
+            raise ValueError("neuron_ids must be unique recording-local ROI identifiers")
+        if self.neural_validity is not None and np.asarray(self.neural_validity).shape != (n, t):
+            raise ValueError("neural_validity must align with traces")
+        if self.source_indices is not None:
+            indices = np.asarray(self.source_indices)
+            if indices.shape != (t,) or not np.issubdtype(indices.dtype, np.integer):
+                raise ValueError("source_indices must be a length-T integer array")
+            if np.any(np.diff(indices) <= 0):
+                raise ValueError("source_indices must be strictly increasing")
+        if set(self.endpoint_metadata) - set(self.behavior):
+            raise ValueError("endpoint metadata keys must refer to behavior channels")
+        if set(self.outcome_validity) - set(self.behavior):
+            raise ValueError("outcome validity keys must refer to behavior channels")
+        for name, mask in self.outcome_validity.items():
+            if np.asarray(mask).shape != (t,):
+                raise ValueError(f"outcome_validity['{name}'] must have length T")
 
 
 @dataclass(frozen=True)

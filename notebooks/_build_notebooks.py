@@ -510,10 +510,12 @@ COMMUNITY_CFG = CommunityConfig(
     seed=42,
     extra={
         "n_communities": 3,
-        "temporal_penalty": 1.5,
-        "n_runs": 4,
-        "max_iter": 20,
         "mode": "prospective",
+        "temporal_penalty": 1.5,
+        "n_runs": 5,
+        "max_iter": 20,
+        "init_window_count": 4,
+        "online_learning_rate": 0.25,
     },
 )
 

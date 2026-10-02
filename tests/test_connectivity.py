@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pickle
+
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
@@ -11,15 +13,26 @@ from effectome.connectivity import (
     ConnectivityEstimator,
     ConnectivityFactory,
 )
+from effectome.connectivity.causalised_gc import fit_causalised_gc_model
 from effectome.core import CausalisedGC
 from effectome.data_module.schema import TemporalAnchor, Window, WindowedSegments
 from effectome.experiments import analyze_with_cgc, analyze_with_cgc_star
 
 
 def test_registry_has_methods():
-    assert {"correlation", "cgc", "cgc_star", "pcmci", "jpcmci", "time_varying"} <= set(
-        CONNECTIVITY_REGISTRY
-    )
+    assert {
+        "correlation",
+        "cgc",
+        "cgc_star",
+        "pcmci",
+        "jpcmci",
+        "time_varying",
+        "sparse_var",
+        "windowed_sparse_var",
+        "switching_var",
+        "tvvar_smooth",
+        "tvvar_fused",
+    } <= set(CONNECTIVITY_REGISTRY)
 
 
 def test_correlation_runs(windows):
@@ -65,6 +78,77 @@ def test_cgc_preserves_sign(windows):
     mats = series.matrices[:, ~np.eye(series.n_neurons, dtype=bool)]
     assert np.any(mats > 0.0)
     assert np.any(mats < 0.0)
+
+
+def test_cgc_signed_refit_retains_target_self_history():
+    rng = np.random.default_rng(20260925)
+    n_samples = 12_000
+    burn_in = 1_000
+    x = np.zeros(n_samples, dtype=np.float64)
+    y = np.zeros(n_samples, dtype=np.float64)
+    for t in range(1, n_samples):
+        x[t] = 0.8 * x[t - 1] + rng.normal()
+        y[t] = 0.7 * y[t - 1] + 0.2 * x[t - 1] + rng.normal()
+
+    estimator = CausalisedGC(
+        n_pasts=1,
+        n_lags=1,
+        ridge_alpha=0.0,
+        min_valid_fraction=1.0,
+    ).fit(np.vstack([x[burn_in:], y[burn_in:]]))
+    matrix = estimator.get_connectivity_matrix(alpha=1.0, beta=1.0)
+
+    assert np.isclose(matrix[0, 1], 0.2, atol=0.04)
+    assert estimator.last_fitted_lagged_coefficients_[0, 1, 1] > 0.6
+    assert estimator.last_lagged_coefficients_[0, 1, 1] == 0.0
+
+
+def test_cgc_fits_self_history_when_no_cross_edges_are_selected():
+    rng = np.random.default_rng(123)
+    n_samples = 600
+    x = np.zeros(n_samples, dtype=np.float64)
+    y = np.zeros(n_samples, dtype=np.float64)
+    for t in range(1, n_samples):
+        x[t] = 0.85 * x[t - 1] + rng.normal(scale=0.2)
+        y[t] = rng.normal()
+
+    estimator = CausalisedGC(
+        n_pasts=1,
+        n_lags=1,
+        ridge_alpha=0.0,
+        min_valid_fraction=1.0,
+    ).fit(np.vstack([x, y]))
+    matrix = estimator.get_connectivity_matrix(alpha=0.0, beta=0.0)
+
+    assert np.allclose(matrix, 0.0)
+    assert estimator.last_fitted_lagged_coefficients_[0, 0, 0] > 0.75
+    assert estimator.last_lagged_coefficients_[0, 0, 0] == 0.0
+
+
+def test_cgc_predictive_snapshot_roundtrip_uses_full_self_history():
+    rng = np.random.default_rng(991)
+    data = np.zeros((160, 2), dtype=np.float64)
+    for index in range(1, len(data)):
+        data[index, 0] = 0.75 * data[index - 1, 0] + rng.normal(scale=0.2)
+        data[index, 1] = (
+            0.65 * data[index - 1, 1]
+            + 0.2 * data[index - 1, 0]
+            + rng.normal(scale=0.2)
+        )
+    model = fit_causalised_gc_model(
+        data,
+        cfg=ConnectivityConfig(name="cgc", max_lag=1, ridge=0.01),
+    )
+    restored = pickle.loads(pickle.dumps(model))
+    state = restored.observe(
+        restored.initial_state(recording_identity="recording-a"),
+        data[-1:],
+        sample_indices=np.array([len(data) - 1]),
+    )
+    forecast = restored.forecast(state, horizon_samples=1)
+    expected = restored.predictor.fit.intercept + data[-1] @ restored.predictor.fit.coefficients
+    np.testing.assert_allclose(forecast.mean[0], expected)
+    assert restored.graph_at(state).matrix.shape == (2, 2)
 
 
 def test_cgc_star_uses_the_shared_causalised_gc_backend(windows):

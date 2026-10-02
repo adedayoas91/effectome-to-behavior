@@ -576,10 +576,9 @@ def load_bundle_net_c_elegans(cfg: dict) -> NeuralRecording:
         canonical_names.append(raw_name)
         canonical_class_ids.append(-1)
 
-    if unresolved_names:
-        neuron_ids = np.arange(traces.shape[0], dtype=np.int64)
-    else:
-        neuron_ids = np.asarray(canonical_indices, dtype=np.int64)
+    # Recording-local row IDs remain unique even when biological names resolve to
+    # the same canonical neuron. Canonical identity is carried separately below.
+    neuron_ids = np.arange(traces.shape[0], dtype=np.int64)
 
     source_raw_neuron_names = list(raw_neuron_names)
     source_canonical_neuron_names = list(canonical_names)

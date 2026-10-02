@@ -122,6 +122,15 @@ def test_purged_blocked_splits_apply_embargo():
         assert len(np.intersect1d(train, purged)) == 0
 
 
+def test_purged_blocked_splits_accept_list_valued_group_labels():
+    groups = [["rec-a", fold % 2] for fold in range(12)]
+    splits = purged_blocked_splits(12, n_splits=2, embargo=0, groups=groups)
+
+    assert len(splits) == 2
+    for train, test in splits:
+        assert len(np.intersect1d(train, test)) == 0
+
+
 def test_anchor_aware_splits_purge_overlapping_histories_within_recording():
     anchors = [
         _anchor("rec-a", 0, 4, 2, 4),

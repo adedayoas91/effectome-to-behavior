@@ -114,13 +114,15 @@ def regression_residual_matrix(y: np.ndarray, z: np.ndarray) -> np.ndarray:
     return (y_arr.T - design @ coef).T
 
 
-def _ridge_regression(x: np.ndarray, y: np.ndarray, alpha: float) -> np.ndarray:
+def _ridge_fit(x: np.ndarray, y: np.ndarray, alpha: float) -> tuple[np.ndarray, float, float]:
     if x.ndim != 2:
         raise ValueError("x must be 2D")
     if x.shape[0] != y.shape[0]:
         raise ValueError("x and y must have the same number of rows")
     if x.shape[1] == 0:
-        return np.zeros(0, dtype=np.float64)
+        intercept = float(np.mean(y))
+        residuals = y - intercept
+        return np.zeros(0, dtype=np.float64), intercept, float(np.mean(residuals**2))
 
     x_mean = x.mean(axis=0, keepdims=True)
     y_mean = float(np.mean(y))
@@ -129,7 +131,15 @@ def _ridge_regression(x: np.ndarray, y: np.ndarray, alpha: float) -> np.ndarray:
     gram = x_centered.T @ x_centered
     penalty = max(float(alpha), 0.0) * np.eye(x_centered.shape[1], dtype=np.float64)
     rhs = x_centered.T @ y_centered
-    return np.linalg.solve(gram + penalty, rhs)
+    coef = np.linalg.solve(gram + penalty, rhs)
+    intercept = float(y_mean - np.ravel(x_mean) @ coef)
+    residuals = y - (x @ coef + intercept)
+    return coef, intercept, float(np.mean(residuals**2))
+
+
+def _ridge_regression(x: np.ndarray, y: np.ndarray, alpha: float) -> np.ndarray:
+    coef, _, _ = _ridge_fit(x, y, alpha)
+    return coef
 
 
 @dataclass
@@ -271,6 +281,7 @@ class CausalisedGC:
         self.shifted_data = self._lagged_rows(self.data)[:, self.valid_design_rows_mask_]
         self.target_data = self._targets(self.data)[:, self.valid_design_rows_mask_]
         self.design_ = self.shifted_data.T
+        self.valid_response_indices_ = np.flatnonzero(self.valid_design_rows_mask_) + self.n_pasts
         self._compute_support_statistics()
         return self
 
@@ -296,20 +307,34 @@ class CausalisedGC:
 
     def _lagged_coefficients(self, support: np.ndarray) -> np.ndarray:
         coefficients = np.zeros((self.n_pasts, self.n_neur, self.n_neur), dtype=np.float64)
+        fitted_coefficients = np.zeros_like(coefficients)
+        fit_support = np.zeros_like(support, dtype=bool)
+        intercept = np.zeros(self.n_neur, dtype=np.float64)
+        residual_variance = np.zeros(self.n_neur, dtype=np.float64)
         for target_index in range(self.n_neur):
+            target_self_history = np.zeros((self.n_pasts, self.n_neur), dtype=bool)
+            target_self_history[:, target_index] = True
             flat_support = support[:, :, target_index].reshape(-1)
-            if not np.any(flat_support):
-                continue
-            coef = _ridge_regression(
-                self.design_[:, flat_support],
+            nuisance_support = target_self_history.reshape(-1)
+            target_fit_support = flat_support | nuisance_support
+            coef, intercept[target_index], residual_variance[target_index] = _ridge_fit(
+                self.design_[:, target_fit_support],
                 self.target_data[target_index],
                 self.ridge_alpha,
             )
             full = np.zeros(self.design_.shape[1], dtype=np.float64)
-            full[flat_support] = coef
-            coefficients[:, :, target_index] = full.reshape(self.n_pasts, self.n_neur)
+            full[target_fit_support] = coef
+            fit_support[:, :, target_index] = target_fit_support.reshape(self.n_pasts, self.n_neur)
+            fitted_coefficients[:, :, target_index] = full.reshape(self.n_pasts, self.n_neur)
+            exported = np.zeros_like(full)
+            exported[flat_support] = full[flat_support]
+            coefficients[:, :, target_index] = exported.reshape(self.n_pasts, self.n_neur)
         if not self.signed:
             coefficients = np.abs(coefficients)
+        self.last_fitted_lagged_coefficients_ = fitted_coefficients
+        self.last_fit_support_ = fit_support
+        self.last_intercept_ = intercept
+        self.last_residual_variance_ = residual_variance
         return coefficients
 
     def collapse_lagged_coefficients(
@@ -386,7 +411,14 @@ class CausalisedGC:
                 else "circular shifts preserve each tested series' marginal autocorrelation"
             ),
             "signed_weight_source": "ridge_var_on_selected_support",
+            "signed_refit_policy": "selected_cross_edges_plus_target_self_history_nuisance",
             "lag_support_counts": support[: self.n_lags].sum(axis=(1, 2)).astype(int).tolist(),
+            "lag_fit_support_counts": (
+                getattr(self, "last_fit_support_", support)[: self.n_lags]
+                .sum(axis=(1, 2))
+                .astype(int)
+                .tolist()
+            ),
             "lag_nonzero_weight_counts": (
                 (np.abs(lagged[: self.n_lags]) > 0.0)
                 .sum(axis=(1, 2))
@@ -402,6 +434,17 @@ class CausalisedGC:
             "dropped_design_rows": int(getattr(self, "dropped_design_rows_", 0)),
             "valid_row_fraction": float(getattr(self, "valid_row_fraction_", 1.0)),
             "invalid_timepoint_count": int(getattr(self, "invalid_timepoint_count_", 0)),
+            "valid_response_start": (
+                int(self.valid_response_indices_[0]) if self.valid_response_indices_.size else None
+            ),
+            "valid_response_stop": (
+                int(self.valid_response_indices_[-1] + 1)
+                if self.valid_response_indices_.size
+                else None
+            ),
+            "residual_variance_mean": float(
+                np.mean(getattr(self, "last_residual_variance_", np.asarray([np.nan])))
+            ),
             "alpha": float(alpha),
             "beta": float(beta),
         }

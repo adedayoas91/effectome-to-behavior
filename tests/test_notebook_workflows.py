@@ -298,6 +298,25 @@ def test_effectome_notebooks_load_canonical_connectivity_profiles():
         assert "ConnectivityConfig(**CONNECTIVITY_YAML)" in text
 
 
+def test_full_analysis_notebook_uses_revised_cgc_backend():
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "notebooks"
+        / "effectomes"
+        / "c-GC"
+        / "c-GC-effectome-sweep.ipynb"
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    text = "\n".join(
+        "".join(cell.get("source", [])) for cell in payload["cells"] if cell.get("cell_type") == "code"
+    )
+
+    assert "CONNECTIVITY_NAME = 'cgc'" in text
+    assert "CONNECTIVITY_NAME = 'granger'" not in text
+    assert "'n_runs': 5" in text
+    assert "'mode': 'prospective'" in text
+
+
 def test_attribution_helper_uses_window_aligned_behavior(monkeypatch, tmp_path):
     window_behavior = np.array([0, 1, 2, 1, 0], dtype=np.int64)
     connectivity = SimpleNamespace(

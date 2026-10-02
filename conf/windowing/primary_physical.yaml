@@ -12,5 +12,6 @@ min_event_gap: 10
 behavior_summary: mean
 respect_boundaries: true
 drop_incomplete_tail: true
-standardize_per_window: true
+standardize_per_window: false
+categorical_summary: last_valid
 standardization_epsilon: 1.0e-8

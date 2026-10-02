@@ -185,7 +185,8 @@ def test_temporal_community_progress_callback_reports_each_run():
     assert progress == [(1, 3), (2, 3), (3, 3)]
 
 
-def test_prospective_temporal_mode_is_future_invariant():
+@pytest.mark.parametrize("n_runs", [1, 5])
+def test_prospective_temporal_mode_is_future_invariant(n_runs):
     early = np.array(
         [
             [0.0, 2.5, 2.5, -1.0],
@@ -212,18 +213,23 @@ def test_prospective_temporal_mode_is_future_invariant():
         seed=0,
         extra={
             "n_communities": 2,
-            "n_runs": 1,
+            "n_runs": n_runs,
             "mode": "prospective",
             "temporal_penalty": 1.0,
             "init_window_count": 2,
         },
     )
-    labels_a = CommunityFactory(cfg).run(series_a).labels
-    labels_b = CommunityFactory(cfg).run(series_b).labels
-    assert np.array_equal(labels_a[:4], labels_b[:4])
+    com_a = CommunityFactory(cfg).run(series_a)
+    com_b = CommunityFactory(cfg).run(series_b)
+    assert np.array_equal(com_a.labels[:4], com_b.labels[:4])
+    assert np.allclose(com_a.coassignment[:4], com_b.coassignment[:4])
+    assert np.array_equal(com_a.switching[:3], com_b.switching[:3])
+    assert com_a.metadata["reference_run"] == 0
+    assert com_a.metadata["grouping_target"] == "roles"
 
     immediate_future_changed = _manual_series(
         np.stack([early, alt_late, alt_late, alt_late, alt_late, alt_late])
     )
-    labels_c = CommunityFactory(cfg).run(immediate_future_changed).labels
-    assert np.array_equal(labels_a[0], labels_c[0])
+    com_c = CommunityFactory(cfg).run(immediate_future_changed)
+    assert np.array_equal(com_a.labels[0], com_c.labels[0])
+    assert np.allclose(com_a.coassignment[0], com_c.coassignment[0])

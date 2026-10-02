@@ -55,6 +55,7 @@ class WindowConfig:
     align_event: str = "motif"
     min_event_gap: int = 10
     behavior_summary: Literal["mean", "mode", "last"] = "mean"
+    categorical_summary: Literal["mode", "last_valid"] = "mode"
     respect_boundaries: bool = True
     drop_incomplete_tail: bool = True
     standardize_per_window: bool = False
@@ -227,6 +228,26 @@ def _summarize(values: np.ndarray, how: str) -> float:
         vals, counts = np.unique(values, return_counts=True)
         return float(vals[np.argmax(counts)])
     raise ValueError(f"unknown behavior_summary '{how}'")
+
+
+def _summarize_categorical(
+    values: np.ndarray,
+    validity: np.ndarray,
+    how: str,
+) -> tuple[int, int]:
+    valid_positions = np.flatnonzero(validity)
+    if valid_positions.size == 0:
+        raise ValueError("categorical target interval has no valid samples")
+    if how == "last_valid":
+        position = int(valid_positions[-1])
+        return int(values[position]), position
+    if how == "mode":
+        selected = values[valid_positions]
+        labels, counts = np.unique(selected, return_counts=True)
+        label = labels[np.argmax(counts)]
+        position = int(valid_positions[np.flatnonzero(selected == label)[-1]])
+        return int(label), position
+    raise ValueError(f"unknown categorical_summary '{how}'")
 
 
 def _sliding_starts(t: int, length: int, stride: int) -> list[int]:
@@ -434,11 +455,31 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
     anchors = _annotate_bad_frame_boundaries(anchors, bad_frame_intervals)
 
     behavior_per_window: dict[str, np.ndarray] = {}
+    selected_behavior_samples: dict[str, list[int]] = {}
     for name, arr in recording.behavior.items():
         discrete = np.issubdtype(arr.dtype, np.integer)
-        how = "mode" if discrete else cfg.behavior_summary
-        vals = np.array([_summarize(arr[a.target_start : a.target_stop], how) for a in anchors])
-        behavior_per_window[name] = np.round(vals).astype(np.int64) if discrete else vals
+        if discrete:
+            validity = np.asarray(
+                recording.outcome_validity.get(name, np.ones(recording.n_timepoints, dtype=bool)),
+                dtype=bool,
+            )
+            summarized = [
+                _summarize_categorical(
+                    arr[a.target_start : a.target_stop],
+                    validity[a.target_start : a.target_stop],
+                    cfg.categorical_summary,
+                )
+                for a in anchors
+            ]
+            behavior_per_window[name] = np.asarray([item[0] for item in summarized], dtype=np.int64)
+            selected_behavior_samples[name] = [
+                anchor.target_start + item[1]
+                for anchor, item in zip(anchors, summarized, strict=True)
+            ]
+        else:
+            behavior_per_window[name] = np.array(
+                [_summarize(arr[a.target_start : a.target_stop], cfg.behavior_summary) for a in anchors]
+            )
 
     standardized_segments, standardization = _standardize_window_neurons(
         np.stack(segments),
@@ -457,6 +498,8 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
         "bad_frame_intervals": bad_frame_intervals,
         "drop_incomplete_tail": cfg.drop_incomplete_tail,
         "neural_standardization": standardization,
+        "categorical_summary": cfg.categorical_summary,
+        "selected_behavior_samples": selected_behavior_samples,
         "reference_profile": {
             "mode": str(temporal_contract["mode"]),
             "parameter_modes": dict(temporal_contract["parameter_modes"]),
@@ -535,11 +578,31 @@ def _make_legacy_windows(recording: NeuralRecording, cfg: WindowConfig) -> Windo
     )
 
     behavior_per_window: dict[str, np.ndarray] = {}
+    selected_behavior_samples: dict[str, list[int]] = {}
     for name, arr in recording.behavior.items():
         discrete = np.issubdtype(arr.dtype, np.integer)
-        how = "mode" if discrete else cfg.behavior_summary
-        vals = np.array([_summarize(arr[w.start : w.stop], how) for w in windows])
-        behavior_per_window[name] = np.round(vals).astype(np.int64) if discrete else vals
+        if discrete:
+            validity = np.asarray(
+                recording.outcome_validity.get(name, np.ones(recording.n_timepoints, dtype=bool)),
+                dtype=bool,
+            )
+            summarized = [
+                _summarize_categorical(
+                    arr[window.start : window.stop],
+                    validity[window.start : window.stop],
+                    cfg.categorical_summary,
+                )
+                for window in windows
+            ]
+            behavior_per_window[name] = np.asarray([item[0] for item in summarized], dtype=np.int64)
+            selected_behavior_samples[name] = [
+                window.start + item[1]
+                for window, item in zip(windows, summarized, strict=True)
+            ]
+        else:
+            behavior_per_window[name] = np.array(
+                [_summarize(arr[window.start : window.stop], cfg.behavior_summary) for window in windows]
+            )
 
     anchors = [
         _build_anchor(
@@ -572,6 +635,8 @@ def _make_legacy_windows(recording: NeuralRecording, cfg: WindowConfig) -> Windo
             "stride": cfg.effective_stride,
             "valid_ranges": valid_ranges,
             "neural_standardization": standardization,
+            "categorical_summary": cfg.categorical_summary,
+            "selected_behavior_samples": selected_behavior_samples,
         },
         anchors=anchors,
         provenance=ArtifactProvenance(
