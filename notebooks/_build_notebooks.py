@@ -15,6 +15,8 @@ METHOD_DIRECTORIES = {
     "cgc_star": "c-GC-star",
     "correlation_partial": "partial-correlation",
     "sparse_var": "sparse-VAR",
+    "tvvar_smooth": "TVVAR-smooth",
+    "tvvar_fused": "TVVAR-fused",
 }
 
 PROGRESS_NOTE = (
@@ -794,6 +796,18 @@ def main() -> None:
             "Sparse VAR Baseline",
             True,
             "sparse_var",
+        ),
+        (
+            "tvvar_smooth",
+            "Smooth TVVAR",
+            True,
+            "tvvar_smooth",
+        ),
+        (
+            "tvvar_fused",
+            "Group-fused TVVAR",
+            True,
+            "tvvar_fused",
         ),
     ]
     for dataset in datasets:

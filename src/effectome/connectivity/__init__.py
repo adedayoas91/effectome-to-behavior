@@ -9,6 +9,7 @@ from . import correlation as _correlation  # noqa: E402,F401
 from . import pcmci as _pcmci  # noqa: E402,F401
 from . import sparse_var as _sparse_var  # noqa: E402,F401
 from . import time_varying as _time_varying  # noqa: E402,F401
+from . import tvvar as _tvvar  # noqa: E402,F401
 from .base import ConnectivityConfig, ConnectivityEstimator
 from .predictive import (
     FilterState,
