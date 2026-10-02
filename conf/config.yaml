@@ -8,6 +8,7 @@ defaults:
   - community: temporal
   - manifold: classical
   - linking: default
+  - evaluation: default
   - _self_
 
 seed: 42

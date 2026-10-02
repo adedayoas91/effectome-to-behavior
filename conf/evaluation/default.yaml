@@ -1,0 +1,10 @@
+# Stage 8: split-owned evaluation skeleton.
+protocol: purged_blocked
+n_outer_folds: 5
+embargo: 4
+group_by: recording
+min_train_examples: 2
+min_test_examples: 1
+update_policy: frozen
+states_enabled: false
+groups_enabled: false
