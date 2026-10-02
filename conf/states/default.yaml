@@ -14,6 +14,9 @@ graph_states:
   gw_epsilon: 0.05      # entropic regularization for gromov_wasserstein
   gw_max_iter: 200
   kernel_gamma: 1.0
+  feature_representation: signed_lag_offdiag
+  assignment: kmeans
+  pca_components: null
   seed: 42
 transitions:
   laplace: 1.0

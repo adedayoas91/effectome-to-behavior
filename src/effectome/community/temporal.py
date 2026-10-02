@@ -204,6 +204,147 @@ class _TemporalSettings:
     online_learning_rate: float
 
 
+@dataclass(frozen=True)
+class TemporalRoleFilterState:
+    centroids: np.ndarray
+    previous_labels: np.ndarray | None
+    layers_seen: int
+
+
+@dataclass(frozen=True)
+class TemporalRoleProjection:
+    labels: np.ndarray
+    state_snapshots: tuple[TemporalRoleFilterState, ...]
+    final_state: TemporalRoleFilterState
+
+
+@dataclass(frozen=True)
+class FittedTemporalRoleModel:
+    feature_mean: np.ndarray
+    feature_scale: np.ndarray
+    initial_centroids: np.ndarray
+    n_communities: int
+    temporal_penalty: float
+    rho: float
+    graph_schema: tuple
+
+    def initial_state(self) -> TemporalRoleFilterState:
+        return TemporalRoleFilterState(self.initial_centroids.copy(), None, 0)
+
+    def filter(
+        self,
+        series: ConnectivitySeries,
+        *,
+        state: TemporalRoleFilterState | None = None,
+        boundary_indices: np.ndarray | None = None,
+    ) -> TemporalRoleProjection:
+        schema = _role_schema(series)
+        if schema != self.graph_schema:
+            raise ValueError("temporal role graph schema mismatch")
+        features = np.stack([_signed_role_features(matrix) for matrix in series.matrices])
+        features = (features - self.feature_mean) / self.feature_scale
+        current = self.initial_state() if state is None else state
+        if np.asarray(current.centroids).shape != self.initial_centroids.shape:
+            raise ValueError("temporal role state centroid shape mismatch")
+        if current.previous_labels is not None and np.asarray(current.previous_labels).shape != (
+            series.n_neurons,
+        ):
+            raise ValueError("temporal role state label shape mismatch")
+        if current.layers_seen < 0:
+            raise ValueError("temporal role state layers_seen must be non-negative")
+        centroids = np.asarray(current.centroids, dtype=np.float64).copy()
+        previous = (
+            None
+            if current.previous_labels is None
+            else np.asarray(current.previous_labels, dtype=np.int64).copy()
+        )
+        boundaries = set(
+            np.asarray([] if boundary_indices is None else boundary_indices, dtype=int).tolist()
+        )
+        labels = np.empty((features.shape[0], features.shape[1]), dtype=np.int64)
+        snapshots: list[TemporalRoleFilterState] = []
+        for layer in range(features.shape[0]):
+            unary = _sqdist(features[layer], centroids)
+            if previous is None or layer in boundaries:
+                assigned = np.argmin(unary, axis=1).astype(np.int64)
+            else:
+                switch = self.temporal_penalty * (
+                    np.arange(self.n_communities)[None, :] != previous[:, None]
+                )
+                assigned = np.argmin(unary + switch, axis=1).astype(np.int64)
+            labels[layer] = assigned
+            for community in range(self.n_communities):
+                members = features[layer, assigned == community]
+                if members.size and self.rho > 0:
+                    batch = members.mean(axis=0)
+                    centroids[community] = (1.0 - self.rho) * centroids[community] + self.rho * batch
+            previous = assigned
+            snapshots.append(
+                TemporalRoleFilterState(
+                    centroids.copy(),
+                    assigned.copy(),
+                    current.layers_seen + layer + 1,
+                )
+            )
+        final = snapshots[-1] if snapshots else current
+        return TemporalRoleProjection(labels, tuple(snapshots), final)
+
+
+def _role_schema(series: ConnectivitySeries) -> tuple:
+    nodes = series.diagnostics.get("node_ids")
+    node_ids = tuple(nodes) if nodes is not None else tuple(range(series.n_neurons))
+    if len(node_ids) != series.n_neurons or len(set(node_ids)) != len(node_ids):
+        raise ValueError("temporal roles require unique ordered node IDs")
+    return node_ids, series.weight_semantics, bool(series.directed), bool(series.signed)
+
+
+def fit_temporal_role_model(
+    series: ConnectivitySeries,
+    cfg: CommunityConfig,
+    *,
+    fit_indices: np.ndarray,
+) -> FittedTemporalRoleModel:
+    indices = np.asarray(fit_indices)
+    if indices.ndim != 1 or not np.issubdtype(indices.dtype, np.integer):
+        raise ValueError("fit_indices must be a one-dimensional integer array")
+    if indices.size == 0 or np.any(indices < 0) or np.any(indices >= series.n_windows):
+        raise ValueError("fit_indices must be non-empty and in bounds")
+    if np.any(np.diff(indices) <= 0):
+        raise ValueError("fit_indices must be strictly increasing")
+    extra = cfg.extra
+    settings = _TemporalSettings(
+        n_communities=int(extra.get("n_communities", 3)),
+        temporal_penalty=float(extra.get("temporal_penalty", 1.5)),
+        n_runs=max(1, int(extra.get("n_runs", 4))),
+        max_iter=max(1, int(extra.get("max_iter", 20))),
+        mode=str(extra.get("mode", "retrospective")),
+        init_window_count=max(1, int(extra.get("init_window_count", 4))),
+        online_learning_rate=float(extra.get("online_learning_rate", 0.25)),
+    )
+    if not 0 <= settings.online_learning_rate <= 1:
+        raise ValueError("online_learning_rate must lie in [0, 1]")
+    features = np.stack([_signed_role_features(series.matrices[index]) for index in indices])
+    flat = features.reshape(-1, features.shape[-1])
+    mean = flat.mean(axis=0, keepdims=True)
+    scale = flat.std(axis=0, keepdims=True)
+    scale[scale < 1e-12] = 1.0
+    standardized = (flat - mean) / scale
+    centroids = KMeans(
+        n_clusters=settings.n_communities,
+        random_state=cfg.seed,
+        n_init=10,
+    ).fit(standardized).cluster_centers_
+    return FittedTemporalRoleModel(
+        feature_mean=mean,
+        feature_scale=scale,
+        initial_centroids=centroids,
+        n_communities=settings.n_communities,
+        temporal_penalty=settings.temporal_penalty,
+        rho=settings.online_learning_rate,
+        graph_schema=_role_schema(series),
+    )
+
+
 class _TemporalRegularizedMixin:
     cfg: CommunityConfig
 
@@ -292,7 +433,6 @@ class _TemporalRegularizedMixin:
         km.fit(features[0])
         centroids = km.cluster_centers_.astype(np.float64)
         labels = np.zeros((features.shape[0], features.shape[1]), dtype=np.int64)
-        counts = np.ones(settings.n_communities, dtype=np.float64)
         boundary_starts = set(
             np.asarray([] if boundary_indices is None else boundary_indices, dtype=int).tolist()
         )
@@ -310,9 +450,8 @@ class _TemporalRegularizedMixin:
                 if len(members) == 0:
                     continue
                 batch = members.mean(axis=0)
-                lr = min(1.0, settings.online_learning_rate / counts[state])
+                lr = min(1.0, settings.online_learning_rate)
                 centroids[state] = (1.0 - lr) * centroids[state] + lr * batch
-                counts[state] += len(members)
         return (
             labels,
             centroids,
@@ -500,8 +639,12 @@ class TemporalGreedyCommunity(CommunityDetector):
 
 
 __all__ = [
+    "FittedTemporalRoleModel",
     "TemporalCommunity",
     "TemporalGreedyCommunity",
+    "TemporalRoleFilterState",
+    "TemporalRoleProjection",
+    "fit_temporal_role_model",
     "_match_labels",
     "_signed_role_features",
 ]

@@ -15,6 +15,12 @@ from .base import (
     CommunityFactory,
     register_community,
 )
+from .temporal import (
+    FittedTemporalRoleModel,
+    TemporalRoleFilterState,
+    TemporalRoleProjection,
+    fit_temporal_role_model,
+)
 
 __all__ = [
     "CommunityConfig",
@@ -22,4 +28,8 @@ __all__ = [
     "CommunityFactory",
     "register_community",
     "COMMUNITY_REGISTRY",
+    "FittedTemporalRoleModel",
+    "TemporalRoleFilterState",
+    "TemporalRoleProjection",
+    "fit_temporal_role_model",
 ]
