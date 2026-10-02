@@ -7,7 +7,11 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from effectome.data_module.schema import CommunitySeries, ConnectivitySeries, TemporalAnchor
-from effectome.linking import anchor_group_labels, incremental_decode_behavior
+from effectome.linking import (
+    anchor_group_labels,
+    incremental_decode_behavior,
+    valid_positive_lag_origins,
+)
 from effectome.manifold import ManifoldArtifact
 
 
@@ -68,7 +72,12 @@ class CandidateDriverResult:
 
 
 def _baseline_features(behavior: np.ndarray, manifold_window: np.ndarray) -> np.ndarray:
-    b = np.asarray(behavior, dtype=float).reshape(-1, 1)
+    values = np.asarray(behavior)
+    if np.issubdtype(values.dtype, np.integer) or np.issubdtype(values.dtype, np.bool_):
+        categories = np.unique(values)
+        b = (values[:, None] == categories[None, :]).astype(float)
+    else:
+        b = np.asarray(values, dtype=float).reshape(-1, 1)
     return np.concatenate([b, manifold_window], axis=1)
 
 
@@ -83,16 +92,11 @@ def _anchor_key(anchor: TemporalAnchor) -> tuple[str, str, str | None, str | Non
 
 
 def _valid_lag_origins(series: ConnectivitySeries, lag: int) -> np.ndarray:
-    if not series.anchors:
-        return np.arange(series.n_windows - lag, dtype=int)
-    origins: list[int] = []
-    for origin in range(series.n_windows - lag):
-        path = series.anchors[origin : origin + lag + 1]
-        if all(_anchor_key(anchor) == _anchor_key(path[0]) for anchor in path) and not (
-            any(anchor.gap_after for anchor in path[:-1]) or any(anchor.gap_before for anchor in path[1:])
-        ):
-            origins.append(origin)
-    return np.asarray(origins, dtype=int)
+    return valid_positive_lag_origins(
+        series.n_windows,
+        lag,
+        series.anchors if series.anchors else None,
+    )
 
 
 def qualify_candidate_drivers(

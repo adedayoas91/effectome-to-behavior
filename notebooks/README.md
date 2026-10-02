@@ -52,9 +52,10 @@ The C. elegans suite currently analyses Bundle-Net worm 0 from the downloaded
 commit and SHA-256 checksums are pinned in `conf/data/c_elegans.yaml`. The source
 file contains five worms with different recorded neuron sets, so the remaining
 four worms require separate recording namespaces rather than pooling.
-Because locomotor motifs are categorical, their counterfactual notebook fits a
-manifold-dynamics surrogate and reports latent displacement; it does not regress
-arbitrary motif integer codes as though their distances were quantitative.
+Because locomotor motifs are categorical, their feature-sensitivity notebook
+fits a manifold-dynamics surrogate and reports latent displacement; it does not
+regress arbitrary motif integer codes as though their distances were
+quantitative.
 
 The C. elegans preprocessing notebook also checkpoints an exact Bundle-Net
 reference lane. It starts from the upstream `deltaFOverF_bc` (already
@@ -114,7 +115,8 @@ remain labeled sensitivities.
    community, and manifold notebooks. The HMM is scientifically required for the
    state-model comparison but is not a computational dependency of linking.
 5. After linking, run `counterfactuals/<method>/07_attribution_counterfactual.ipynb`
-   for c-GC and c-GC*.
+   for c-GC and c-GC*. These notebooks report predictor-feature sensitivity,
+   not biological interventions.
    Partial correlation stops at `06` because an undirected baseline cannot support
    directional candidate-driver claims.
 

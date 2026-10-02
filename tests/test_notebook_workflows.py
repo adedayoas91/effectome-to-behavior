@@ -192,6 +192,30 @@ def test_c_elegans_counterfactual_targets_manifold_not_motif_codes():
         assert 'endpoint="manifold"' in text
 
 
+def test_counterfactual_notebooks_label_feature_sensitivity_claim_boundary():
+    root = Path(__file__).resolve().parents[1] / "notebooks"
+    paths = sorted(root.rglob("counterfactuals/*/07_attribution_counterfactual.ipynb"))
+    assert paths
+
+    for path in paths:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        markdown = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in payload["cells"]
+            if cell.get("cell_type") == "markdown"
+        )
+        code = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in payload["cells"]
+            if cell.get("cell_type") == "code"
+        )
+        assert "predictor-feature sensitivity only" in markdown, path
+        assert "does not identify a biological intervention" in markdown, path
+        assert "run_feature_sensitivity" in code, path
+        assert "run_counterfactual_perturbation" not in code, path
+        assert "biological_intervention_identified" in code, path
+
+
 def test_c_elegans_manifold_notebooks_load_canonical_bunddle_profile():
     root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans" / "manifolds"
     for method_directory in ("c-GC", "c-GC-star", "partial-correlation"):

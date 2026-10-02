@@ -33,7 +33,7 @@ from effectome.dynamics import (
     fit_probabilistic_states,
     fit_transitions,
 )
-from effectome.intervention.surrogate import fit_linear_surrogate, run_virtual_perturbation
+from effectome.intervention.surrogate import fit_linear_surrogate, run_predictor_feature_sensitivity
 from effectome.linking import (
     DependencySupport,
     activity_magnitude_features,
@@ -1140,7 +1140,7 @@ def run_candidate_drivers(
     )
 
 
-def run_counterfactual_perturbation(
+def run_feature_sensitivity(
     run: ResumableRun,
     *,
     recording_path: str | Path,
@@ -1160,7 +1160,7 @@ def run_counterfactual_perturbation(
 ):
     connectivity, connectivity_path = require_stage(run, "connectivity")
     if not connectivity.directed:
-        raise ValueError("directional counterfactual attribution requires directed connectivity")
+        raise ValueError("directional feature-sensitivity analysis requires directed connectivity")
     manifold, manifold_path = require_stage(run, "manifold")
     _checkpoint_input(run, stage="recording_input", path=recording_path, force=False)
     if behavior_key not in connectivity.behavior_per_window:
@@ -1194,6 +1194,8 @@ def run_counterfactual_perturbation(
             "embargo": embargo,
             "min_skill": min_skill,
             "endpoint": endpoint,
+            "analysis_kind": "predictor_feature_sensitivity",
+            "biological_intervention_identified": False,
         },
         dependencies={
             "recording": Path(recording_path).resolve(),
@@ -1204,8 +1206,8 @@ def run_counterfactual_perturbation(
     )
     return _execute_stage(
         run,
-        "virtual_perturbation",
-        lambda: run_virtual_perturbation(
+        "feature_sensitivity",
+        lambda: run_predictor_feature_sensitivity(
             surrogate,
             connectivity,
             manifold,
@@ -1224,6 +1226,8 @@ def run_counterfactual_perturbation(
             "dose_scales": dose_scales,
             "endpoint": endpoint,
             "seed": seed,
+            "analysis_kind": "predictor_feature_sensitivity",
+            "biological_intervention_identified": False,
         },
         dependencies={
             "recording": Path(recording_path).resolve(),
@@ -1232,5 +1236,43 @@ def run_counterfactual_perturbation(
             "candidate_drivers": candidates_path,
             "surrogate_model": stage_artifact_path(run, "surrogate_model"),
         },
+        force=force,
+    )
+
+
+def run_counterfactual_perturbation(
+    run: ResumableRun,
+    *,
+    recording_path: str | Path,
+    behavior_key: str,
+    lag: int = 1,
+    ridge_alpha: float = 1.0,
+    n_folds: int = 5,
+    embargo: int = 0,
+    min_skill: float = 0.0,
+    scale: float = 0.0,
+    dose_scales: list[float] | None = None,
+    node_indices: list[int] | None = None,
+    top_k: int = 1,
+    endpoint: str = "behavior",
+    seed: int = 42,
+    force: bool = False,
+):
+    """Backward-compatible wrapper for notebooks created before WP10."""
+    return run_feature_sensitivity(
+        run,
+        recording_path=recording_path,
+        behavior_key=behavior_key,
+        lag=lag,
+        ridge_alpha=ridge_alpha,
+        n_folds=n_folds,
+        embargo=embargo,
+        min_skill=min_skill,
+        scale=scale,
+        dose_scales=dose_scales,
+        node_indices=node_indices,
+        top_k=top_k,
+        endpoint=endpoint,
+        seed=seed,
         force=force,
     )

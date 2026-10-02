@@ -1,4 +1,4 @@
-"""Coupling-aware surrogate modeling and virtual perturbation screening."""
+"""Coupling-aware surrogate modeling and predictor-feature sensitivity screening."""
 
 from .surrogate import (
     DoseResponsePoint,
@@ -6,6 +6,7 @@ from .surrogate import (
     PerturbationResult,
     SurrogateValidation,
     fit_linear_surrogate,
+    run_predictor_feature_sensitivity,
     run_virtual_perturbation,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "PerturbationResult",
     "SurrogateValidation",
     "fit_linear_surrogate",
+    "run_predictor_feature_sensitivity",
     "run_virtual_perturbation",
 ]

@@ -58,7 +58,7 @@ class DatasetSpec:
     recording_id: str
     behavior_keys: tuple[str, ...]
     primary_behavior: str = "continuous"
-    counterfactual_endpoint: str = "behavior"
+    feature_sensitivity_endpoint: str = "behavior"
     bundle_net_reference: bool = False
 
 
@@ -294,7 +294,7 @@ def datasetize_cells(cells: list[dict], dataset: DatasetSpec) -> list[dict]:
         ),
         (
             'endpoint="behavior"',
-            f'endpoint="{dataset.counterfactual_endpoint}"',
+            f'endpoint="{dataset.feature_sensitivity_endpoint}"',
         ),
         (
             'outputs/notebook_runs/<RUN_ID>/<METHOD>/',
@@ -668,10 +668,10 @@ print_stage_status(run)
 def notebook_attribution(method: str, method_label: str) -> list[dict]:
     return [
         markdown_cell(
-            f"# Attribution and Counterfactual Notebook: {method_label}",
+            f"# Attribution and Feature Sensitivity Notebook: {method_label}",
             "",
             f"Prerequisites: `community`, `manifold`, `{method}` `connectivity`, and `linking` stages, plus `outputs/artifacts/recording.pkl`.",
-            "This notebook stops at validated in-silico counterfactual perturbations and stores the surrogate and perturbation checkpoints separately.",
+            "This notebook reports predictor-feature sensitivity only; it does not identify a biological intervention.",
             PROGRESS_NOTE,
         ),
         code_cell(
@@ -681,7 +681,7 @@ from notebooks._shared import (
     make_run,
     print_stage_status,
     run_candidate_drivers,
-    run_counterfactual_perturbation,
+    run_feature_sensitivity,
 )
 
 RUN_ID = "demo"
@@ -716,7 +716,7 @@ print_stage_status(run)
         ),
         code_cell(
             """
-perturbation = run_counterfactual_perturbation(
+sensitivity = run_feature_sensitivity(
     run,
     recording_path=RECORDING_PATH,
     behavior_key=BEHAVIOR_KEY,
@@ -732,7 +732,9 @@ perturbation = run_counterfactual_perturbation(
     seed=42,
     force=FORCE,
 )
-print(perturbation)
+print(sensitivity)
+print(sensitivity.analysis_kind)
+print(sensitivity.biological_intervention_identified)
 print_stage_status(run)
 """
         ),
@@ -750,7 +752,7 @@ def main() -> None:
             recording_id="bundle-net-worm-0",
             behavior_keys=("motif",),
             primary_behavior="motif",
-            counterfactual_endpoint="manifold",
+            feature_sensitivity_endpoint="manifold",
             bundle_net_reference=True,
         ),
         DatasetSpec(

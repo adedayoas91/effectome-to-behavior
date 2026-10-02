@@ -1,4 +1,6 @@
-# Stage 7b: graded model-based counterfactual screening of preliminary candidates.
+# Stage 7b: graded predictor-feature sensitivity screening of preliminary candidates.
+analysis_kind: predictor_feature_sensitivity
+biological_intervention_identified: false
 behavior_keys: [continuous, motif]
 lag: 1
 n_folds: 5
