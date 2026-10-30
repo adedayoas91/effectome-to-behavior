@@ -10,8 +10,10 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from effectome.attribution import qualify_candidate_drivers
+from effectome.connectivity import ConnectivityConfig
 from effectome.utils import set_seed
-from effectome.utils.io import load_artifact, save_artifact
+from effectome.utils.io import save_artifact
+from effectome.workflows.feature_ownership import load_or_fit_owned_features
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +54,18 @@ def main(cfg: DictConfig) -> None:
     at_cfg = OmegaConf.load(Path(__file__).resolve().parents[1] / "conf" / "attribution" / "default.yaml")
     at = cast(dict[str, Any], OmegaConf.to_container(at_cfg, resolve=True))
 
-    series = load_artifact(art / "connectivity.pkl")
-    community = load_artifact(art / "community.pkl")
-    manifold = load_artifact(art / "manifold.pkl")
+    ownership = cast(dict[str, Any], OmegaConf.to_container(cfg.intervention, resolve=True))
+    if not ownership.get("strict_outer_ownership", True):
+        raise ValueError(
+            "candidate qualification requires strict outer ownership; "
+            "use signed_node_roles for descriptive summaries"
+        )
+    connectivity_config = cast(dict[str, Any], OmegaConf.to_container(cfg.connectivity, resolve=True))
+    owned = load_or_fit_owned_features(
+        art / "windows.pkl", art / "outer_owned_features.pkl",
+        ConnectivityConfig(**connectivity_config), ownership,
+    )
+    series, community, manifold = owned.connectivity, owned.community, owned.manifold
     _validate_manifold_handoff(series, manifold)
 
     report = {}
@@ -74,6 +85,10 @@ def main(cfg: DictConfig) -> None:
             embargo=int(at["embargo"]),
             seed=int(at["seed"]),
             matched_control_percentile=float(at["matched_control_percentile"]),
+            fit_indices=owned.fit_indices,
+            evaluation_indices=owned.evaluation_indices,
+            fit_scope_id=owned.fit_scope_id,
+            require_feature_ownership=True,
         )
     save_artifact(report, art / "attribution.pkl")
     logger.info("Stage 7a done: attribution for %d behavior targets", len(report))

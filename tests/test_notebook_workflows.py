@@ -363,10 +363,11 @@ def test_attribution_helper_uses_window_aligned_behavior(monkeypatch, tmp_path):
         behavior_per_window={"motif": window_behavior},
     )
     artifacts = {
-        "connectivity": connectivity,
-        "community": object(),
-        "manifold": object(),
-        "linking": object(),
+        "outer_owned_features": SimpleNamespace(
+            connectivity=connectivity, community=object(), manifold=object(),
+            fit_indices=np.arange(3), evaluation_indices=np.arange(3, 5),
+            fit_scope_id="outer-0",
+        ),
     }
     paths = {name: tmp_path / f"{name}.pkl" for name in artifacts}
     observed: dict[str, np.ndarray] = {}
@@ -401,6 +402,9 @@ def test_attribution_helper_uses_window_aligned_behavior(monkeypatch, tmp_path):
         ImmediateRun(),
         recording_path=tmp_path / "recording.pkl",
         behavior_key="motif",
+        fit_indices=np.arange(3),
+        evaluation_indices=np.arange(3, 5),
+        fit_scope_id="outer-0",
     )
 
     assert result == "candidate-result"

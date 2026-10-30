@@ -1,15 +1,17 @@
-"""Outer-fold ownership skeleton for confirmatory effectome evaluation.
+"""Training-owned M0/M1 evaluation with raw-source and independent-cohort contracts.
 
-This module owns split construction before any learned preprocessing, graph fitting,
-state fitting, manifold fitting, or decoder training.  The first implementation is a
-small auditable runner that can execute spy/dummy fitters in tests and persist a
-machine-readable fold manifest for later WP4/WP5 expansion.
+Development runs use recorded temporal splits and resumable outer folds. Confirmation
+fits one frozen development cohort and reports registered paired-performance inference
+on independent new animals, retaining failures, source lineage and resource accounting.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass, field
+import time
+import tracemalloc
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field, fields, replace
+from pathlib import Path
 from typing import Any, Protocol
 
 import numpy as np
@@ -18,13 +20,15 @@ from sklearn.preprocessing import StandardScaler
 
 from effectome.connectivity import ConnectivityConfig
 from effectome.connectivity.sparse_var import fit_sparse_var_model
-from effectome.data_module.schema import TemporalAnchor, WindowedSegments
+from effectome.data_module.schema import ArtifactProvenance, TemporalAnchor, WindowedSegments
 from effectome.linking import (
     DependencySupport,
     anchor_group_labels,
     purged_blocked_splits,
     valid_positive_lag_origins,
 )
+
+from .resume import content_fingerprint, implementation_fingerprint, lock_fingerprint
 
 
 @dataclass(frozen=True)
@@ -43,10 +47,13 @@ class EvaluationConfig:
     endpoint_name: str = "motif"
     endpoint_kind: str = "unknown"
     endpoint_type: str = "categorical"
+    categorical_summary: str = "last_valid"
     positive_lag: int = 1
     class_vocabulary: tuple[Any, ...] = ()
+    class_vocabulary_source: str = "observed_development_only"
     probability_floor: float = 1e-12
     practical_gain_nats: float | None = None
+    representation_scaling: str = "training_fixed"
     neural_lambda1_grid: tuple[float, ...] = (0.0, 0.01, 0.05)
     neural_lambda2: float = 1e-3
     neural_max_lag: int = 1
@@ -56,8 +63,18 @@ class EvaluationConfig:
     training_calibration_policy: str = "outer_training_only"
     neural_selection_metric: str = "standardized_one_step_mse"
     decoder_selection_metric: str = "log_loss"
+    solver_tolerance: float = 1e-6
+    solver_max_iterations: int = 10_000
+    tuning_trial_ceiling: int | None = None
+    runtime_seconds_ceiling: float | None = None
+    memory_megabytes_ceiling: float | None = None
     max_missing_fraction: float = 0.05
+    null_replicates: int | None = None
+    null_families: tuple[str, ...] = ()
+    multiplicity_family: str | None = None
     failure_policy: str = "record_and_continue"
+    timeout_score_policy: str = "record_failure"
+    optional_backend_policy: str = "record_unsupported"
     artifact_schema_version: str = "2.0"
     reject_legacy_for_confirmation: bool = True
     endpoint_verified: bool = False
@@ -66,6 +83,70 @@ class EvaluationConfig:
     resource_budget_id: str | None = None
     source_manifest_hash: str | None = None
     claim_to_test_map: tuple[tuple[str, str], ...] = ()
+    development_animal_ids: tuple[str, ...] = ()
+    evaluation_animal_ids: tuple[str, ...] = ()
+    sign_symmetry_justified: bool = False
+    sign_flip_method: str = "auto"
+    confirmation_alpha: float = 0.05
+    multiplicity_members: tuple[str, ...] = ()
+
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, Any]) -> EvaluationConfig:
+        """Build a config from Hydra/notebook data without accepting misspelled keys."""
+        if not isinstance(values, Mapping):
+            raise TypeError("evaluation config must be a mapping")
+        known = {item.name for item in fields(cls)}
+        unknown = sorted(set(values) - known)
+        if unknown:
+            raise ValueError(f"unknown evaluation config keys: {unknown}")
+        normalized = dict(values)
+        for name in (
+            "class_vocabulary",
+            "decoder_alpha_grid",
+            "decoder_c_grid",
+            "neural_lambda1_grid",
+            "null_families",
+            "development_animal_ids",
+            "evaluation_animal_ids",
+            "multiplicity_members",
+        ):
+            if name in normalized:
+                normalized[name] = tuple(normalized[name])
+        if "claim_to_test_map" in normalized:
+            normalized["claim_to_test_map"] = tuple(
+                tuple(pair) for pair in normalized["claim_to_test_map"]
+            )
+        return cls(**normalized)
+
+    @classmethod
+    def from_profile(
+        cls,
+        profile: str,
+        *,
+        config_root: str | Path | None = None,
+        overrides: Mapping[str, Any] | None = None,
+    ) -> EvaluationConfig:
+        """Load one named checked-in evaluation profile and apply strict overrides."""
+        from omegaconf import OmegaConf
+
+        root = (
+            Path(config_root)
+            if config_root is not None
+            else Path(__file__).resolve().parents[3] / "conf" / "evaluation"
+        )
+        path = root / f"{profile}.yaml"
+        if not path.is_file():
+            raise ValueError(f"unknown evaluation profile {profile!r}")
+        raw = OmegaConf.to_container(OmegaConf.load(path), resolve=True)
+        if not isinstance(raw, dict):
+            raise TypeError(f"evaluation profile {profile!r} must contain a mapping")
+        values = {**raw, **dict(overrides or {})}
+        config = cls.from_mapping(values)
+        if config.profile != profile:
+            raise ValueError(
+                f"evaluation profile file {profile!r} declares profile={config.profile!r}"
+            )
+        return config
 
     def __post_init__(self) -> None:
         if self.profile not in {"revised_primary", "legacy_descriptive"}:
@@ -78,8 +159,31 @@ class EvaluationConfig:
             raise ValueError("positive_lag and neural_max_lag must be positive")
         if self.endpoint_type not in {"categorical", "continuous"}:
             raise ValueError("endpoint_type must be categorical or continuous")
+        if self.categorical_summary not in {"mode", "last_valid", "not_applicable"}:
+            raise ValueError("unsupported categorical endpoint summary")
+        if self.endpoint_type == "categorical" and self.categorical_summary == "not_applicable":
+            raise ValueError("categorical endpoints require an explicit summary rule")
+        if self.class_vocabulary_source not in {
+            "dataset_manifest",
+            "observed_development_only",
+            "not_applicable",
+        }:
+            raise ValueError("unsupported class vocabulary source")
+        if len(set(self.class_vocabulary)) != len(self.class_vocabulary):
+            raise ValueError("class vocabulary entries must be unique")
+        if self.endpoint_type == "categorical" and self.class_vocabulary_source == "not_applicable":
+            raise ValueError("categorical endpoints require a class vocabulary source")
+        if self.representation_scaling not in {
+            "training_fixed",
+            "legacy_recording_global",
+        }:
+            raise ValueError("unsupported representation scaling policy")
         if not 0 < self.probability_floor < 1:
             raise ValueError("probability_floor must lie in (0, 1)")
+        if self.practical_gain_nats is not None and (
+            not np.isfinite(self.practical_gain_nats) or self.practical_gain_nats < 0
+        ):
+            raise ValueError("practical_gain_nats must be finite and nonnegative")
         if not self.neural_lambda1_grid or min(self.neural_lambda1_grid) < 0:
             raise ValueError("neural lambda grid must be non-empty and nonnegative")
         if not self.decoder_c_grid or min(self.decoder_c_grid) <= 0:
@@ -95,15 +199,53 @@ class EvaluationConfig:
             raise ValueError("unsupported neural selection metric")
         if self.decoder_selection_metric != "log_loss":
             raise ValueError("unsupported decoder selection metric")
+        if not np.isfinite(self.solver_tolerance) or self.solver_tolerance <= 0:
+            raise ValueError("solver_tolerance must be finite and positive")
+        if self.solver_max_iterations < 1:
+            raise ValueError("solver_max_iterations must be positive")
+        if self.tuning_trial_ceiling is not None and self.tuning_trial_ceiling < 1:
+            raise ValueError("tuning_trial_ceiling must be positive when set")
+        for name, value in (
+            ("runtime_seconds_ceiling", self.runtime_seconds_ceiling),
+            ("memory_megabytes_ceiling", self.memory_megabytes_ceiling),
+        ):
+            if value is not None and (not np.isfinite(value) or value <= 0):
+                raise ValueError(f"{name} must be finite and positive when set")
         if not 0 <= self.max_missing_fraction < 1:
             raise ValueError("max_missing_fraction must lie in [0, 1)")
+        if self.null_replicates is not None and self.null_replicates < 1:
+            raise ValueError("null_replicates must be positive when set")
+        if len(set(self.null_families)) != len(self.null_families):
+            raise ValueError("null families must be unique")
+        if not 0 < self.confirmation_alpha < 1:
+            raise ValueError("confirmation_alpha must lie in (0, 1)")
+        if self.sign_flip_method not in {"auto", "exact", "monte_carlo"}:
+            raise ValueError("unsupported sign-flip method")
+        for name in ("development_animal_ids", "evaluation_animal_ids", "multiplicity_members"):
+            values = getattr(self, name)
+            if len(values) != len(set(values)):
+                raise ValueError(f"{name} must contain unique entries")
+        if set(self.development_animal_ids) & set(self.evaluation_animal_ids):
+            raise ValueError("development and evaluation animals must be disjoint")
         if self.failure_policy not in {"record_and_continue", "fail_fast"}:
             raise ValueError("unsupported evaluation failure policy")
+        if self.timeout_score_policy not in {"record_failure", "fixed_worst_case"}:
+            raise ValueError("unsupported timeout scoring policy")
+        if self.optional_backend_policy not in {"record_unsupported", "fail_fast"}:
+            raise ValueError("unsupported optional backend policy")
         if self.artifact_schema_version != "2.0":
             raise ValueError("the revised evaluator requires artifact schema 2.0")
         if self.profile == "legacy_descriptive" and self.mode != "legacy_descriptive":
             raise ValueError("legacy_descriptive profile requires legacy_descriptive mode")
+        if self.profile == "legacy_descriptive" and self.representation_scaling != "legacy_recording_global":
+            raise ValueError("legacy_descriptive requires legacy_recording_global scaling")
+        if self.profile == "revised_primary" and self.mode == "legacy_descriptive":
+            raise ValueError("revised_primary cannot use legacy_descriptive mode")
+        if self.profile == "revised_primary" and self.representation_scaling != "training_fixed":
+            raise ValueError("revised_primary requires training_fixed scaling")
         if self.mode == "confirmatory":
+            if self.profile != "revised_primary":
+                raise ValueError("confirmatory evaluation requires revised_primary profile")
             if self.endpoint_kind == "unknown":
                 raise ValueError("confirmatory evaluation requires endpoint lineage")
             if self.endpoint_type == "categorical" and not self.class_vocabulary:
@@ -111,6 +253,11 @@ class EvaluationConfig:
             if self.practical_gain_nats is None:
                 raise ValueError("confirmatory evaluation requires a frozen practical gain")
             unresolved = []
+            if (
+                self.endpoint_type == "categorical"
+                and self.class_vocabulary_source != "dataset_manifest"
+            ):
+                unresolved.append("dataset-manifest class vocabulary")
             if not self.endpoint_verified:
                 unresolved.append("endpoint verification")
             if self.panel_mapping_id is None:
@@ -123,6 +270,18 @@ class EvaluationConfig:
                 unresolved.append("source manifest")
             if not self.claim_to_test_map:
                 unresolved.append("claim-to-test map")
+            if self.tuning_trial_ceiling is None:
+                unresolved.append("tuning trial ceiling")
+            if self.runtime_seconds_ceiling is None:
+                unresolved.append("runtime ceiling")
+            if self.memory_megabytes_ceiling is None:
+                unresolved.append("memory ceiling")
+            if self.null_replicates is None:
+                unresolved.append("null replicate count")
+            if not self.null_families:
+                unresolved.append("null families")
+            if self.multiplicity_family is None:
+                unresolved.append("multiplicity family")
             if unresolved:
                 raise ValueError(
                     "confirmatory evaluation has unresolved requirements: "
@@ -179,6 +338,9 @@ class EvaluationResult:
     manifest: SplitManifest
     predictions: tuple[PredictionRecord, ...] = ()
     diagnostics: dict[str, Any] = field(default_factory=dict)
+    provenance: ArtifactProvenance = field(
+        default_factory=lambda: ArtifactProvenance(stage="evaluation")
+    )
 
 
 @dataclass(frozen=True)
@@ -213,6 +375,96 @@ class PairedModelDelta:
     n_candidate_only: int = 0
     n_failed_baseline: int = 0
     n_failed_candidate: int = 0
+
+
+def _evaluation_provenance(
+    windows: WindowedSegments,
+    cfg: EvaluationConfig,
+    manifest: SplitManifest,
+) -> ArtifactProvenance:
+    config_hash = content_fingerprint(cfg)
+    split_hash = content_fingerprint(manifest)
+    source_hash = content_fingerprint(
+        {
+            "segments": windows.segments,
+            "behavior": windows.behavior_per_window,
+            "anchors": windows.anchors,
+            "identity": windows.provenance.identity,
+        }
+    )
+    endpoint_identity = content_fingerprint(
+        {
+            "name": cfg.endpoint_name,
+            "kind": cfg.endpoint_kind,
+            "type": cfg.endpoint_type,
+            "categorical_summary": cfg.categorical_summary,
+            "positive_lag": cfg.positive_lag,
+            "class_vocabulary": cfg.class_vocabulary,
+            "class_vocabulary_source": cfg.class_vocabulary_source,
+        }
+    )
+    recording_ids = tuple(
+        dict.fromkeys(anchor.recording_id for anchor in windows.anchors)
+    ) or (windows.provenance.identity.recording_id,)
+    fit_recording_ids = recording_ids
+    if cfg.protocol == "fixed_development":
+        fit_recording_ids = tuple(dict.fromkeys(
+            anchor.recording_id for anchor in windows.anchors
+            if anchor.animal_id in cfg.development_animal_ids
+        ))
+    warnings: list[str] = []
+    if cfg.endpoint_kind == "unknown":
+        warnings.append("endpoint_lineage_unresolved")
+    if cfg.practical_gain_nats is None:
+        warnings.append("practical_gain_unresolved")
+    if cfg.resource_budget_id is None:
+        warnings.append("resource_budget_unresolved")
+    claim_eligibility = (
+        "confirmatory" if cfg.mode == "confirmatory" else "development_only"
+    )
+    if cfg.profile == "legacy_descriptive":
+        claim_eligibility = "legacy_unverified"
+    return ArtifactProvenance(
+        schema_version=cfg.artifact_schema_version,
+        identity=windows.provenance.identity,
+        stage="evaluation",
+        source=windows.provenance.source or windows.provenance.identity.dataset_id,
+        configuration_id=f"{cfg.profile}:{config_hash[:16]}",
+        random_seed=cfg.selection_seed,
+        code_version=implementation_fingerprint(),
+        fit_data_ids=fit_recording_ids,
+        transform_data_ids=recording_ids,
+        units={"classification_score": "nats"},
+        axis_conventions={"predictions": "immutable_physical_origin_records"},
+        warnings=tuple(warnings),
+        metadata={
+            "profile": cfg.profile,
+            "endpoint_identity": endpoint_identity,
+            "endpoint_name": cfg.endpoint_name,
+            "endpoint_kind": cfg.endpoint_kind,
+            "endpoint_type": cfg.endpoint_type,
+            "class_vocabulary_source": cfg.class_vocabulary_source,
+            "categorical_summary": cfg.categorical_summary,
+            "representation_scaling": cfg.representation_scaling,
+            "declared_source_manifest_hash": cfg.source_manifest_hash,
+            "claim_to_test_map": dict(cfg.claim_to_test_map),
+        },
+        analysis_mode=cfg.mode,
+        fit_scope_id=f"outer-owned:{cfg.protocol}:{cfg.group_by}",
+        split_manifest_hash=split_hash,
+        update_policy=cfg.update_policy,
+        scale_id=content_fingerprint(
+            {
+                "policy": cfg.representation_scaling,
+                "training_calibration_policy": cfg.training_calibration_policy,
+            }
+        ),
+        source_hash=source_hash,
+        lock_hash=lock_fingerprint(),
+        config_hash=config_hash,
+        solver_status="recorded_per_fold",
+        claim_eligibility=claim_eligibility,
+    )
 
 
 class FoldFitter(Protocol):
@@ -312,17 +564,39 @@ def build_split_manifest(
     Unavailable folds are retained in the manifest with a reason instead of shrinking
     the purge/embargo until a convenient score is calculable.
     """
-    if cfg.protocol not in {"purged_blocked", "chronological_online", "leave_animal_out"}:
+    if cfg.protocol not in {
+        "purged_blocked", "chronological_online", "leave_animal_out", "fixed_development"
+    }:
         raise ValueError(
-            "protocol must be one of: purged_blocked, chronological_online, leave_animal_out"
+            "protocol must be purged_blocked, chronological_online, leave_animal_out, or fixed_development"
         )
     if n_examples < 1:
         raise ValueError("n_examples must be positive")
     if anchors is not None and len(anchors) != n_examples:
         raise ValueError("anchors must align with examples")
 
-    if cfg.protocol in {"chronological_online", "leave_animal_out"} and anchors is None:
+    if cfg.protocol in {"chronological_online", "leave_animal_out", "fixed_development"} and anchors is None:
         raise ValueError(f"protocol={cfg.protocol!r} requires physical temporal anchors")
+
+    if cfg.protocol == "fixed_development":
+        assert anchors is not None
+        if not cfg.development_animal_ids or not cfg.evaluation_animal_ids:
+            raise ValueError("fixed_development requires explicit development and evaluation animal IDs")
+        declared = set(cfg.development_animal_ids) | set(cfg.evaluation_animal_ids)
+        present = {anchor.animal_id for anchor in anchors}
+        if present != declared:
+            raise ValueError("fixed_development animal membership must exactly match the declared cohorts")
+        train = np.asarray([
+            index for index, anchor in enumerate(anchors) if anchor.animal_id in cfg.development_animal_ids
+        ], dtype=int)
+        test = np.asarray([
+            index for index, anchor in enumerate(anchors) if anchor.animal_id in cfg.evaluation_animal_ids
+        ], dtype=int)
+        return SplitManifest(
+            outer_folds=(_mark_fold_availability(0, train, test, cfg),),
+            n_examples=n_examples, protocol=cfg.protocol, group_by="animal", embargo=cfg.embargo,
+            states_enabled=cfg.states_enabled, groups_enabled=cfg.groups_enabled,
+        )
 
     group_by = "animal" if cfg.protocol == "leave_animal_out" else cfg.group_by
     groups = anchor_group_labels(anchors, group_by=group_by).tolist() if anchors is not None else None
@@ -392,6 +666,10 @@ def run_evaluation_skeleton(
     fitters: Sequence[FoldFitter] = (),
     dependency_support: DependencySupport | None = None,
 ) -> EvaluationResult:
+    if cfg.mode == "confirmatory":
+        raise NotImplementedError(
+            "the split inspection skeleton cannot issue confirmatory results"
+        )
     manifest = build_split_manifest(
         windows.n_windows,
         cfg,
@@ -421,6 +699,7 @@ def run_evaluation_skeleton(
             "prediction_count": len(predictions),
             "skeleton_status": "split_owner_only",
         },
+        provenance=_evaluation_provenance(windows, cfg, manifest),
     )
 
 
@@ -497,6 +776,8 @@ def _fit_probability_decoder(
     c_value: float,
     probability_floor: float,
     seed: int,
+    solver_max_iterations: int,
+    solver_tolerance: float,
 ) -> _ProbabilityDecoder:
     scaler = StandardScaler().fit(features)
     counts = np.asarray([np.sum(labels == label) for label in class_order], dtype=float) + 1.0
@@ -506,7 +787,8 @@ def _fit_probability_decoder(
     if observed_classes.size > 1:
         model = LogisticRegression(
             C=c_value,
-            max_iter=2_000,
+            max_iter=solver_max_iterations,
+            tol=solver_tolerance,
             random_state=seed,
         ).fit(scaler.transform(features), labels)
     return _ProbabilityDecoder(scaler, model, class_order, prior, probability_floor)
@@ -544,6 +826,8 @@ def _select_decoder_c(
                 c_value=c_value,
                 probability_floor=cfg.probability_floor,
                 seed=cfg.selection_seed,
+                solver_max_iterations=cfg.solver_max_iterations,
+                solver_tolerance=cfg.solver_tolerance,
             )
             losses[c_value].append(_mean_log_loss(decoder, features[test], labels[test]))
     return min(losses, key=lambda value: (float(np.mean(losses[value])), value))
@@ -563,6 +847,8 @@ def _neural_holdout_loss(segment: np.ndarray, cfg: EvaluationConfig, lambda1: fl
                 "lambda1": lambda1,
                 "lambda2": cfg.neural_lambda2,
                 "standardize": True,
+                "max_iter": cfg.solver_max_iterations,
+                "tol": cfg.solver_tolerance,
             },
         ),
     )
@@ -626,6 +912,8 @@ def _effectome_feature(
                     "lambda1": lambda1,
                     "lambda2": cfg.neural_lambda2,
                     "standardize": True,
+                    "max_iter": cfg.solver_max_iterations,
+                    "tol": cfg.solver_tolerance,
                 },
             ),
         )
@@ -635,7 +923,101 @@ def _effectome_feature(
         return None, f"{type(exc).__name__}:{exc}"
 
 
+def _validate_primary_window_provenance(
+    windows: WindowedSegments,
+    cfg: EvaluationConfig,
+) -> None:
+    if cfg.representation_scaling != "training_fixed":
+        return
+    standardization = windows.metadata.get("neural_standardization")
+    if not isinstance(standardization, Mapping):
+        raise ValueError(
+            "revised primary evaluation requires neural standardization provenance"
+        )
+    if bool(standardization.get("enabled", False)):
+        raise ValueError(
+            "revised primary evaluation rejects per-window standardization"
+        )
+    dependency = windows.metadata.get("preprocess_dependency")
+    if not isinstance(dependency, Mapping) or "kind" not in dependency:
+        raise ValueError(
+            "revised primary evaluation requires preprocessing provenance"
+        )
+    if str(dependency["kind"]).startswith("global"):
+        raise ValueError(
+            "revised primary evaluation rejects recording-global preprocessing"
+        )
+
+
 def run_primary_evaluation(
+    windows: WindowedSegments,
+    cfg: EvaluationConfig,
+    *,
+    dependency_support: DependencySupport | None = None,
+    selected_fold_ids: frozenset[str] | None = None,
+) -> EvaluationResult:
+    """Execute a registered comparison and retain post-hoc resource-budget failures."""
+    if cfg.mode != "confirmatory":
+        return _run_primary_evaluation(
+            windows, cfg, dependency_support=dependency_support, selected_fold_ids=selected_fold_ids
+        )
+    if selected_fold_ids is not None:
+        raise ValueError("confirmatory evaluation requires an atomic whole-cohort checkpoint")
+    from .confirmation import attach_confirmation, preflight_confirmation
+
+    preflight_confirmation(cfg)
+    contract = windows.metadata.get("raw_evaluation_contract", {})
+    if (
+        contract.get("source_manifest_hash") != cfg.source_manifest_hash
+        or contract.get("panel_mapping_id") != cfg.panel_mapping_id
+    ):
+        raise ValueError("confirmatory windows require the matching raw-source and canonical-panel contract")
+    decoder_grid = cfg.decoder_c_grid if cfg.endpoint_type == "categorical" else cfg.decoder_alpha_grid
+    tuning_trials = len(set(cfg.neural_lambda1_grid)) + 2 * len(set(decoder_grid))
+    if cfg.tuning_trial_ceiling is not None and tuning_trials > cfg.tuning_trial_ceiling:
+        raise ValueError(
+            "registered per-fold tuning trial ceiling is smaller than the planned candidate count"
+        )
+    started = time.perf_counter()
+    owns_trace = not tracemalloc.is_tracing()
+    if owns_trace:
+        tracemalloc.start()
+    try:
+        result = _run_primary_evaluation(
+            windows, cfg, dependency_support=dependency_support, selected_fold_ids=selected_fold_ids
+        )
+        if selected_fold_ids is None:
+            result = attach_confirmation(result, cfg)
+        elapsed = time.perf_counter() - started
+        _current, peak = tracemalloc.get_traced_memory()
+    finally:
+        if owns_trace:
+            tracemalloc.stop()
+    peak_mb = peak / 1024**2
+    failures = []
+    if cfg.runtime_seconds_ceiling is not None and elapsed > cfg.runtime_seconds_ceiling:
+        failures.append("runtime_budget_exceeded")
+    if cfg.memory_megabytes_ceiling is not None and peak_mb > cfg.memory_megabytes_ceiling:
+        failures.append("memory_budget_exceeded")
+    result = replace(result, diagnostics={
+        **result.diagnostics,
+        "resource_accounting": {
+            "tuning_candidate_count_per_fold": tuning_trials,
+            "tuning_count_definition": "unique neural candidates plus M0/M1 decoder candidates",
+            "elapsed_seconds": elapsed,
+            "peak_memory_mb": peak_mb,
+            "runtime_method": "posthoc_wall_clock_budget",
+            "memory_method": "tracemalloc_total_python_peak",
+            "failures": failures,
+            "status": "failed" if failures else "within_registered_budget",
+        },
+    })
+    if failures and selected_fold_ids is None:
+        result = attach_confirmation(result, cfg)
+    return result
+
+
+def _run_primary_evaluation(
     windows: WindowedSegments,
     cfg: EvaluationConfig,
     *,
@@ -645,8 +1027,18 @@ def run_primary_evaluation(
     """Run the no-state/no-group probability-level M0/M1 comparison."""
     if cfg.states_enabled or cfg.groups_enabled:
         raise ValueError("primary M0/M1 requires optional states and groups to be disabled")
+    if cfg.profile != "revised_primary":
+        raise ValueError("primary M0/M1 requires the revised_primary profile")
+    _validate_primary_window_provenance(windows, cfg)
     if cfg.endpoint_name not in windows.behavior_per_window:
         raise KeyError(f"endpoint {cfg.endpoint_name!r} is absent from windowed behavior")
+    recorded_summary = windows.metadata.get("categorical_summary")
+    if (
+        cfg.endpoint_type == "categorical"
+        and recorded_summary is not None
+        and recorded_summary != cfg.categorical_summary
+    ):
+        raise ValueError("evaluation categorical_summary does not match windowing provenance")
     origins = valid_positive_lag_origins(
         windows.n_windows,
         cfg.positive_lag,
@@ -660,13 +1052,14 @@ def run_primary_evaluation(
         len(origins), cfg, anchors=origin_anchors, dependency_support=dependency_support
     )
     endpoint = np.asarray(windows.behavior_per_window[cfg.endpoint_name])
-    class_order = ()
+    registered_class_order: tuple[Any, ...] = ()
     if cfg.endpoint_type == "categorical":
-        class_order = (
-            tuple(cfg.class_vocabulary)
-            if cfg.class_vocabulary
-            else tuple(np.unique(endpoint[origins + cfg.positive_lag]).tolist())
-        )
+        if cfg.class_vocabulary:
+            registered_class_order = tuple(cfg.class_vocabulary)
+        elif cfg.class_vocabulary_source != "observed_development_only":
+            raise ValueError(
+                "the declared class vocabulary source did not provide a vocabulary"
+            )
     baseline_features = np.stack(
         [_baseline_feature(windows.segments[int(origin)]) for origin in origins]
     )
@@ -681,6 +1074,13 @@ def run_primary_evaluation(
             continue
         train = np.asarray(fold.train_indices, dtype=int)
         test = np.asarray(fold.test_indices, dtype=int)
+        class_order: tuple[Any, ...] = ()
+        if cfg.endpoint_type == "categorical":
+            class_order = registered_class_order or tuple(
+                np.unique(labels[train]).tolist()
+            )
+            if not class_order:
+                raise ValueError("outer training fold has no categorical vocabulary")
         lambda1 = _select_neural_lambda(windows, origins[train], cfg)
         graph_features: dict[int, np.ndarray] = {}
         graph_failures: dict[int, str] = {}
@@ -708,6 +1108,8 @@ def run_primary_evaluation(
                 c_value=m0_tuning,
                 probability_floor=cfg.probability_floor,
                 seed=cfg.selection_seed,
+                solver_max_iterations=cfg.solver_max_iterations,
+                solver_tolerance=cfg.solver_tolerance,
             )
             m0_probabilities = m0.predict_proba(baseline_features[test])
         else:
@@ -746,6 +1148,8 @@ def run_primary_evaluation(
                     c_value=m1_tuning,
                     probability_floor=cfg.probability_floor,
                     seed=cfg.selection_seed,
+                    solver_max_iterations=cfg.solver_max_iterations,
+                    solver_tolerance=cfg.solver_tolerance,
                 )
                 if np.any(available_test):
                     m1_probabilities = m1.predict_proba(m1_features[test[available_test]])
@@ -776,6 +1180,24 @@ def run_primary_evaluation(
                 "recording_id": source_anchor.recording_id,
                 "observed": labels[local_index],
             }
+            if (
+                cfg.endpoint_type == "categorical"
+                and labels[local_index] not in class_order
+            ):
+                for model_name in ("M0_activity", "M1_effectome"):
+                    predictions.append(
+                        PredictionRecord(
+                            model_name=model_name,
+                            status="failed",
+                            failure_reason=(
+                                "outer_test_class_not_in_training_vocabulary"
+                            ),
+                            **common,
+                        )
+                    )
+                if available_test[row]:
+                    m1_row += 1
+                continue
             if cfg.endpoint_type == "categorical":
                 predictions.append(
                     PredictionRecord(
@@ -841,7 +1263,7 @@ def run_primary_evaluation(
             "training_examples": int(train.size),
             "test_examples": int(test.size),
         }
-    return EvaluationResult(
+    result = EvaluationResult(
         manifest=manifest,
         predictions=tuple(predictions),
         diagnostics={
@@ -860,7 +1282,9 @@ def run_primary_evaluation(
             or {"incremental_predictive_value": "paired_M0_M1_log_loss"},
             "folds": fold_diagnostics,
         },
+        provenance=_evaluation_provenance(windows, cfg, manifest),
     )
+    return result
 
 
 def primary_evaluation_fold_ids(
@@ -895,11 +1319,20 @@ def combine_primary_evaluation_results(
     cfg: EvaluationConfig,
 ) -> EvaluationResult:
     """Combine independently checkpointed fold results into one immutable artifact."""
+    if cfg.mode == "confirmatory" or any(
+        result.provenance.analysis_mode == "confirmatory" for result in results
+    ):
+        raise ValueError(
+            "confirmatory results require an atomic whole-cohort checkpoint and cannot be combined"
+        )
     if not results:
         raise ValueError("at least one available primary-evaluation fold is required")
     manifest = results[0].manifest
     if any(result.manifest != manifest for result in results[1:]):
         raise ValueError("primary evaluation fold manifests do not match")
+    provenance = results[0].provenance
+    if any(result.provenance != provenance for result in results[1:]):
+        raise ValueError("primary evaluation fold provenance does not match")
     predictions = tuple(
         prediction for result in results for prediction in result.predictions
     )
@@ -915,7 +1348,7 @@ def combine_primary_evaluation_results(
     if set(fold_diagnostics) != expected:
         missing = sorted(expected - set(fold_diagnostics))
         raise ValueError(f"primary evaluation fold results are incomplete: {missing}")
-    return EvaluationResult(
+    result = EvaluationResult(
         manifest=manifest,
         predictions=predictions,
         diagnostics={
@@ -933,7 +1366,230 @@ def combine_primary_evaluation_results(
             "folds": fold_diagnostics,
             "checkpoint_mode": "outer_fold",
         },
+        provenance=provenance,
     )
+    return result
+
+
+def run_evaluation_profile(
+    windows: WindowedSegments,
+    cfg: EvaluationConfig,
+    *,
+    dependency_support: DependencySupport | None = None,
+) -> EvaluationResult:
+    """Dispatch a named profile without conflating historical and revised analyses."""
+    if cfg.profile == "revised_primary":
+        return run_primary_evaluation(
+            windows,
+            cfg,
+            dependency_support=dependency_support,
+        )
+    if cfg.profile == "legacy_descriptive":
+        historical = run_evaluation_skeleton(
+            windows,
+            cfg,
+            dependency_support=dependency_support,
+        )
+        return EvaluationResult(
+            manifest=historical.manifest,
+            predictions=historical.predictions,
+            diagnostics={
+                **historical.diagnostics,
+                "status": "legacy_descriptive_historical_profile",
+                "profile": cfg.profile,
+                "mode": cfg.mode,
+                "claim_eligibility": "legacy_unverified",
+                "handoff": "historical_stages_00_through_07",
+            },
+            provenance=historical.provenance,
+        )
+    raise ValueError(f"unsupported evaluation profile {cfg.profile!r}")
+
+
+def raw_manifest_source_hash(manifest: Mapping[str, Any]) -> str:
+    """Hash raw sources and fixed preprocessing without circular evaluation config hashes."""
+    return content_fingerprint({
+        name: manifest[name] for name in ("data", "preprocess", "windowing", "seed") if name in manifest
+    })
+
+
+def build_primary_inputs_from_manifest(
+    manifest: Mapping[str, Any],
+) -> tuple[WindowedSegments, EvaluationConfig]:
+    """Reconstruct evaluator inputs from a raw-data manifest with no learned globals."""
+    from effectome.data_module.loaders import get_loader
+    from effectome.data_module.preprocess import PreprocessConfig, preprocess
+    from effectome.data_module.windowing import WindowConfig, make_windows
+    from effectome.utils import set_seed
+
+    if not isinstance(manifest, Mapping):
+        raise TypeError("raw evaluation manifest must be a mapping")
+    allowed = {"data", "evaluation", "preprocess", "seed", "windowing"}
+    unknown = sorted(set(manifest) - allowed)
+    if unknown:
+        raise ValueError(f"unknown raw evaluation manifest keys: {unknown}")
+    missing = sorted({"data", "evaluation", "preprocess", "windowing"} - set(manifest))
+    if missing:
+        raise ValueError(f"raw evaluation manifest is missing sections: {missing}")
+    sections: dict[str, dict[str, Any]] = {}
+    for name in ("evaluation", "preprocess", "windowing"):
+        value = manifest[name]
+        if not isinstance(value, Mapping):
+            raise TypeError(f"raw evaluation manifest section {name!r} must be a mapping")
+        sections[name] = dict(value)
+
+    raw_data = manifest["data"]
+    if isinstance(raw_data, Mapping):
+        data_configs = [dict(raw_data)]
+    elif isinstance(raw_data, (list, tuple)) and raw_data and all(
+        isinstance(item, Mapping) for item in raw_data
+    ):
+        data_configs = [dict(item) for item in raw_data]
+    else:
+        raise TypeError("raw evaluation data must be a loader mapping or non-empty list of loader mappings")
+    seed = int(manifest.get("seed", data_configs[0].get("seed", 0)))
+    set_seed(seed)
+    cfg = EvaluationConfig.from_mapping(sections["evaluation"])
+    if cfg.mode == "confirmatory" and cfg.source_manifest_hash != raw_manifest_source_hash(manifest):
+        raise ValueError("source_manifest_hash does not match the raw manifest sources")
+    preprocess_cfg = PreprocessConfig(**sections["preprocess"])
+    window_cfg = WindowConfig(**sections["windowing"])
+    if cfg.profile == "revised_primary":
+        if preprocess_cfg != PreprocessConfig():
+            raise ValueError(
+                "raw revised-primary handoff requires preprocessing to be outer-owned; "
+                "recording-global transformations are not accepted"
+            )
+        if window_cfg.standardize_per_window:
+            raise ValueError(
+                "raw revised-primary handoff requires training_fixed representation scaling"
+            )
+        if (
+            cfg.endpoint_type == "categorical"
+            and window_cfg.categorical_summary != cfg.categorical_summary
+        ):
+            raise ValueError(
+                "evaluation categorical_summary must match the raw windowing manifest"
+            )
+    parts: list[WindowedSegments] = []
+    neuron_ids: np.ndarray | None = None
+    recording_ids: set[str] = set()
+    panel_mapping_id: str | None = None
+    verified_recordings: dict[str, dict[str, str]] = {}
+    for data_cfg in data_configs:
+        if "name" not in data_cfg:
+            raise ValueError("raw evaluation data manifest requires a loader name")
+        from .confirmation import validate_source_files
+
+        verified_hashes = validate_source_files(data_cfg, required=cfg.mode == "confirmatory")
+        if len(data_configs) > 1 and (
+            not data_cfg.get("recording_id") or not data_cfg.get("animal_id")
+        ):
+            raise ValueError("cohort records require explicit recording_id and animal_id")
+        recording = get_loader(str(data_cfg["name"]))(data_cfg)
+        if verified_hashes:
+            recording = replace(
+                recording,
+                metadata={**recording.metadata, "verified_source_file_sha256": verified_hashes},
+            )
+        panel = data_cfg.get("neuron_panel")
+        if len(data_configs) > 1 and panel is None:
+            raise ValueError(
+                "cohort records require explicit neuron_panel mappings; local neuron IDs do not align animals"
+            )
+        if panel is not None:
+            if not isinstance(panel, Mapping) or set(panel) != {
+                "mapping_id", "source_indices", "canonical_ids", "provenance"
+            }:
+                raise ValueError(
+                    "neuron_panel requires mapping_id, source_indices, canonical_ids, and provenance"
+                )
+            mapping_id = panel["mapping_id"]
+            if not isinstance(mapping_id, str) or not mapping_id or not panel["provenance"]:
+                raise ValueError("neuron_panel requires a non-empty mapping ID and mapping provenance")
+            if cfg.panel_mapping_id is not None and mapping_id != cfg.panel_mapping_id:
+                raise ValueError("neuron_panel mapping_id does not match the registered panel_mapping_id")
+            if panel_mapping_id is not None and mapping_id != panel_mapping_id:
+                raise ValueError("cohort neuron_panel mappings must share one frozen mapping ID")
+            panel_mapping_id = mapping_id
+            source_indices = np.asarray(panel["source_indices"])
+            canonical = list(panel["canonical_ids"])
+            if (
+                source_indices.ndim != 1 or not np.issubdtype(source_indices.dtype, np.integer)
+                or not len(source_indices) or len(set(source_indices.tolist())) != len(source_indices)
+                or np.any(source_indices < 0) or np.any(source_indices >= recording.n_neurons)
+            ):
+                raise ValueError("neuron_panel source_indices must be unique in-range integer neuron rows")
+            if (
+                len(canonical) != len(source_indices)
+                or any(not isinstance(value, str) or not value for value in canonical)
+                or len(set(canonical)) != len(canonical)
+            ):
+                raise ValueError(
+                    "neuron_panel canonical_ids must be unique non-empty strings matching selected rows"
+                )
+            recording = replace(
+                recording,
+                traces=recording.traces[source_indices],
+                neuron_ids=np.asarray(canonical, dtype=object),
+                coords=None if recording.coords is None else recording.coords[source_indices],
+                neural_validity=(
+                    None if recording.neural_validity is None else recording.neural_validity[source_indices]
+                ),
+                metadata={**recording.metadata, "neuron_panel": dict(panel)},
+            )
+        if recording.identity.recording_id in recording_ids:
+            raise ValueError("cohort recording IDs must be unique")
+        recording_ids.add(recording.identity.recording_id)
+        verified_recordings[recording.identity.recording_id] = verified_hashes
+        if neuron_ids is not None and not np.array_equal(neuron_ids, recording.neuron_ids):
+            raise ValueError("cohort recordings require identical registered neuron IDs and ordering")
+        neuron_ids = recording.neuron_ids
+        processed = preprocess(recording, preprocess_cfg)
+        part = make_windows(processed, window_cfg)
+        if parts and (part.segments.shape[1:] != parts[0].segments.shape[1:] or part.fps != parts[0].fps):
+            raise ValueError("cohort recordings require matching window shape and native sampling rate")
+        if parts and set(part.behavior_per_window) != set(parts[0].behavior_per_window):
+            raise ValueError("cohort recordings require matching endpoint channels")
+        parts.append(part)
+    raw_contract = {
+        "source_manifest_hash": raw_manifest_source_hash(manifest),
+        "panel_mapping_id": panel_mapping_id,
+        "canonical_neuron_ids": [] if neuron_ids is None else neuron_ids.tolist(),
+        "verified_source_files": verified_recordings,
+    }
+    if len(parts) == 1:
+        return replace(parts[0], metadata={**parts[0].metadata, "raw_evaluation_contract": raw_contract}), cfg
+    first = parts[0]
+    combined = WindowedSegments(
+        segments=np.concatenate([part.segments for part in parts]),
+        windows=[window for part in parts for window in part.windows],
+        behavior_per_window={
+            name: np.concatenate([part.behavior_per_window[name] for part in parts])
+            for name in first.behavior_per_window
+        },
+        n_neurons=first.n_neurons,
+        fps=first.fps,
+        metadata={
+            **first.metadata, "cohort_recording_ids": sorted(recording_ids),
+            "cohort_panel_mapping_id": panel_mapping_id,
+            "raw_evaluation_contract": raw_contract,
+            "cohort_metadata": {
+                part.anchors[0].recording_id: part.metadata for part in parts if part.anchors
+            },
+        },
+        anchors=[anchor for part in parts for anchor in part.anchors],
+        provenance=replace(first.provenance, source_hash=raw_manifest_source_hash(manifest)),
+    )
+    return combined, cfg
+
+
+def run_evaluation_from_raw_manifest(manifest: Mapping[str, Any]) -> EvaluationResult:
+    """Clean reproducible raw-manifest-to-profile entry point used by CLI/notebooks."""
+    windows, cfg = build_primary_inputs_from_manifest(manifest)
+    return run_evaluation_profile(windows, cfg)
+
+
 def _probability_for_observed(record: PredictionRecord) -> float:
     if not record.class_order or not record.probabilities:
         raise ValueError("classification prediction records require class_order and probabilities")
@@ -1123,11 +1779,15 @@ __all__ = [
     "PredictionRecord",
     "RegressionScore",
     "SplitManifest",
+    "build_primary_inputs_from_manifest",
     "build_split_manifest",
     "combine_primary_evaluation_results",
     "paired_log_loss_delta",
     "primary_evaluation_fold_ids",
+    "raw_manifest_source_hash",
     "run_evaluation_skeleton",
+    "run_evaluation_from_raw_manifest",
+    "run_evaluation_profile",
     "run_primary_evaluation",
     "score_classification_records",
     "score_regression_records",

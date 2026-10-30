@@ -118,7 +118,9 @@ def notebook_preprocessing(dataset: DatasetSpec) -> list[dict]:
     expected_stages = ["raw_recording", "recording", "windows"]
     if dataset.bundle_net_reference:
         expected_stages.extend(["bundle_net_reference_recording", "bundle_net_training_pairs"])
-    expected_stage_literal = json.dumps(expected_stages)
+    expected_stage_literal = "[\n        " + ",\n        ".join(
+        json.dumps(stage) for stage in expected_stages
+    ) + "\n    ]"
     reference_import = (
         "    run_bundle_net_reference_preprocessing,\n" if dataset.bundle_net_reference else ""
     )
@@ -811,12 +813,15 @@ def notebook_attribution(method: str, method_label: str) -> list[dict]:
         markdown_cell(
             f"# Attribution and Feature Sensitivity Notebook: {method_label}",
             "",
-            f"Prerequisites: `community`, `manifold`, `{method}` `connectivity`, and `linking` stages, plus `outputs/artifacts/recording.pkl`.",
+            "Prerequisites: identity-preprocessed raw windows and `outputs/artifacts/recording.pkl` from preprocessing. This notebook fits a separate purged chronological outer-owned feature bundle.",
             "This notebook reports predictor-feature sensitivity only; it does not identify a biological intervention.",
             PROGRESS_NOTE,
         ),
         code_cell(
             """
+from omegaconf import OmegaConf
+from effectome.connectivity import ConnectivityConfig
+
 from notebooks._shared import (
     PROJECT_ROOT,
     make_run,
@@ -824,13 +829,21 @@ from notebooks._shared import (
     print_stage_status,
     run_candidate_drivers,
     run_feature_sensitivity,
+    run_owned_feature_artifacts,
 )
 
 RUN_ID = "demo"
 METHOD = "%s"
 ARTIFACT_ROOT = PROJECT_ROOT / "outputs" / "notebook_runs"
 RECORDING_PATH = PROJECT_ROOT / "outputs" / "artifacts" / "recording.pkl"
+WINDOWS_PATH = PROJECT_ROOT / "outputs" / "artifacts" / "windows.pkl"
 BEHAVIOR_KEY = "continuous"
+FIT_SCOPE_ID = f"{RUN_ID}/{METHOD}/sensitivity-outer-0"
+MULTIPLICITY_FAMILY = (f"{BEHAVIOR_KEY}:feature-edit",)
+connectivity_data = OmegaConf.to_container(
+    OmegaConf.load(PROJECT_ROOT / "conf" / "connectivity" / f"{METHOD}.yaml"), resolve=True
+)
+CONNECTIVITY_CFG = ConnectivityConfig(**connectivity_data)
 FORCE = False
 
 run = make_run(ARTIFACT_ROOT, RUN_ID, METHOD)
@@ -839,6 +852,7 @@ print_notebook_header(
     title=f"{METHOD} attribution and feature sensitivity",
     expected_stages=[
         "recording_input",
+        "outer_owned_features",
         "candidate_drivers",
         "surrogate_model",
         "feature_sensitivity",
@@ -850,6 +864,12 @@ print_notebook_header(
         ),
         code_cell(
             """
+owned = run_owned_feature_artifacts(
+    run, windows_path=WINDOWS_PATH, connectivity_cfg=CONNECTIVITY_CFG,
+    fit_scope_id=FIT_SCOPE_ID, evaluation_fraction=0.2, force=FORCE,
+)
+print(f"Training windows: {len(owned.fit_indices)}, held-out windows: {len(owned.evaluation_indices)}")
+
 candidates = run_candidate_drivers(
     run,
     recording_path=RECORDING_PATH,
@@ -859,6 +879,9 @@ candidates = run_candidate_drivers(
     embargo=4,
     seed=42,
     matched_control_percentile=95.0,
+    fit_indices=owned.fit_indices,
+    evaluation_indices=owned.evaluation_indices,
+    fit_scope_id=owned.fit_scope_id,
     force=FORCE,
 )
 top = candidates.scores[0]
@@ -882,6 +905,15 @@ sensitivity = run_feature_sensitivity(
     top_k=1,
     endpoint="behavior",
     seed=42,
+    fit_indices=owned.fit_indices,
+    evaluation_indices=owned.evaluation_indices,
+    fit_scope_id=owned.fit_scope_id,
+    multiplicity_family=MULTIPLICITY_FAMILY,
+    hypothesis_id=f"{BEHAVIOR_KEY}:feature-edit",
+    min_absolute_skill=0.0,
+    max_distribution_shift=5.0,
+    n_controls=64,
+    control_resolution_policy="unavailable",
     force=FORCE,
 )
 print(sensitivity)

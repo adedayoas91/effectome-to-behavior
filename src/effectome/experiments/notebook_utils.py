@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -42,6 +41,8 @@ def summarize_stack(matrices: np.ndarray) -> dict[str, float]:
 
 def plot_depth_summary(summary_df: pd.DataFrame, x_key: str, title: str):
     """Plot a compact four-panel summary against depth or tau."""
+    import matplotlib.pyplot as plt
+
     fig, axes = plt.subplots(2, 2, figsize=(12, 8))
     metrics = ["density", "mean_abs", "positive_fraction", "negative_fraction"]
     titles = ["Edge density", "Mean |weight|", "Positive edge fraction", "Negative edge fraction"]

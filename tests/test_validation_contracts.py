@@ -3,8 +3,11 @@ import numpy as np
 import pytest
 
 from effectome.experiments.validation import (
+    DevelopmentSmokeConfig,
     ValidationBudget,
     benchmark_cells,
+    edge_recovery_metrics,
+    run_development_smoke,
     run_validation_cells,
 )
 from effectome.linking.stats import RegisteredFamily, raw_block_resample
@@ -64,6 +67,7 @@ def test_raw_blocks_preserve_labels_masks_and_reset_joins():
 def test_validation_runner_persists_failures_and_resumes(tmp_path):
     cells = benchmark_cells()[:2]
     observed: list[str] = []
+    budget = ValidationBudget(timeout_seconds=5, memory_limit_mb=512)
 
     def evaluate(cell, config):
         observed.append(cell.cell_id)
@@ -77,7 +81,7 @@ def test_validation_runner_persists_failures_and_resumes(tmp_path):
         master_seed=9,
         config_factory=lambda _cell, seed: {"seed": seed},
         evaluator=evaluate,
-        budget=ValidationBudget(timeout_seconds=5, memory_limit_mb=512),
+        budget=budget,
     )
     assert [attempt.status for attempt in attempts] == ["completed", "failed"]
     assert len(list(tmp_path.rglob("*.json"))) == 2
@@ -86,7 +90,80 @@ def test_validation_runner_persists_failures_and_resumes(tmp_path):
         output_dir=tmp_path,
         master_seed=9,
         config_factory=lambda _cell, seed: {"seed": seed},
-        evaluator=lambda _cell, _config: (_ for _ in ()).throw(AssertionError("reran")),
+        evaluator=evaluate,
+        budget=budget,
     )
     assert all(attempt.resumed for attempt in resumed)
     assert len(observed) == 2
+    assert attempts[0].actual_config == {"seed": attempts[0].seed}
+    assert attempts[0].graph_id
+    assert attempts[0].trajectory_id
+    assert attempts[0].input_hash
+    assert attempts[0].implementation_hash
+    assert attempts[0].evaluator_hash
+    assert attempts[0].runtime_method == "time.perf_counter"
+    assert attempts[0].memory_method == "tracemalloc_python_peak"
+
+    stale = run_validation_cells(
+        cells,
+        output_dir=tmp_path,
+        master_seed=9,
+        config_factory=lambda _cell, seed: {"seed": seed, "revision": 2},
+        evaluator=evaluate,
+        budget=budget,
+    )
+    assert not any(attempt.resumed for attempt in stale)
+    assert len(observed) == 4
+
+
+def test_edge_recovery_reports_lag_resolved_prevalence_and_signed_fdp():
+    truth = np.zeros((2, 3, 3))
+    estimate = np.zeros_like(truth)
+    truth[0, 0, 1] = 0.8
+    truth[1, 2, 1] = -0.5
+    estimate[0, 0, 1] = -0.9  # selected true edge with wrong sign
+    estimate[0, 1, 2] = 0.4  # selected null edge
+    metrics = edge_recovery_metrics(truth, estimate, selection_threshold=0.1)
+    assert len(metrics["by_lag"]) == 2
+    assert metrics["by_lag"][0]["prevalence_baseline"] == pytest.approx(1 / 6)
+    assert metrics["overall"]["signed_fdp"] == pytest.approx(1.0)
+
+
+def test_notebook_friendly_development_smoke_runs_without_callbacks(tmp_path):
+    result = run_development_smoke(
+        DevelopmentSmokeConfig(
+            output_dir=tmp_path,
+            n_neurons=4,
+            n_timepoints=160,
+            history_length=32,
+            target_length=8,
+            stride=8,
+            max_cells=1,
+        )
+    )
+    assert result.label == "smoke"
+    assert len(result.attempts) == 1
+    assert result.attempts[0].status == "completed"
+    assert result.summary["completed"] == 1
+    assert result.attempts[0].result["pipeline"] == "preprocess_window_primary_evaluation"
+
+
+def test_development_smoke_checkpoint_tracks_window_geometry(tmp_path):
+    common = dict(
+        output_dir=tmp_path,
+        n_neurons=4,
+        n_timepoints=160,
+        target_length=8,
+        stride=8,
+        max_cells=1,
+    )
+    first = run_development_smoke(
+        DevelopmentSmokeConfig(history_length=32, **common)
+    )
+    changed = run_development_smoke(
+        DevelopmentSmokeConfig(history_length=40, **common)
+    )
+
+    assert first.attempts[0].resumed is False
+    assert changed.attempts[0].resumed is False
+    assert first.attempts[0].config_hash != changed.attempts[0].config_hash

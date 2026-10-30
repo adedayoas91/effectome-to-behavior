@@ -11,6 +11,11 @@ from effectome.linking import (
     plus_one_monte_carlo_pvalue,
     require_monte_carlo_resolution,
 )
+from effectome.linking.stats import (
+    binomial_proportion_interval,
+    finite_control_accounting,
+    raw_block_sensitivity_refits,
+)
 
 
 def test_benjamini_yekutieli_known_values_and_empty_family():
@@ -55,3 +60,40 @@ def test_plus_one_monte_carlo_and_resolution_check():
         assert "too small" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("expected insufficient resolution to fail")
+
+
+def test_finite_control_accounting_distinguishes_unique_pool_from_draws():
+    accounting = finite_control_accounting(
+        ["a", "a", "b", "c"], requested_draws=999, alpha_min=0.01
+    )
+    assert accounting.unique_controls == 3
+    assert accounting.sampling_method == "enumeration"
+    assert accounting.effective_draws == 3
+    assert accounting.resolution_sufficient is False
+
+
+def test_binomial_calibration_interval_contains_rate():
+    interval = binomial_proportion_interval(5, 100, confidence=0.95)
+    assert interval.low < 0.05 < interval.high
+    assert interval.n_success == 5
+    assert interval.n_trials == 100
+
+
+def test_raw_block_sensitivity_refits_every_resample_deterministically():
+    calls: list[tuple[int, int]] = []
+
+    def refit(sample, block_length, seed):
+        calls.append((block_length, seed))
+        return {"first_source": int(sample.source_indices[0])}
+
+    first = raw_block_sensitivity_refits(
+        {"signal": np.arange(40)}, block_length=8, seed=5, refit=refit
+    )
+    second = raw_block_sensitivity_refits(
+        {"signal": np.arange(40)}, block_length=8, seed=5, refit=lambda s, b, r: {
+            "first_source": int(s.source_indices[0])
+        }
+    )
+    assert [row.block_length for row in first] == [4, 8, 16]
+    assert [row.result for row in first] == [row.result for row in second]
+    assert len(calls) == 3

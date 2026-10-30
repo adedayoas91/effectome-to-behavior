@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from effectome.community import CommunityConfig, CommunityFactory
-from effectome.data_module.schema import ConnectivitySeries
+from effectome.data_module.schema import ArtifactProvenance, ConnectivitySeries
 
 
 def _series() -> ConnectivitySeries:
@@ -54,3 +54,26 @@ def test_markov_stability_is_labeled_as_proxy_backend():
     assert communities.metadata["actual_backend"] == (
         "markov_stability_proxy.networkx_greedy_modularity"
     )
+
+
+def test_full_series_community_fit_does_not_inherit_outer_ownership():
+    series = _series()
+    series.provenance = ArtifactProvenance(
+        stage="connectivity",
+        fit_scope_id="outer-fold-0",
+        split_manifest_hash="split-hash",
+        analysis_mode="development",
+    )
+
+    communities = CommunityFactory(
+        CommunityConfig(name="leiden", use_absolute=True, symmetrize=True)
+    ).run(series)
+
+    assert communities.provenance.stage == "community"
+    assert communities.provenance.fit_scope_id is None
+    assert communities.provenance.split_manifest_hash is None
+    assert communities.provenance.metadata["upstream_fit_scope_id"] == "outer-fold-0"
+    assert communities.provenance.metadata["ownership_contract"] == (
+        "full_series_community_fit_requires_separate_outer_scope"
+    )
+    assert communities.provenance.metadata["upstream_stage"] == "connectivity"

@@ -1,0 +1,94 @@
+seed: 260925
+data:
+  name: v2a_rsns
+  dataset_id: v2a-rsns
+  recording_id: 220127_F4_run2
+  animal_id: 220127_F4
+  path: data/v2a-RSNs/220127_F4_run2
+  signal_type: fluorescence
+  cell_subset: emitter_receiver
+  bad_frame_policy: mask
+  max_masked_gap_seconds: 1.0
+  bad_frame_indexing: zero_based
+  valid_ranges: []
+  gap_intervals: []
+  files:
+    analysis_info: 220127_F4_F4_run2_after_dec_analysis_info.json
+    traces: 220127_F4_F4_run2_after_dec_cells_fluorescence_signals.npy
+    coords: 220127_F4_F4_run2_after_dec_registered_cells_pos.npy
+    tail_angle: 220127_F4_F4_run2_after_dec_tail_angle.npy
+    emitter_cells: 220127_F4_F4_run2_after_dec_emitter_cells.npy
+    receiver_cells: 220127_F4_F4_run2_after_dec_receiver_cells.npy
+  behavior_keys:
+    continuous: tail_angle
+preprocess: {}
+windowing:
+  mode: temporal
+  history_seconds: 120.0
+  target_seconds: 5.164169588779088
+  stride_seconds: 5.164169588779088
+  standardize_per_window: false
+  categorical_summary: last_valid
+  respect_boundaries: true
+evaluation:
+  profile: revised_primary
+  mode: development
+  protocol: purged_blocked
+  n_outer_folds: 5
+  embargo: 4
+  group_by: recording
+  min_train_examples: 2
+  min_test_examples: 1
+  update_policy: frozen
+  states_enabled: false
+  groups_enabled: false
+  endpoint_name: continuous
+  endpoint_kind: recorded_tail_angle
+  endpoint_type: continuous
+  categorical_summary: not_applicable
+  positive_lag: 1
+  class_vocabulary: []
+  class_vocabulary_source: not_applicable
+  probability_floor: 1.0e-12
+  practical_gain_nats: null
+  representation_scaling: training_fixed
+  neural_lambda1_grid:
+  - 0.0
+  - 0.01
+  - 0.05
+  neural_lambda2: 0.001
+  neural_max_lag: 2
+  decoder_c_grid:
+  - 0.1
+  - 1.0
+  - 10.0
+  decoder_alpha_grid:
+  - 0.1
+  - 1.0
+  - 10.0
+  selection_seed: 260926
+  training_calibration_policy: outer_training_only
+  neural_selection_metric: standardized_one_step_mse
+  decoder_selection_metric: log_loss
+  solver_tolerance: 1.0e-06
+  solver_max_iterations: 10000
+  tuning_trial_ceiling: null
+  runtime_seconds_ceiling: null
+  memory_megabytes_ceiling: null
+  max_missing_fraction: 0.05
+  null_replicates: null
+  null_families: []
+  multiplicity_family: null
+  failure_policy: record_and_continue
+  timeout_score_policy: record_failure
+  optional_backend_policy: record_unsupported
+  artifact_schema_version: '2.0'
+  reject_legacy_for_confirmation: true
+  endpoint_verified: false
+  panel_mapping_id: null
+  calibration_status: unresolved
+  resource_budget_id: null
+  source_manifest_hash: null
+  claim_to_test_map:
+  - - incremental_predictive_value
+    - paired_M0_M1_log_loss

@@ -9,6 +9,7 @@ defaults:
   - manifold: classical
   - linking: default
   - evaluation: default
+  - intervention: default
   - _self_
 
 seed: 42
@@ -17,6 +18,8 @@ seed: 42
 paths:
   artifacts: outputs/artifacts
   figures: outputs/figures
+  # Optional complete raw-data manifest consumed by pipeline/08_evaluate.py.
+  evaluation_manifest: null
 
 hydra:
   run:

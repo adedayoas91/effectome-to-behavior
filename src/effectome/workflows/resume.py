@@ -73,21 +73,42 @@ def _dependency_fingerprints(paths: Mapping[str, str | Path] | None) -> dict[str
     return fingerprints
 
 
-def _implementation_fingerprint() -> str:
-    """Hash package sources and lock metadata without depending on checkout location."""
-    package_root = Path(__file__).resolve().parents[1]
-    repository_root = package_root.parents[1]
-    paths = sorted(package_root.rglob("*.py"))
+def _repository_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def implementation_fingerprint(repository_root: str | Path | None = None) -> str:
+    """Hash every code surface that can alter a scientific checkpoint.
+
+    The fingerprint is intentionally checkout-location independent.  Pipeline entry
+    points and the notebook helper/builder are part of the implementation contract:
+    changing orchestration around an unchanged package must invalidate old results.
+    """
+    root = Path(repository_root).resolve() if repository_root is not None else _repository_root()
+    paths = sorted((root / "src" / "effectome").rglob("*.py"))
+    paths.extend(sorted((root / "pipeline").rglob("*.py")))
     paths.extend(
         path
-        for path in (repository_root / "pyproject.toml", repository_root / "uv.lock")
+        for path in (
+            root / "notebooks" / "_shared.py",
+            root / "notebooks" / "_build_notebooks.py",
+            root / "pyproject.toml",
+            root / "uv.lock",
+        )
         if path.is_file()
     )
     digest = hashlib.sha256()
-    for path in paths:
-        digest.update(path.relative_to(repository_root).as_posix().encode())
+    for path in sorted(set(paths)):
+        digest.update(path.relative_to(root).as_posix().encode())
         digest.update(_file_digest(path).encode())
     return digest.hexdigest()
+
+
+def lock_fingerprint(repository_root: str | Path | None = None) -> str:
+    """Return the dependency-lock identity used by evaluation provenance."""
+    root = Path(repository_root).resolve() if repository_root is not None else _repository_root()
+    lock_path = root / "uv.lock"
+    return _file_digest(lock_path) if lock_path.is_file() else "unavailable"
 
 
 def _signature(
@@ -169,7 +190,7 @@ class ResumableRun:
         self.root = Path(root).resolve()
         self.run_id = _safe_name(run_id, "run_id")
         self.method = _safe_name(method, "method")
-        self.implementation_version = implementation_version or _implementation_fingerprint()
+        self.implementation_version = implementation_version or implementation_fingerprint()
         self.run_dir = self.root / self.run_id / self.method
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.last_record: StageRecord | None = None
@@ -192,7 +213,17 @@ class ResumableRun:
         completed: list[str] = []
         for status_path in stages_dir.glob("*/status.json"):
             record = self._load_record(status_path)
-            if record and record.get("status") == "completed":
+            if not record or record.get("status") != "completed":
+                continue
+            recorded_implementation = record.get("signature_payload", {}).get(
+                "implementation_version"
+            )
+            artifact_path = status_path.parent / "artifact.pkl"
+            if (
+                recorded_implementation == self.implementation_version
+                and artifact_path.is_file()
+                and record.get("artifact_sha256") == _file_digest(artifact_path)
+            ):
                 completed.append(status_path.parent.name)
         return sorted(completed)
 
@@ -203,6 +234,13 @@ class ResumableRun:
         if record is None or record.get("status") != "completed":
             state = "missing" if record is None else str(record.get("status", "unknown"))
             raise RuntimeError(f"stage {stage!r} is not completed (status={state})")
+        recorded_implementation = record.get("signature_payload", {}).get(
+            "implementation_version"
+        )
+        if recorded_implementation != self.implementation_version:
+            raise RuntimeError(
+                f"stage {stage!r} was produced by a different implementation"
+            )
         if not artifact_path.is_file():
             raise RuntimeError(f"stage {stage!r} is completed but its artifact is missing")
         expected = record.get("artifact_sha256")
@@ -361,4 +399,10 @@ class ResumableRun:
         )
 
 
-__all__ = ["ResumableRun", "StageRecord", "content_fingerprint"]
+__all__ = [
+    "ResumableRun",
+    "StageRecord",
+    "content_fingerprint",
+    "implementation_fingerprint",
+    "lock_fingerprint",
+]

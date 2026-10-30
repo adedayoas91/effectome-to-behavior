@@ -498,6 +498,8 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
         "bad_frame_intervals": bad_frame_intervals,
         "drop_incomplete_tail": cfg.drop_incomplete_tail,
         "neural_standardization": standardization,
+        "preprocess_config": recording.metadata.get("preprocess_config"),
+        "preprocess_dependency": recording.metadata.get("preprocess_dependency"),
         "categorical_summary": cfg.categorical_summary,
         "selected_behavior_samples": selected_behavior_samples,
         "reference_profile": {
@@ -548,6 +550,8 @@ def _make_temporal_windows(recording: NeuralRecording, cfg: WindowConfig) -> Win
                 "temporal_contract": temporal_contract,
                 "bad_frame_intervals": bad_frame_intervals,
                 "neural_standardization": standardization,
+                "preprocess_config": recording.metadata.get("preprocess_config"),
+                "preprocess_dependency": recording.metadata.get("preprocess_dependency"),
             },
         ),
     )

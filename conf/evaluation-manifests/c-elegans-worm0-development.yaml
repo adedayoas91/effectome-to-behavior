@@ -1,0 +1,135 @@
+seed: 260925
+data:
+  name: bundle_net_c_elegans
+  dataset_id: bundle-net-c-elegans
+  recording_id: bundle-net-worm-0
+  animal_id: worm-0
+  path: data/c_elegans/bundle_net_raw
+  worm_index: 0
+  signal_type: dff_bleach_corrected
+  valid_ranges: []
+  gap_intervals: []
+  state_names:
+  - dt
+  - fwd
+  - nostate
+  - rev1
+  - rev2
+  - revsus
+  - slow
+  - vt
+  files:
+    recordings: NoStim_Data.mat
+    class_ids: ClassIDs_279.mat
+    neuron_order: Order279.mat
+  behavior_keys:
+    motif: motif
+  source_url: https://github.com/akshey-kumar/BunDLe-Net/tree/main/data/raw
+  source_commit: cbefad93fe98b5860c7e219e5af9a7bb0a177143
+  bundle_net_reference:
+    source_file: functions.py
+    input_field: deltaFOverF_bc
+    exclude_neuron_name_source: raw
+    exclude_neuron_names:
+    - AVAR
+    - AVAL
+    - SMDVR
+    - SMDVL
+    - SMDDR
+    - SMDDL
+    - RIBR
+    - RIBL
+    preprocessing:
+      detrend: false
+      zscore: false
+      deconvolve: false
+      smooth_window: 0
+      drop_low_variance: 0.0
+      bundle_net_bandpass: true
+      bundle_net_low_fraction: 1.0e-10
+      bundle_net_high_fraction: 0.05
+      bundle_net_filter_order: 4
+    paired_window_length: 15
+  downloaded_sha256:
+    NoStim_Data.mat: 8224b37211e455df4c89b2c6c4216dcde525da00a5f1dc0c22a0c9b4a0f22539
+    ClassIDs_279.mat: d2445adcdf6a14210884c12130c19c48bf5778a84ff84d7305359cd149e3746c
+    Order279.mat: f06ba69d6ca35ef1d13823418412985e8c07dbfd8a728467a6f35e457d4d41d6
+preprocess: {}
+windowing:
+  mode: temporal
+  history_seconds: 120.0
+  target_seconds: 5.164169588779088
+  stride_seconds: 5.164169588779088
+  standardize_per_window: false
+  categorical_summary: last_valid
+  respect_boundaries: true
+evaluation:
+  profile: revised_primary
+  mode: development
+  protocol: purged_blocked
+  n_outer_folds: 5
+  embargo: 4
+  group_by: recording
+  min_train_examples: 2
+  min_test_examples: 1
+  update_policy: frozen
+  states_enabled: false
+  groups_enabled: false
+  endpoint_name: motif
+  endpoint_kind: supplied_fictive_neural_state_annotation_unverified
+  endpoint_type: categorical
+  categorical_summary: last_valid
+  positive_lag: 1
+  class_vocabulary:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  class_vocabulary_source: dataset_manifest
+  probability_floor: 1.0e-12
+  practical_gain_nats: null
+  representation_scaling: training_fixed
+  neural_lambda1_grid:
+  - 0.0
+  - 0.01
+  - 0.05
+  neural_lambda2: 0.001
+  neural_max_lag: 2
+  decoder_c_grid:
+  - 0.1
+  - 1.0
+  - 10.0
+  decoder_alpha_grid:
+  - 0.1
+  - 1.0
+  - 10.0
+  selection_seed: 260926
+  training_calibration_policy: outer_training_only
+  neural_selection_metric: standardized_one_step_mse
+  decoder_selection_metric: log_loss
+  solver_tolerance: 1.0e-06
+  solver_max_iterations: 10000
+  tuning_trial_ceiling: null
+  runtime_seconds_ceiling: null
+  memory_megabytes_ceiling: null
+  max_missing_fraction: 0.05
+  null_replicates: null
+  null_families: []
+  multiplicity_family: null
+  failure_policy: record_and_continue
+  timeout_score_policy: record_failure
+  optional_backend_policy: record_unsupported
+  artifact_schema_version: '2.0'
+  reject_legacy_for_confirmation: true
+  endpoint_verified: false
+  panel_mapping_id: null
+  calibration_status: unresolved
+  resource_budget_id: null
+  source_manifest_hash: null
+  claim_to_test_map:
+  - - incremental_predictive_value
+    - paired_M0_M1_log_loss

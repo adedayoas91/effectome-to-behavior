@@ -16,8 +16,14 @@ from effectome.data_module.schema import CommunitySeries, ConnectivitySeries
 logger = logging.getLogger(__name__)
 
 
-def _community_provenance(series: ConnectivitySeries) -> Any:
-    payload = {
+def _community_provenance(series: ConnectivitySeries, method: str) -> Any:
+    upstream = series.provenance
+    metadata = {
+        **dict(upstream.metadata),
+        "upstream_stage": upstream.stage,
+        "upstream_fit_scope_id": upstream.fit_scope_id,
+        "upstream_split_manifest_hash": upstream.split_manifest_hash,
+        "ownership_contract": "full_series_community_fit_requires_separate_outer_scope",
         "connectivity_method": series.method,
         "directed": bool(series.directed),
         "signed": bool(series.signed),
@@ -32,8 +38,27 @@ def _community_provenance(series: ConnectivitySeries) -> Any:
     try:
         if is_dataclass(prov_cls):
             supported = {item.name for item in fields(prov_cls)}
+            payload = {
+                item.name: getattr(upstream, item.name)
+                for item in fields(upstream)
+                if item.name in supported
+            }
+            payload.update(
+                {
+                    "stage": "community",
+                    "configuration_id": method,
+                    "metadata": metadata,
+                    "fit_scope_id": None,
+                    "split_manifest_hash": None,
+                    "fitted_raw_intervals": (),
+                    "claim_eligibility": "development_only",
+                    "axis_conventions": {
+                        "labels": "anchor,neuron",
+                    },
+                }
+            )
             return prov_cls(**{key: value for key, value in payload.items() if key in supported})
-        return prov_cls(**payload)
+        return prov_cls(stage="community", configuration_id=method, metadata=metadata)
     except Exception:
         logger.debug("Falling back to CommunitySeries provenance default", exc_info=True)
         return None
@@ -61,7 +86,7 @@ def build_community_series(
             "connectivity_method": series.method,
         },
     }
-    provenance = _community_provenance(series)
+    provenance = _community_provenance(series, method)
     if provenance is not None:
         kwargs["provenance"] = provenance
     if extras:

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
+from omegaconf import OmegaConf
 
+from effectome.connectivity import ConnectivityConfig
 from effectome.data_module import (
     ArtifactProvenance,
     ExampleSupport,
@@ -24,9 +28,13 @@ from effectome.linking import valid_positive_lag_origins
 from effectome.utils.io import load_artifact, save_artifact
 from effectome.workflows import (
     EvaluationConfig,
+    build_primary_inputs_from_manifest,
     combine_primary_evaluation_results,
     paired_log_loss_delta,
     primary_evaluation_fold_ids,
+    run_evaluation_from_raw_manifest,
+    run_evaluation_profile,
+    run_evaluation_skeleton,
     run_primary_evaluation,
     score_regression_records,
 )
@@ -173,6 +181,14 @@ def _primary_windows() -> WindowedSegments:
         behavior_per_window={"motif": np.arange(n_windows) % 2},
         n_neurons=n_neurons,
         fps=1.0,
+        metadata={
+            "neural_standardization": {"enabled": False, "scope": "none"},
+            "preprocess_dependency": {
+                "kind": "finite",
+                "past_support": 0,
+                "future_support": 0,
+            },
+        },
         anchors=anchors,
     )
 
@@ -196,6 +212,66 @@ def test_primary_evaluator_emits_paired_probability_records():
     assert all(sum(record.probabilities) == pytest.approx(1.0) for record in issued)
 
 
+def test_primary_evaluator_rejects_unverified_preprocessing_ownership():
+    missing = _primary_windows()
+    missing.metadata.pop("preprocess_dependency")
+    with pytest.raises(ValueError, match="preprocessing provenance"):
+        run_primary_evaluation(missing, EvaluationConfig(n_outer_folds=2))
+
+    global_fit = _primary_windows()
+    global_fit.metadata["preprocess_dependency"] = {"kind": "global"}
+    with pytest.raises(ValueError, match="recording-global preprocessing"):
+        run_primary_evaluation(global_fit, EvaluationConfig(n_outer_folds=2))
+
+
+def test_observed_development_vocabulary_is_owned_by_each_outer_fold():
+    windows = _primary_windows()
+    cfg = EvaluationConfig(
+        n_outer_folds=2,
+        min_train_examples=3,
+        endpoint_name="motif",
+        positive_lag=1,
+        neural_lambda1_grid=(0.0,),
+        decoder_c_grid=(1.0,),
+    )
+    first = run_primary_evaluation(windows, cfg)
+    fold = next(item for item in first.manifest.outer_folds if item.fold_id == "outer-000")
+    origins = valid_positive_lag_origins(
+        windows.n_windows,
+        cfg.positive_lag,
+        windows.anchors,
+        strict=True,
+    )
+    changed_origin = int(origins[fold.test_indices[0]])
+    windows.behavior_per_window["motif"][changed_origin + cfg.positive_lag] = 2
+    second = run_primary_evaluation(windows, cfg)
+
+    first_fold = [record for record in first.predictions if record.fold_id == fold.fold_id]
+    second_fold = [record for record in second.predictions if record.fold_id == fold.fold_id]
+    assert {record.class_order for record in first_fold} == {(0, 1)}
+    assert {record.class_order for record in second_fold} == {(0, 1)}
+    unaffected_first = {
+        (record.origin_index, record.model_name): record.probabilities
+        for record in first_fold
+        if record.origin_index != changed_origin
+    }
+    unaffected_second = {
+        (record.origin_index, record.model_name): record.probabilities
+        for record in second_fold
+        if record.origin_index != changed_origin
+    }
+    assert unaffected_second == unaffected_first
+    changed = [
+        record for record in second_fold if record.origin_index == changed_origin
+    ]
+    assert changed
+    assert all(record.status == "failed" for record in changed)
+    assert all(
+        record.failure_reason == "outer_test_class_not_in_training_vocabulary"
+        for record in changed
+    )
+
+
 def test_confirmatory_config_rejects_unresolved_scientific_fields():
     with pytest.raises(ValueError, match="unresolved requirements"):
         EvaluationConfig(
@@ -208,6 +284,7 @@ def test_confirmatory_config_rejects_unresolved_scientific_fields():
         mode="confirmatory",
         endpoint_kind="synthetic",
         class_vocabulary=(0, 1),
+        class_vocabulary_source="dataset_manifest",
         practical_gain_nats=0.01,
         endpoint_verified=True,
         panel_mapping_id="synthetic-panel-v1",
@@ -215,8 +292,152 @@ def test_confirmatory_config_rejects_unresolved_scientific_fields():
         resource_budget_id="budget-v1",
         source_manifest_hash="sha256:fixture",
         claim_to_test_map=(("incremental_predictive_value", "paired_log_loss"),),
+        tuning_trial_ceiling=10,
+        runtime_seconds_ceiling=60.0,
+        memory_megabytes_ceiling=512.0,
+        null_replicates=200,
+        null_families=("fixed_interaction",),
+        multiplicity_family="primary_incremental_value",
     )
     assert resolved.mode == "confirmatory"
+    with pytest.raises(ValueError, match="frozen fixed_development"):
+        run_primary_evaluation(_primary_windows(), resolved)
+    with pytest.raises(NotImplementedError, match="split inspection"):
+        run_evaluation_skeleton(_primary_windows(), resolved)
+
+
+def test_evaluation_mapping_and_connectivity_extras_are_strict():
+    with pytest.raises(ValueError, match="unknown evaluation config keys.*typo"):
+        EvaluationConfig.from_mapping({"profile": "revised_primary", "typo": 1})
+    cfg = EvaluationConfig.from_mapping(
+        {
+            "neural_lambda1_grid": [0.0, 0.1],
+            "claim_to_test_map": [["incremental", "paired_log_loss"]],
+            "null_families": ["fixed_interaction"],
+        }
+    )
+    assert cfg.neural_lambda1_grid == (0.0, 0.1)
+    assert cfg.claim_to_test_map == (("incremental", "paired_log_loss"),)
+    assert cfg.null_families == ("fixed_interaction",)
+    assert EvaluationConfig.from_profile("revised_primary").profile == "revised_primary"
+
+    with pytest.raises(ValueError, match="unknown extra keys.*lamdba1"):
+        ConnectivityConfig(name="sparse_var", extra={"lamdba1": 0.1})
+
+    for method in ("correlation", "pcmci", "time_varying"):
+        resolved = ConnectivityConfig(name=method, max_lag_seconds=0.7).resolve(10.0)
+        assert resolved.max_lag == 7
+        assert "n_lags" not in resolved.extra
+    assert (
+        ConnectivityConfig(name="sparse_var", max_lag_seconds=0.7)
+        .resolve(10.0)
+        .extra["n_lags"]
+        == 7
+    )
+
+
+def test_evaluation_results_carry_validated_semantic_provenance(tmp_path):
+    windows = _primary_windows()
+    cfg = EvaluationConfig(
+        n_outer_folds=2,
+        min_train_examples=3,
+        endpoint_name="motif",
+        neural_lambda1_grid=(0.0,),
+        decoder_c_grid=(1.0,),
+    )
+    result = run_primary_evaluation(windows, cfg)
+    provenance = result.provenance
+    assert provenance.stage == "evaluation"
+    assert provenance.config_hash
+    assert provenance.split_manifest_hash
+    assert provenance.source_hash
+    assert provenance.code_version
+    assert provenance.lock_hash
+    assert provenance.metadata["endpoint_identity"]
+    assert load_artifact(save_artifact(result, tmp_path / "evaluation.pkl")) == result
+
+
+def test_legacy_profile_is_executable_but_not_routed_to_revised_primary():
+    cfg = EvaluationConfig.from_profile("legacy_descriptive")
+    result = run_evaluation_profile(_primary_windows(), cfg)
+    assert result.diagnostics["status"] == "legacy_descriptive_historical_profile"
+    assert result.predictions == ()
+    assert result.manifest.states_enabled
+    assert result.manifest.groups_enabled
+
+
+def test_raw_manifest_entry_point_matches_direct_primary_runner():
+    manifest = {
+        "seed": 7,
+        "data": {
+            "name": "synthetic",
+            "dataset_id": "tiny-synthetic",
+            "recording_id": "tiny-0",
+            "n_neurons": 2,
+            "n_timepoints": 120,
+            "density": 0.5,
+            "max_lag": 1,
+            "coupling": 0.2,
+            "noise_std": 0.2,
+            "n_states": 2,
+            "regime_dwell": 30,
+            "behavior_drivers": 1,
+            "fps": 1.0,
+            "seed": 7,
+        },
+        "preprocess": {},
+        "windowing": {
+            "length": 20,
+            "history_length": 20,
+            "target_length": 4,
+            "stride": 10,
+            "mode": "temporal",
+            "standardize_per_window": False,
+            "categorical_summary": "last_valid",
+        },
+        "evaluation": {
+            "profile": "revised_primary",
+            "mode": "development",
+            "n_outer_folds": 2,
+            "embargo": 0,
+            "min_train_examples": 2,
+            "endpoint_name": "motif",
+            "categorical_summary": "last_valid",
+            "class_vocabulary_source": "observed_development_only",
+            "neural_lambda1_grid": [0.0],
+            "decoder_c_grid": [1.0],
+        },
+    }
+    windows, cfg = build_primary_inputs_from_manifest(manifest)
+    direct = run_evaluation_profile(windows, cfg)
+    handed_off = run_evaluation_from_raw_manifest(manifest)
+    assert handed_off.predictions == direct.predictions
+    assert handed_off.manifest == direct.manifest
+
+
+def test_checked_in_synthetic_raw_manifest_runs_to_predictions():
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "conf"
+        / "evaluation-manifests"
+        / "synthetic-smoke.yaml"
+    )
+    manifest = OmegaConf.to_container(OmegaConf.load(path), resolve=True)
+    assert isinstance(manifest, dict)
+    result = run_evaluation_from_raw_manifest(manifest)
+    assert result.diagnostics["status"] == "primary_probability_comparison"
+    assert any(record.status == "issued" for record in result.predictions)
+
+
+def test_raw_manifest_primary_handoff_rejects_global_learned_preprocessing():
+    manifest = {
+        "data": {"name": "synthetic", "n_neurons": 2, "n_timepoints": 40},
+        "preprocess": {"zscore": True},
+        "windowing": {"mode": "temporal", "history_length": 10, "target_length": 2},
+        "evaluation": {},
+    }
+    with pytest.raises(ValueError, match="outer-owned"):
+        build_primary_inputs_from_manifest(manifest)
 
 
 def test_primary_evaluator_supports_continuous_probability_records():

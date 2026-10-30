@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from statistics import NormalDist
+from typing import Any
 
 import numpy as np
 from sklearn.metrics import adjusted_mutual_info_score, mutual_info_score
@@ -123,6 +125,42 @@ class ConfidenceInterval:
 
 
 @dataclass(frozen=True)
+class BinomialInterval:
+    """Wilson interval with the raw calibration counts retained."""
+
+    low: float
+    high: float
+    estimate: float
+    n_success: int
+    n_trials: int
+    confidence: float
+    method: str = "wilson"
+
+
+@dataclass(frozen=True)
+class FiniteControlAccounting:
+    """Resolution accounting for a declared finite control pool."""
+
+    available_controls: int
+    unique_controls: int
+    requested_draws: int
+    effective_draws: int
+    sampling_method: str
+    alpha_min: float
+    minimum_p_value: float
+    resolution_sufficient: bool
+
+
+@dataclass(frozen=True)
+class RawBlockRefitResult:
+    """One full-pipeline refit from the half/base/double block sensitivity."""
+
+    block_length: int
+    seed: int
+    result: Any
+
+
+@dataclass(frozen=True)
 class RegisteredFamily:
     """A frozen secondary-testing family that retains unavailable attempts."""
 
@@ -216,6 +254,36 @@ def raw_block_resample(
         segment_ids=segment_ids,
         join_before=join_before,
     )
+
+
+def raw_block_sensitivity_refits(
+    arrays: Mapping[str, Sequence],
+    *,
+    block_length: int,
+    seed: int,
+    refit: Callable[[RawBlockSample, int, int], Any],
+) -> tuple[RawBlockRefitResult, ...]:
+    """Resample and refit at half/base/double block support.
+
+    The callback is intentionally a *refit* hook, rather than a score hook, so callers cannot
+    accidentally reuse learned preprocessing or model parameters across resamples.
+    """
+    if block_length <= 1:
+        raise ValueError("block_length must exceed one for half/base/double sensitivity")
+    lengths = tuple(dict.fromkeys((max(1, block_length // 2), block_length, block_length * 2)))
+    seeds = np.random.SeedSequence(seed).spawn(len(lengths))
+    rows: list[RawBlockRefitResult] = []
+    for length, child in zip(lengths, seeds, strict=True):
+        child_seed = int(child.generate_state(1, dtype=np.uint32)[0])
+        sample = raw_block_resample(arrays, block_length=length, seed=child_seed)
+        rows.append(
+            RawBlockRefitResult(
+                block_length=length,
+                seed=child_seed,
+                result=refit(sample, length, child_seed),
+            )
+        )
+    return tuple(rows)
 
 
 def bootstrap_mean_ci(
@@ -317,6 +385,67 @@ def require_monte_carlo_resolution(n_draws: int, alpha_min: float) -> None:
         raise ValueError("alpha_min must lie in (0, 1)")
     if n_draws + 1 < 1.0 / alpha_min:
         raise ValueError("Monte Carlo pool is too small for the requested alpha_min")
+
+
+def finite_control_accounting(
+    controls: Sequence[str | int],
+    *,
+    requested_draws: int,
+    alpha_min: float,
+) -> FiniteControlAccounting:
+    """Record how a finite unique-control pool constrains Monte Carlo resolution."""
+    if requested_draws < 1:
+        raise ValueError("requested_draws must be positive")
+    if not 0 < alpha_min < 1:
+        raise ValueError("alpha_min must lie in (0, 1)")
+    unique = len(set(controls))
+    if unique == 0:
+        raise ValueError("the declared control pool is empty")
+    if requested_draws >= unique:
+        method = "enumeration"
+        effective = unique
+    else:
+        method = "monte_carlo_without_replacement"
+        effective = requested_draws
+    minimum = 1.0 / (effective + 1)
+    return FiniteControlAccounting(
+        available_controls=len(controls),
+        unique_controls=unique,
+        requested_draws=requested_draws,
+        effective_draws=effective,
+        sampling_method=method,
+        alpha_min=float(alpha_min),
+        minimum_p_value=float(minimum),
+        resolution_sufficient=bool(effective + 1 >= 1.0 / alpha_min),
+    )
+
+
+def binomial_proportion_interval(
+    n_success: int,
+    n_trials: int,
+    *,
+    confidence: float = 0.95,
+) -> BinomialInterval:
+    """Wilson interval for a raw-null rejection or other binomial calibration rate."""
+    if n_trials < 1 or n_success < 0 or n_success > n_trials:
+        raise ValueError("expected 0 <= n_success <= n_trials and n_trials >= 1")
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must lie in (0, 1)")
+    estimate = n_success / n_trials
+    z = NormalDist().inv_cdf(0.5 + confidence / 2.0)
+    denominator = 1.0 + z**2 / n_trials
+    center = (estimate + z**2 / (2.0 * n_trials)) / denominator
+    half_width = z / denominator * np.sqrt(
+        estimate * (1.0 - estimate) / n_trials + z**2 / (4.0 * n_trials**2)
+    )
+    return BinomialInterval(
+        low=float(max(0.0, center - half_width)),
+        high=float(min(1.0, center + half_width)),
+        estimate=float(estimate),
+        n_success=int(n_success),
+        n_trials=int(n_trials),
+        confidence=float(confidence),
+    )
 
 
 def association_with_null(

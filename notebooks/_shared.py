@@ -33,7 +33,11 @@ from effectome.dynamics import (
     fit_probabilistic_states,
     fit_transitions,
 )
-from effectome.intervention.surrogate import fit_linear_surrogate, run_predictor_feature_sensitivity
+from effectome.intervention.surrogate import (
+    PerturbationResult,
+    fit_linear_surrogate,
+    run_predictor_feature_sensitivity,
+)
 from effectome.linking import (
     DependencySupport,
     activity_magnitude_features,
@@ -69,7 +73,13 @@ from effectome.workflows import (
     combine_primary_evaluation_results,
     estimate_connectivity_resumable,
     primary_evaluation_fold_ids,
+    run_evaluation_profile,
     run_primary_evaluation,
+)
+from effectome.workflows.feature_ownership import (
+    OwnedFeatureArtifacts,
+    chronological_feature_split,
+    fit_owned_feature_artifacts,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -437,6 +447,13 @@ def run_primary_probability_evaluation(
 ):
     """Checkpoint the outer-owned M0/M1 evaluation used by primary notebooks."""
     windows = _checkpoint_input(run, stage="windows_input", path=windows_path, force=False)
+    if evaluation_cfg.mode == "confirmatory":
+        return _execute_stage(
+            run, "primary_evaluation",
+            lambda: run_evaluation_profile(windows, evaluation_cfg),
+            config=asdict(evaluation_cfg),
+            dependencies={"windows": Path(windows_path).resolve()}, force=force,
+        )
     fold_ids = primary_evaluation_fold_ids(windows, evaluation_cfg)
     if not fold_ids:
         return _execute_stage(
@@ -1209,6 +1226,60 @@ def run_linking(
     )
 
 
+def run_owned_feature_artifacts(
+    run: ResumableRun,
+    *,
+    windows_path: str | Path,
+    connectivity_cfg: ConnectivityConfig,
+    fit_scope_id: str,
+    fit_indices: np.ndarray | None = None,
+    evaluation_indices: np.ndarray | None = None,
+    evaluation_fraction: float = 0.2,
+    n_dims: int = 3,
+    n_roles: int = 3,
+    seed: int = 42,
+    force: bool = False,
+) -> OwnedFeatureArtifacts:
+    """Fit a separate outer-owned bundle without reusing descriptive features."""
+    windows = _checkpoint_input(run, stage="windows_input", path=windows_path, force=False)
+    if fit_indices is None and evaluation_indices is None:
+        fit_indices, evaluation_indices = chronological_feature_split(
+            windows, evaluation_fraction=evaluation_fraction
+        )
+    if fit_indices is None or evaluation_indices is None:
+        raise ValueError("supply both fit_indices and evaluation_indices, or derive both")
+    return _execute_stage(
+        run, "outer_owned_features",
+        lambda: fit_owned_feature_artifacts(
+            windows, connectivity_cfg=connectivity_cfg, fit_indices=fit_indices,
+            evaluation_indices=evaluation_indices, fit_scope_id=fit_scope_id,
+            n_dims=n_dims, n_roles=n_roles, seed=seed,
+        ),
+        config={"connectivity": asdict(connectivity_cfg), "fit_indices": fit_indices,
+                "evaluation_indices": evaluation_indices, "fit_scope_id": fit_scope_id,
+                "n_dims": n_dims, "n_roles": n_roles, "seed": seed},
+        dependencies={"windows": Path(windows_path).resolve()}, force=force,
+    )
+
+
+def _owned_notebook_features(
+    run: ResumableRun, fit_indices: np.ndarray | None,
+    evaluation_indices: np.ndarray | None, fit_scope_id: str | None,
+) -> tuple[OwnedFeatureArtifacts, Path]:
+    if fit_indices is None or evaluation_indices is None or fit_scope_id is None:
+        raise ValueError(
+            "revised notebooks require explicit outer ownership; run_owned_feature_artifacts first"
+        )
+    features, path = require_stage(run, "outer_owned_features")
+    if (
+        features.fit_scope_id != fit_scope_id
+        or not np.array_equal(features.fit_indices, fit_indices)
+        or not np.array_equal(features.evaluation_indices, evaluation_indices)
+    ):
+        raise ValueError("requested ownership differs from the frozen outer-owned feature bundle")
+    return features, path
+
+
 def run_candidate_drivers(
     run: ResumableRun,
     *,
@@ -1219,14 +1290,15 @@ def run_candidate_drivers(
     embargo: int = 0,
     seed: int = 42,
     matched_control_percentile: float = 95.0,
+    fit_indices: np.ndarray | None = None,
+    evaluation_indices: np.ndarray | None = None,
+    fit_scope_id: str | None = None,
     force: bool = False,
 ):
-    connectivity, connectivity_path = require_stage(run, "connectivity")
+    features, features_path = _owned_notebook_features(run, fit_indices, evaluation_indices, fit_scope_id)
+    connectivity, community, manifold = features.connectivity, features.community, features.manifold
     if not connectivity.directed:
         raise ValueError("candidate-driver attribution requires a directed connectivity estimator")
-    community, community_path = require_stage(run, "community")
-    manifold, manifold_path = require_stage(run, "manifold")
-    _, linking_path = require_stage(run, "linking")
     _checkpoint_input(run, stage="recording_input", path=recording_path, force=False)
     if behavior_key not in connectivity.behavior_per_window:
         raise KeyError(f"behavior key {behavior_key!r} is absent from connectivity windows")
@@ -1245,6 +1317,10 @@ def run_candidate_drivers(
             embargo=embargo,
             seed=seed,
             matched_control_percentile=matched_control_percentile,
+            fit_indices=fit_indices,
+            evaluation_indices=evaluation_indices,
+            fit_scope_id=fit_scope_id,
+            require_feature_ownership=True,
         ),
         config={
             "behavior_key": behavior_key,
@@ -1253,13 +1329,13 @@ def run_candidate_drivers(
             "embargo": embargo,
             "seed": seed,
             "matched_control_percentile": matched_control_percentile,
+            "fit_indices": fit_indices,
+            "evaluation_indices": evaluation_indices,
+            "fit_scope_id": fit_scope_id,
         },
         dependencies={
             "recording": Path(recording_path).resolve(),
-            "connectivity": connectivity_path,
-            "community": community_path,
-            "manifold": manifold_path,
-            "linking": linking_path,
+            "outer_owned_features": features_path,
         },
         force=force,
     )
@@ -1281,21 +1357,61 @@ def run_feature_sensitivity(
     top_k: int = 1,
     endpoint: str = "behavior",
     seed: int = 42,
+    fit_indices: np.ndarray | None = None,
+    evaluation_indices: np.ndarray | None = None,
+    fit_scope_id: str | None = None,
+    multiplicity_family: tuple[str, ...] | None = None,
+    hypothesis_id: str | None = None,
+    min_absolute_skill: float = 0.0,
+    max_distribution_shift: float = 5.0,
+    n_controls: int = 64,
+    control_alpha: float = 0.05,
+    control_resolution_policy: str = "unavailable",
     force: bool = False,
 ):
-    connectivity, connectivity_path = require_stage(run, "connectivity")
+    features, features_path = _owned_notebook_features(run, fit_indices, evaluation_indices, fit_scope_id)
+    connectivity, manifold = features.connectivity, features.manifold
     if not connectivity.directed:
         raise ValueError("directional feature-sensitivity analysis requires directed connectivity")
-    manifold, manifold_path = require_stage(run, "manifold")
     _checkpoint_input(run, stage="recording_input", path=recording_path, force=False)
     if behavior_key not in connectivity.behavior_per_window:
         raise KeyError(f"behavior key {behavior_key!r} is absent from connectivity windows")
     behavior = np.asarray(connectivity.behavior_per_window[behavior_key])
     candidates, candidates_path = require_stage(run, "candidate_drivers")
+    if candidates.fit_scope_id != fit_scope_id:
+        raise ValueError("candidate screen is not owned by the requested outer scope")
+    if not multiplicity_family or hypothesis_id not in multiplicity_family:
+        raise ValueError("declare the complete frozen multiplicity_family and hypothesis_id before fitting")
 
     if node_indices is None:
-        chosen = [score.node for score in candidates.scores if score.is_candidate][:top_k]
-        node_indices = chosen or [candidates.scores[0].node]
+        node_indices = [score.node for score in candidates.scores if score.is_candidate][:top_k]
+    if not set(node_indices).issubset(candidates.candidate_nodes):
+        raise ValueError("feature edits must use candidates frozen by the owned training screen")
+    ownership_config = {
+        "fit_indices": fit_indices, "evaluation_indices": evaluation_indices,
+        "fit_scope_id": fit_scope_id, "candidate_nodes": node_indices,
+        "multiplicity_family": multiplicity_family, "hypothesis_id": hypothesis_id,
+        "min_absolute_skill": min_absolute_skill, "max_distribution_shift": max_distribution_shift,
+        "n_controls": n_controls, "control_alpha": control_alpha,
+        "control_resolution_policy": control_resolution_policy,
+        "dose_scales": dose_scales, "interval_seed": seed,
+    }
+    if not node_indices:
+        return _execute_stage(
+            run, "feature_sensitivity",
+            lambda: PerturbationResult(
+                status="unavailable", node_indices=[], scale=scale, effect_size=None,
+                control_effects=[], control_pvalue=None, endpoint=endpoint,
+                validation_status="unavailable", fail_safe_reason="no_preliminary_candidate_nodes",
+                candidate_stage="screened_out", effect_status="unavailable",
+                control_pvalue_status="unavailable", sham_effect_status="unavailable",
+                provenance={"fit_scope_id": fit_scope_id, "multiplicity_family": multiplicity_family,
+                            "hypothesis_id": hypothesis_id},
+            ),
+            config={"behavior_key": behavior_key, "endpoint": endpoint, **ownership_config},
+            dependencies={"outer_owned_features": features_path, "candidate_drivers": candidates_path},
+            force=force,
+        )
 
     surrogate = _execute_stage(
         run,
@@ -1310,6 +1426,14 @@ def run_feature_sensitivity(
             embargo=embargo,
             min_skill=min_skill,
             endpoint=endpoint,
+            fit_indices=fit_indices, evaluation_indices=evaluation_indices,
+            fit_scope_id=fit_scope_id, candidate_nodes=node_indices,
+            strict_outer_ownership=True, require_feature_ownership=True,
+            multiplicity_family=multiplicity_family, hypothesis_id=hypothesis_id,
+            min_absolute_skill=min_absolute_skill, max_shift=max_distribution_shift,
+            n_controls=n_controls, control_alpha=control_alpha,
+            control_resolution_policy=control_resolution_policy,
+            dose_scales=dose_scales, interval_seed=seed,
         ),
         config={
             "behavior_key": behavior_key,
@@ -1321,11 +1445,12 @@ def run_feature_sensitivity(
             "endpoint": endpoint,
             "analysis_kind": "predictor_feature_sensitivity",
             "biological_intervention_identified": False,
+            **ownership_config,
         },
         dependencies={
             "recording": Path(recording_path).resolve(),
-            "connectivity": connectivity_path,
-            "manifold": manifold_path,
+            "outer_owned_features": features_path,
+            "candidate_drivers": candidates_path,
         },
         force=force,
     )
@@ -1342,6 +1467,8 @@ def run_feature_sensitivity(
             endpoint=endpoint,
             dose_scales=dose_scales,
             seed=seed,
+            n_controls=n_controls,
+            hypothesis_id=hypothesis_id,
         ),
         config={
             "behavior_key": behavior_key,
@@ -1353,11 +1480,11 @@ def run_feature_sensitivity(
             "seed": seed,
             "analysis_kind": "predictor_feature_sensitivity",
             "biological_intervention_identified": False,
+            **ownership_config,
         },
         dependencies={
             "recording": Path(recording_path).resolve(),
-            "connectivity": connectivity_path,
-            "manifold": manifold_path,
+            "outer_owned_features": features_path,
             "candidate_drivers": candidates_path,
             "surrogate_model": stage_artifact_path(run, "surrogate_model"),
         },
