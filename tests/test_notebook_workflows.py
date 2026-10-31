@@ -97,7 +97,22 @@ def test_all_notebooks_explain_live_and_resumed_progress():
             if cell["cell_type"] == "markdown"
         )
         assert "iterative stages also display live progress bars" in markdown, path
-        assert "Reused checkpoints are reported explicitly" in markdown, path
+        assert "Reused, failed, running, and missing checkpoints are reported explicitly" in markdown, path
+
+
+def test_all_notebooks_print_resume_header():
+    root = Path(__file__).resolve().parents[1] / "notebooks"
+
+    for path in sorted(root.rglob("*.ipynb")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        code = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in payload["cells"]
+            if cell.get("cell_type") == "code"
+        )
+        assert "print_notebook_header" in code, path
+        assert "expected_stages=" in code, path
+        assert "force=" in code, path
 
 
 def test_notebook_setup_imports_from_nested_directories():
@@ -190,6 +205,30 @@ def test_c_elegans_counterfactual_targets_manifold_not_motif_codes():
         )
         assert 'BEHAVIOR_KEY = "motif"' in text
         assert 'endpoint="manifold"' in text
+
+
+def test_counterfactual_notebooks_label_feature_sensitivity_claim_boundary():
+    root = Path(__file__).resolve().parents[1] / "notebooks"
+    paths = sorted(root.rglob("counterfactuals/*/07_attribution_counterfactual.ipynb"))
+    assert paths
+
+    for path in paths:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        markdown = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in payload["cells"]
+            if cell.get("cell_type") == "markdown"
+        )
+        code = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in payload["cells"]
+            if cell.get("cell_type") == "code"
+        )
+        assert "predictor-feature sensitivity only" in markdown, path
+        assert "does not identify a biological intervention" in markdown, path
+        assert "run_feature_sensitivity" in code, path
+        assert "run_counterfactual_perturbation" not in code, path
+        assert "biological_intervention_identified" in code, path
 
 
 def test_c_elegans_manifold_notebooks_load_canonical_bunddle_profile():
@@ -298,6 +337,25 @@ def test_effectome_notebooks_load_canonical_connectivity_profiles():
         assert "ConnectivityConfig(**CONNECTIVITY_YAML)" in text
 
 
+def test_full_analysis_notebook_uses_revised_cgc_backend():
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "notebooks"
+        / "effectomes"
+        / "c-GC"
+        / "c-GC-effectome-sweep.ipynb"
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    text = "\n".join(
+        "".join(cell.get("source", [])) for cell in payload["cells"] if cell.get("cell_type") == "code"
+    )
+
+    assert "CONNECTIVITY_NAME = 'cgc'" in text
+    assert "CONNECTIVITY_NAME = 'granger'" not in text
+    assert "'n_runs': 5" in text
+    assert "'mode': 'prospective'" in text
+
+
 def test_attribution_helper_uses_window_aligned_behavior(monkeypatch, tmp_path):
     window_behavior = np.array([0, 1, 2, 1, 0], dtype=np.int64)
     connectivity = SimpleNamespace(
@@ -305,10 +363,11 @@ def test_attribution_helper_uses_window_aligned_behavior(monkeypatch, tmp_path):
         behavior_per_window={"motif": window_behavior},
     )
     artifacts = {
-        "connectivity": connectivity,
-        "community": object(),
-        "manifold": object(),
-        "linking": object(),
+        "outer_owned_features": SimpleNamespace(
+            connectivity=connectivity, community=object(), manifold=object(),
+            fit_indices=np.arange(3), evaluation_indices=np.arange(3, 5),
+            fit_scope_id="outer-0",
+        ),
     }
     paths = {name: tmp_path / f"{name}.pkl" for name in artifacts}
     observed: dict[str, np.ndarray] = {}
@@ -343,6 +402,9 @@ def test_attribution_helper_uses_window_aligned_behavior(monkeypatch, tmp_path):
         ImmediateRun(),
         recording_path=tmp_path / "recording.pkl",
         behavior_key="motif",
+        fit_indices=np.arange(3),
+        evaluation_indices=np.arange(3, 5),
+        fit_scope_id="outer-0",
     )
 
     assert result == "candidate-result"

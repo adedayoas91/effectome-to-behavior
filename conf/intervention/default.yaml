@@ -1,13 +1,27 @@
-# Stage 7b: graded model-based counterfactual screening of preliminary candidates.
+# Stage 7b: graded predictor-feature sensitivity screening of preliminary candidates.
+analysis_kind: predictor_feature_sensitivity
+biological_intervention_identified: false
 behavior_keys: [continuous, motif]
 lag: 1
 n_folds: 5
 embargo: 4
 ridge_alpha: 1.0
 min_skill: 0.0
+min_absolute_skill: 0.0
+max_distribution_shift: 5.0
+increment_interval_level: 0.95
 top_k: 2
 scale: 0.0
 dose_scales: [0.75, 0.5, 0.25, 0.0]
 n_controls: 64
+control_alpha: 0.05
+control_resolution_policy: warn
 endpoint: behavior
 seed: 42
+
+# Revised runs build a separate training-owned feature bundle from raw windows.
+# Null partitions select a purged chronological split; explicit frozen partitions are also accepted.
+strict_outer_ownership: true
+fit_scope_id: null
+fit_indices: null
+evaluation_indices: null

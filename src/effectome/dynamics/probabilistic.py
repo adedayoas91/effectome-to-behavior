@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from hashlib import blake2b
 
 import numpy as np
 from scipy.special import logsumexp
@@ -51,9 +52,29 @@ class HSMMCandidate:
 class ProbabilisticStateProjection:
     filtered_probs: np.ndarray
     smoothed_probs: np.ndarray
+    filtered_labels: np.ndarray
+    smoothed_labels: np.ndarray
+    filtered_entropy: np.ndarray
+    smoothed_entropy: np.ndarray
     labels: np.ndarray
     uncertainty: np.ndarray
     log_likelihood: float
+
+
+@dataclass(frozen=True)
+class ProbabilisticFilterState:
+    model_hash: str
+    filtered_prob: np.ndarray
+    samples_seen: int
+
+
+@dataclass(frozen=True)
+class ProbabilisticFilterResult:
+    filtered_probs: np.ndarray
+    filtered_labels: np.ndarray
+    filtered_entropy: np.ndarray
+    state_snapshots: tuple[ProbabilisticFilterState, ...]
+    final_state: ProbabilisticFilterState
 
 
 @dataclass
@@ -68,14 +89,35 @@ class ProbabilisticStateModel:
     variances: np.ndarray
     filtered_probs: np.ndarray
     smoothed_probs: np.ndarray
+    filtered_labels: np.ndarray
+    smoothed_labels: np.ndarray
+    filtered_entropy: np.ndarray
+    smoothed_entropy: np.ndarray
     labels: np.ndarray
     uncertainty: np.ndarray
     log_likelihood: float
     heldout_log_likelihood: float | None
     heldout_iid_log_likelihood: float | None
+    test_indices: np.ndarray
     boundary_indices: np.ndarray
     duration_diagnostics: DurationDiagnostics
     hsmm_candidate: HSMMCandidate
+
+    @property
+    def model_hash(self) -> str:
+        digest = blake2b(digest_size=16)
+        for value in (
+            self.feature_mean,
+            self.feature_scale,
+            self.projection,
+            self.transition_matrix,
+            self.initial_probs,
+            self.means,
+            self.variances,
+        ):
+            array = np.ascontiguousarray(value)
+            digest.update(array.view(np.uint8).tobytes())
+        return digest.hexdigest()
 
     def transform(
         self,
@@ -100,14 +142,73 @@ class ProbabilisticStateModel:
             self.variances,
             _segment_slices(features.shape[0], boundary_indices),
         )
-        labels = np.argmax(smoothed, axis=1).astype(np.int64)
-        uncertainty = -np.sum(smoothed * np.log(smoothed + 1e-12), axis=1)
+        filtered_labels = np.argmax(filtered, axis=1).astype(np.int64)
+        smoothed_labels = np.argmax(smoothed, axis=1).astype(np.int64)
+        filtered_entropy = -np.sum(filtered * np.log(filtered + 1e-12), axis=1)
+        smoothed_entropy = -np.sum(smoothed * np.log(smoothed + 1e-12), axis=1)
         return ProbabilisticStateProjection(
             filtered_probs=filtered,
             smoothed_probs=smoothed,
-            labels=labels,
-            uncertainty=uncertainty,
+            filtered_labels=filtered_labels,
+            smoothed_labels=smoothed_labels,
+            filtered_entropy=filtered_entropy,
+            smoothed_entropy=smoothed_entropy,
+            labels=filtered_labels,
+            uncertainty=filtered_entropy,
             log_likelihood=loglik,
+        )
+
+    def filter(
+        self,
+        series: ConnectivitySeries | np.ndarray,
+        *,
+        state: ProbabilisticFilterState | None = None,
+    ) -> ProbabilisticFilterResult:
+        matrices = series.matrices if isinstance(series, ConnectivitySeries) else np.asarray(series)
+        features = _project_features(
+            np.asarray(matrices, dtype=np.float64),
+            self.feature_mean,
+            self.feature_scale,
+            self.projection,
+        )
+        if state is not None and state.model_hash != self.model_hash:
+            raise ValueError("filter state belongs to a different probabilistic model")
+        previous = None if state is None else np.asarray(state.filtered_prob, dtype=np.float64)
+        samples_seen = 0 if state is None else state.samples_seen
+        emissions = _gaussian_log_emissions(features, self.means, self.variances)
+        probabilities = np.empty((features.shape[0], self.n_states), dtype=np.float64)
+        snapshots: list[ProbabilisticFilterState] = []
+        for row, log_emission in enumerate(emissions):
+            prior = self.initial_probs if previous is None else previous @ self.transition_matrix
+            log_prob = np.log(prior + 1e-12) + log_emission
+            log_prob -= logsumexp(log_prob)
+            previous = np.exp(log_prob)
+            probabilities[row] = previous
+            snapshot = ProbabilisticFilterState(
+                model_hash=self.model_hash,
+                filtered_prob=previous.copy(),
+                samples_seen=samples_seen + row + 1,
+            )
+            snapshots.append(snapshot)
+        final = (
+            snapshots[-1]
+            if snapshots
+            else ProbabilisticFilterState(
+                model_hash=self.model_hash,
+                filtered_prob=(
+                    self.initial_probs.copy() if previous is None else previous.copy()
+                ),
+                samples_seen=samples_seen,
+            )
+        )
+        labels = np.argmax(probabilities, axis=1).astype(np.int64)
+        entropy = -np.sum(probabilities * np.log(probabilities + 1e-12), axis=1)
+        return ProbabilisticFilterResult(
+            filtered_probs=probabilities,
+            filtered_labels=labels,
+            filtered_entropy=entropy,
+            state_snapshots=tuple(snapshots),
+            final_state=final,
         )
 
 
@@ -441,6 +542,7 @@ def fit_probabilistic_states(
     cfg: ProbabilisticStateConfig,
     *,
     fit_indices: np.ndarray | None = None,
+    test_indices: np.ndarray | None = None,
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> ProbabilisticStateModel:
     matrices = np.asarray(series.matrices, dtype=np.float64)
@@ -451,6 +553,13 @@ def fit_probabilistic_states(
         raise ValueError("fit_indices must contain at least n_states ordered windows")
     if np.any(fit_idx < 0) or np.any(fit_idx >= n_windows):
         raise ValueError("fit_indices are outside the connectivity series")
+    test_idx = np.array([], dtype=int) if test_indices is None else np.asarray(test_indices, dtype=int)
+    if test_idx.ndim != 1 or np.any(test_idx < 0) or np.any(test_idx >= n_windows):
+        raise ValueError("test_indices are outside the connectivity series")
+    if test_idx.size and np.any(np.diff(test_idx) <= 0):
+        raise ValueError("test_indices must be strictly increasing")
+    if np.intersect1d(fit_idx, test_idx).size:
+        raise ValueError("fit_indices and test_indices must be disjoint")
     fit_boundaries = _subset_boundaries(fit_idx, boundary_indices)
     features, mean, scale, projection = _fit_projection(matrices, fit_idx, cfg)
     fit_features = features[fit_idx]
@@ -470,8 +579,12 @@ def fit_probabilistic_states(
         _segment_slices(n_windows, boundary_indices),
     )
     filtered_all, smoothed_all, full_loglik = projection_all
-    labels = np.argmax(smoothed_all, axis=1).astype(np.int64)
-    uncertainty = -np.sum(smoothed_all * np.log(smoothed_all + 1e-12), axis=1)
+    filtered_labels = np.argmax(filtered_all, axis=1).astype(np.int64)
+    smoothed_labels = np.argmax(smoothed_all, axis=1).astype(np.int64)
+    filtered_entropy = -np.sum(filtered_all * np.log(filtered_all + 1e-12), axis=1)
+    smoothed_entropy = -np.sum(smoothed_all * np.log(smoothed_all + 1e-12), axis=1)
+    labels = filtered_labels
+    uncertainty = filtered_entropy
     duration = _duration_diagnostics(labels, transition, cfg.n_states, boundary_indices)
     hsmm_candidate = HSMMCandidate(
         status="duration_diagnostic_only",
@@ -481,10 +594,7 @@ def fit_probabilistic_states(
 
     heldout_loglik = None
     heldout_iid = None
-    if fit_idx.shape[0] < n_windows:
-        test_mask = np.ones(n_windows, dtype=bool)
-        test_mask[fit_idx] = False
-        test_idx = np.flatnonzero(test_mask)
+    if test_idx.size:
         test_features = features[test_idx]
         if test_features.size > 0:
             test_boundaries = _subset_boundaries(test_idx, boundary_indices)
@@ -510,11 +620,16 @@ def fit_probabilistic_states(
         variances=variances,
         filtered_probs=filtered_all,
         smoothed_probs=smoothed_all,
+        filtered_labels=filtered_labels,
+        smoothed_labels=smoothed_labels,
+        filtered_entropy=filtered_entropy,
+        smoothed_entropy=smoothed_entropy,
         labels=labels,
         uncertainty=uncertainty,
         log_likelihood=float(full_loglik),
         heldout_log_likelihood=None if heldout_loglik is None else float(heldout_loglik),
         heldout_iid_log_likelihood=None if heldout_iid is None else float(heldout_iid),
+        test_indices=test_idx,
         boundary_indices=boundary_indices,
         duration_diagnostics=duration,
         hsmm_candidate=hsmm_candidate,
@@ -525,6 +640,8 @@ __all__ = [
     "DurationDiagnostics",
     "HSMMCandidate",
     "ProbabilisticStateConfig",
+    "ProbabilisticFilterResult",
+    "ProbabilisticFilterState",
     "ProbabilisticStateModel",
     "ProbabilisticStateProjection",
     "fit_probabilistic_states",

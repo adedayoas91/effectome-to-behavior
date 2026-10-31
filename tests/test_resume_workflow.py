@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
-from effectome.workflows import ResumableRun, content_fingerprint
+from effectome.workflows import ResumableRun, content_fingerprint, implementation_fingerprint
 
 
 def test_content_fingerprint_rejects_same_shape_changed_arrays() -> None:
@@ -98,3 +99,71 @@ def test_method_namespaces_do_not_share_checkpoints(tmp_path) -> None:
     assert cgc.execute("fit", lambda: "primary", config={}) == "primary"
     assert cgc_star.execute("fit", lambda: "robustness", config={}) == "robustness"
     assert cgc.run_dir != cgc_star.run_dir
+
+
+def test_implementation_version_invalidates_completed_stage(tmp_path) -> None:
+    root = tmp_path / "runs"
+    old = ResumableRun(root, "same-run", "cgc", implementation_version="old")
+    new = ResumableRun(root, "same-run", "cgc", implementation_version="new")
+    assert old.execute("fit", lambda: "old", config={}) == "old"
+    assert new.execute("fit", lambda: "new", config={}) == "new"
+    assert new.last_record is not None and not new.last_record.reused
+
+
+def test_load_completed_rejects_a_stale_implementation(tmp_path) -> None:
+    root = tmp_path / "runs"
+    old = ResumableRun(root, "same-run", "cgc", implementation_version="old")
+    old.execute("fit", lambda: "old", config={})
+    new = ResumableRun(root, "same-run", "cgc", implementation_version="new")
+
+    assert new.completed_stages() == []
+    with pytest.raises(RuntimeError, match="implementation"):
+        new.load_completed("fit")
+
+
+def test_identical_relocated_dependency_keeps_semantic_signature(tmp_path) -> None:
+    first = tmp_path / "first" / "input.bin"
+    second = tmp_path / "second" / "input.bin"
+    first.parent.mkdir()
+    second.parent.mkdir()
+    first.write_bytes(b"same-content")
+    second.write_bytes(b"same-content")
+    run = ResumableRun(tmp_path / "runs", "portable", "cgc", implementation_version="v1")
+    assert run.execute("fit", lambda: 1, config={}, dependencies={"input": first}) == 1
+    assert run.execute("fit", lambda: 2, config={}, dependencies={"input": second}) == 1
+    assert run.last_record is not None and run.last_record.reused
+
+
+def test_failed_recomputation_cannot_serve_stale_artifact(tmp_path) -> None:
+    run = ResumableRun(tmp_path / "runs", "failed", "cgc", implementation_version="v1")
+    run.execute("fit", lambda: "old", config={"version": 1})
+    with pytest.raises(RuntimeError, match="boom"):
+        run.execute(
+            "fit",
+            lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+            config={"version": 2},
+        )
+    with pytest.raises(RuntimeError, match="not completed"):
+        run.load_completed("fit")
+
+
+def test_implementation_fingerprint_covers_pipeline_and_notebook_orchestration(tmp_path) -> None:
+    root = tmp_path / "repo"
+    (root / "src" / "effectome").mkdir(parents=True)
+    (root / "pipeline").mkdir()
+    (root / "notebooks").mkdir()
+    (root / "src" / "effectome" / "core.py").write_text("VALUE = 1\n")
+    (root / "pipeline" / "08_evaluate.py").write_text("VALUE = 1\n")
+    (root / "notebooks" / "_shared.py").write_text("VALUE = 1\n")
+    (root / "notebooks" / "_build_notebooks.py").write_text("VALUE = 1\n")
+    (root / "pyproject.toml").write_text("[project]\nname = 'fixture'\n")
+
+    initial = implementation_fingerprint(root)
+    (root / "pipeline" / "08_evaluate.py").write_text("VALUE = 2\n")
+    after_pipeline = implementation_fingerprint(root)
+    (root / "notebooks" / "_shared.py").write_text("VALUE = 2\n")
+    after_helper = implementation_fingerprint(root)
+    (root / "notebooks" / "_build_notebooks.py").write_text("VALUE = 2\n")
+    after_builder = implementation_fingerprint(root)
+
+    assert len({initial, after_pipeline, after_helper, after_builder}) == 4

@@ -132,11 +132,15 @@ def valid_positive_lag_origins(
     n_samples: int,
     lag: int,
     anchors: Sequence[TemporalAnchor] | None = None,
+    *,
+    strict: bool = False,
 ) -> np.ndarray:
     """Return origins whose strictly future target remains in one continuous source segment."""
     if lag <= 0:
         raise ValueError("lag must be strictly positive")
     if anchors is None:
+        if strict:
+            raise ValueError("strict prospective eligibility requires temporal anchors")
         return np.arange(max(0, n_samples - lag), dtype=int)
     if len(anchors) != n_samples:
         raise ValueError("anchors must align 1:1 with samples")
@@ -149,7 +153,9 @@ def valid_positive_lag_origins(
             any(anchor.gap_after or anchor.bad_frame_after for anchor in path[:-1])
             or any(anchor.gap_before or anchor.bad_frame_before for anchor in path[1:])
         )
-        if same_source and not crosses_gap:
+        valid_path = all(anchor.valid for anchor in path)
+        strictly_future = path[-1].target_start >= path[0].context_stop
+        if same_source and not crosses_gap and valid_path and strictly_future:
             origins.append(origin)
     return np.asarray(origins, dtype=int)
 
@@ -269,6 +275,27 @@ def _apply_group_embargo(
     return np.asarray(kept, dtype=int)
 
 
+def _hashable_group_label(label: object) -> object:
+    if isinstance(label, np.ndarray):
+        return tuple(_hashable_group_label(item) for item in label.tolist())
+    if isinstance(label, list | tuple):
+        return tuple(_hashable_group_label(item) for item in label)
+    return label
+
+
+def _canonical_group_array(groups: Sequence[object] | np.ndarray, n_samples: int) -> np.ndarray:
+    group_arr = np.asarray(groups, dtype=object)
+    if group_arr.shape[0] != n_samples:
+        raise ValueError("groups must align 1:1 with samples")
+    if group_arr.ndim == 1:
+        labels = [_hashable_group_label(item) for item in group_arr.tolist()]
+    else:
+        labels = [_hashable_group_label(group_arr[index]) for index in range(n_samples)]
+    out = np.empty(n_samples, dtype=object)
+    out[:] = labels
+    return out
+
+
 def purged_blocked_splits(
     n_samples: int,
     n_splits: int,
@@ -290,9 +317,10 @@ def purged_blocked_splits(
         if len(outcome_anchors) != n_samples:
             raise ValueError("outcome_anchors must align 1:1 with samples")
 
-    groups_arr = np.asarray(groups if groups is not None else np.zeros(n_samples, dtype=int), dtype=object)
-    if groups_arr.shape[0] != n_samples:
-        raise ValueError("groups must align 1:1 with samples")
+    groups_arr = _canonical_group_array(
+        groups if groups is not None else np.zeros(n_samples, dtype=int),
+        n_samples,
+    )
 
     unique_groups = list(dict.fromkeys(groups_arr.tolist()))
     if len(unique_groups) > 1:
@@ -367,6 +395,8 @@ def _fit_predict(
     task: str,
 ) -> np.ndarray:
     """Fit with train-only scaling, or return a constant for a single-class fold."""
+    if len(x_test) == 0:
+        return np.asarray([], dtype=y_train.dtype)
     if task == "classification" and len(np.unique(y_train)) < 2:
         return np.full(len(x_test), y_train[0], dtype=y_train.dtype)
     mean = np.asarray(x_train, dtype=float).mean(axis=0, keepdims=True)
@@ -403,15 +433,19 @@ def decode_behavior(
         dependency_support=dependency_support,
         outcome_anchors=outcome_anchors,
     ):
+        if len(train) == 0 or len(test) == 0:
+            continue
         pred = _fit_predict(model, features[train], y[train], features[test], task)
+        if len(pred) == 0:
+            continue
         scores.append(_score_predictions(task, y[test], pred))
     arr = np.asarray(scores, dtype=float)
     return DecodeResult(
         feature_set=feature_set,
         behavior_key=behavior_key,
         task=task,
-        mean_score=float(arr.mean()),
-        std_score=float(arr.std()),
+        mean_score=float(arr.mean()) if arr.size else float("nan"),
+        std_score=float(arr.std()) if arr.size else float("nan"),
         n_folds=int(len(arr)),
         embargo=int(embargo),
     )
@@ -443,6 +477,8 @@ def incremental_decode_behavior(
         dependency_support=dependency_support,
         outcome_anchors=outcome_anchors,
     ):
+        if len(train) == 0 or len(test) == 0:
+            continue
         baseline_pred = _fit_predict(
             model,
             baseline_features[train],
@@ -450,13 +486,17 @@ def incremental_decode_behavior(
             baseline_features[test],
             task,
         )
+        if len(baseline_pred) == 0:
+            continue
         baseline_scores.append(_score_predictions(task, y[test], baseline_pred))
 
         full_pred = _fit_predict(model, full[train], y[train], full[test], task)
+        if len(full_pred) == 0:
+            continue
         full_scores.append(_score_predictions(task, y[test], full_pred))
 
-    base = float(np.mean(baseline_scores))
-    full_score = float(np.mean(full_scores))
+    base = float(np.mean(baseline_scores)) if baseline_scores else float("nan")
+    full_score = float(np.mean(full_scores)) if full_scores else float("nan")
     return IncrementalDecodeResult(
         baseline_score=base,
         full_score=full_score,

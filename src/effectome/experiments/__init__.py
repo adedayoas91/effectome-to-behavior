@@ -10,6 +10,7 @@ from .adapters import (
     make_jpcmciplus_analyzer,
     make_pcmciplus_analyzer,
 )
+from .benchmark import BenchmarkConfig, benchmark_preflight, load_benchmark_config, run_benchmark
 from .notebook_utils import (
     collapse_tigramite_results,
     find_project_root,
@@ -17,8 +18,28 @@ from .notebook_utils import (
     plot_depth_summary,
     summarize_stack,
 )
+from .validation import (
+    REVISED_VALIDATION_SUITES,
+    DevelopmentSmokeConfig,
+    DevelopmentSmokeResult,
+    ValidationAttempt,
+    ValidationBudget,
+    ValidationCell,
+    ValidationSuiteSpec,
+    benchmark_cells,
+    deterministic_seed,
+    edge_recovery_metrics,
+    run_development_smoke,
+    run_validation_cells,
+    synthetic_config_for_cell,
+    validation_totals,
+)
 
 __all__ = [
+    "BenchmarkConfig",
+    "benchmark_preflight",
+    "load_benchmark_config",
+    "run_benchmark",
     "METHODS",
     "analyze_with_cgc",
     "analyze_with_cgc_star",
@@ -31,5 +52,19 @@ __all__ = [
     "make_pcmciplus_analyzer",
     "normalize_multiple_recordings",
     "plot_depth_summary",
+    "DevelopmentSmokeConfig",
+    "DevelopmentSmokeResult",
+    "REVISED_VALIDATION_SUITES",
+    "ValidationAttempt",
+    "ValidationBudget",
+    "ValidationCell",
     "summarize_stack",
+    "ValidationSuiteSpec",
+    "benchmark_cells",
+    "deterministic_seed",
+    "edge_recovery_metrics",
+    "run_development_smoke",
+    "run_validation_cells",
+    "synthetic_config_for_cell",
+    "validation_totals",
 ]

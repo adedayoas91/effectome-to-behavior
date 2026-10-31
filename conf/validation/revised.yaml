@@ -1,0 +1,91 @@
+# Registered WP9 validation manifest. Loading this file does not execute the grid.
+profile: publication
+development_seed: 260925
+evaluation_master_seed: 260926
+optimizer_seeds: [0, 1, 2, 3, 4]
+baseline:
+  max_lag: 2
+  support_density: 0.05
+  retained_samples: 3137
+  clock_source: worm_0_manifest
+  temporal_scenarios:
+    - constant
+    - smooth_drift
+    - nonrecurring_epochs
+    - recurrent_geometric
+    - recurrent_non_geometric
+stress_conditions:
+  - snr_low
+  - snr_high
+  - dwell_short
+  - dwell_long
+  - kernel_heterogeneity
+  - burst_missingness
+  - latent_input
+  - instantaneous
+  - correlated_innovations
+suites:
+  core:
+    recordings: 500
+  stress:
+    recordings: 270
+  nonlinear:
+    recordings: 30
+  grouping:
+    recordings: 120
+    optional: true
+  independent_calibration:
+    recordings: 600
+smoke:
+  label: smoke
+  may_select_thresholds: false
+  max_cells: 1
+  n_neurons: 8
+  n_timepoints: 320
+  history_length: 64
+  target_length: 8
+  stride: 8
+inference:
+  monte_carlo_draws: 999
+  sensitivity_draws: 9999
+  multiplicity: benjamini_yekutieli
+  unavailable_family_policy: retain_as_non_rejection_with_status
+  block_length_policy: training_selected_with_half_double_sensitivity
+calibration:
+  alpha: 0.05
+  tolerance: null
+  practical_gain_nats: null
+resources:
+  timeout_seconds_per_cell: 3600
+  memory_limit_mb_per_cell: 16384
+  failure_policy: record_and_continue
+runner:
+  output_dir: outputs/validation/publication
+  profile: publication
+  master_seed: 260926
+  suites: [core, stress, nonlinear, independent_calibration]
+  include_grouping: false
+  max_cells: null
+  max_origins: null
+  methods: [constant_sparse_var, windowed_sparse_var, tvvar_smooth, tvvar_fused, switching_var]
+  history_seconds: 120.0
+  target_seconds: 5.0
+  stride_seconds: 5.0
+  selection_threshold: 0.01
+  lambda1: 0.01
+  lambda2: 0.001
+  lambda_temporal: 0.01
+  solver_max_iterations: 2000
+  solver_tolerance: 0.00001
+  switching_states: 2
+  observed_projection_replicates: 0
+  observed_projection_samples: 0
+  observed_projection_tolerance: 0.1
+  calibration_draws: 999
+  calibration_alpha: 0.05
+  calibration_tolerance: null
+  resume: true
+  budget:
+    timeout_seconds: 3600.0
+    memory_limit_mb: 16384.0
+    failure_policy: record_and_continue

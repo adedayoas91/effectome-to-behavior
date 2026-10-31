@@ -14,11 +14,16 @@ METHOD_DIRECTORIES = {
     "cgc": "c-GC",
     "cgc_star": "c-GC-star",
     "correlation_partial": "partial-correlation",
+    "sparse_var": "sparse-VAR",
+    "windowed_sparse_var": "windowed-sparse-VAR",
+    "switching_var": "switching-VAR",
+    "tvvar_smooth": "TVVAR-smooth",
+    "tvvar_fused": "TVVAR-fused",
 }
 
 PROGRESS_NOTE = (
     "Progress: long stages print checkpoint-aware timing; iterative stages also display live "
-    "progress bars. Reused checkpoints are reported explicitly."
+    "progress bars. Reused, failed, running, and missing checkpoints are reported explicitly."
 )
 
 REPOSITORY_BOOTSTRAP = '''
@@ -55,7 +60,8 @@ class DatasetSpec:
     recording_id: str
     behavior_keys: tuple[str, ...]
     primary_behavior: str = "continuous"
-    counterfactual_endpoint: str = "behavior"
+    endpoint_type: str = "continuous"
+    feature_sensitivity_endpoint: str = "behavior"
     bundle_net_reference: bool = False
 
 
@@ -109,6 +115,12 @@ def write_notebook(path: Path, cells: list[dict]) -> None:
 
 def notebook_preprocessing(dataset: DatasetSpec) -> list[dict]:
     behavior_keys = json.dumps(list(dataset.behavior_keys))
+    expected_stages = ["raw_recording", "recording", "windows"]
+    if dataset.bundle_net_reference:
+        expected_stages.extend(["bundle_net_reference_recording", "bundle_net_training_pairs"])
+    expected_stage_literal = "[\n        " + ",\n        ".join(
+        json.dumps(stage) for stage in expected_stages
+    ) + "\n    ]"
     reference_import = (
         "    run_bundle_net_reference_preprocessing,\n" if dataset.bundle_net_reference else ""
     )
@@ -146,6 +158,7 @@ from effectome.data_module import PreprocessConfig, WindowConfig
 from notebooks._shared import (
     PROJECT_ROOT,
     make_run,
+    print_notebook_header,
     print_stage_status,
 {reference_import}    run_preprocessing,
     stage_artifact_path,
@@ -191,7 +204,12 @@ WINDOW_CFG = WindowConfig(**WINDOWING_CFG)
 EXPECTED_BEHAVIOR_KEYS = {behavior_keys}
 
 run = make_run(OUTPUT_ROOT, RUN_ID, METHOD)
-print_stage_status(run)
+print_notebook_header(
+    run,
+    title=f"{{DATASET_ID}} preprocessing",
+    expected_stages={expected_stage_literal},
+    force=FORCE,
+)
 '''
         ),
         code_cell(
@@ -253,6 +271,91 @@ print_stage_status(run)
     return cells
 
 
+def notebook_primary_evaluation(dataset: DatasetSpec) -> list[dict]:
+    return [
+        markdown_cell(
+            f"# {dataset.label}: Primary M0/M1 Evaluation",
+            "",
+            "This notebook runs the outer-owned probability comparison directly from shared temporal windows. Optional states, communities, and manifolds are not required.",
+            PROGRESS_NOTE,
+        ),
+        code_cell(
+            f'''
+from omegaconf import OmegaConf
+
+from effectome.workflows import (
+    EvaluationConfig,
+    paired_log_loss_delta,
+    score_classification_records,
+    score_regression_records,
+)
+from notebooks._shared import (
+    PROJECT_ROOT,
+    make_run,
+    print_notebook_header,
+    print_stage_status,
+    run_primary_probability_evaluation,
+    stage_artifact_path,
+)
+
+DATASET_OUTPUT_ID = "{dataset.dataset_id}"
+RECORDING_ID = "{dataset.recording_id}"
+OUTPUT_ROOT = PROJECT_ROOT / "outputs" / "analysis" / DATASET_OUTPUT_ID / RECORDING_ID
+RUN_ID = "primary"
+METHOD = "primary-evaluation"
+FORCE = False
+
+shared_run = make_run(OUTPUT_ROOT, "reference", "shared")
+WINDOWS_PATH = stage_artifact_path(shared_run, "windows")
+EVALUATION_CONFIG_PATH = PROJECT_ROOT / "conf" / "evaluation" / "default.yaml"
+evaluation_data = OmegaConf.to_container(OmegaConf.load(EVALUATION_CONFIG_PATH), resolve=True)
+if not isinstance(evaluation_data, dict):
+    raise TypeError(f"Expected a mapping in {{EVALUATION_CONFIG_PATH}}")
+evaluation_data["endpoint_name"] = "{dataset.primary_behavior}"
+evaluation_data["endpoint_type"] = "{dataset.endpoint_type}"
+evaluation_cfg = EvaluationConfig(**evaluation_data)
+
+run = make_run(OUTPUT_ROOT, RUN_ID, METHOD)
+print_notebook_header(
+    run,
+    title="{dataset.label} primary probability evaluation",
+    expected_stages=["windows_input", "primary_evaluation"],
+    force=FORCE,
+)
+'''
+        ),
+        code_cell(
+            '''
+result = run_primary_probability_evaluation(
+    run,
+    windows_path=WINDOWS_PATH,
+    evaluation_cfg=evaluation_cfg,
+    force=FORCE,
+)
+records = result.predictions
+score_records = (
+    score_classification_records
+    if evaluation_cfg.endpoint_type == "categorical"
+    else score_regression_records
+)
+for model_name in ("M0_activity", "M1_effectome"):
+    print(score_records(
+        records,
+        model_name=model_name,
+        endpoint_name=evaluation_cfg.endpoint_name,
+    ))
+print(paired_log_loss_delta(
+    records,
+    baseline_model="M0_activity",
+    candidate_model="M1_effectome",
+    endpoint_name=evaluation_cfg.endpoint_name,
+))
+print_stage_status(run)
+'''
+        ),
+    ]
+
+
 def datasetize_cells(cells: list[dict], dataset: DatasetSpec) -> list[dict]:
     """Bind a generic method notebook to one dataset/recording output namespace."""
     payload = json.loads(json.dumps(cells))
@@ -291,7 +394,7 @@ def datasetize_cells(cells: list[dict], dataset: DatasetSpec) -> list[dict]:
         ),
         (
             'endpoint="behavior"',
-            f'endpoint="{dataset.counterfactual_endpoint}"',
+            f'endpoint="{dataset.feature_sensitivity_endpoint}"',
         ),
         (
             'outputs/notebook_runs/<RUN_ID>/<METHOD>/',
@@ -349,6 +452,7 @@ from effectome.connectivity import ConnectivityConfig
 from notebooks._shared import (
     PROJECT_ROOT,
     make_run,
+    print_notebook_header,
     print_stage_status,
     run_connectivity,
     stage_artifact_path,
@@ -370,7 +474,12 @@ if not isinstance(CONNECTIVITY_YAML, dict):
 CONNECTIVITY_CFG = ConnectivityConfig(**CONNECTIVITY_YAML)
 
 run = make_run(ARTIFACT_ROOT, RUN_ID, METHOD)
-print_stage_status(run)
+print_notebook_header(
+    run,
+    title=f"{METHOD} connectivity",
+    expected_stages=["windows_input", "connectivity"],
+    force=FORCE,
+)
 """
             % (method, config_name)
         ),
@@ -404,7 +513,13 @@ def notebook_states(method: str, method_label: str) -> list[dict]:
         code_cell(
             """
 from effectome.dynamics import GraphStateConfig, TransitionConfig
-from notebooks._shared import PROJECT_ROOT, make_run, print_stage_status, run_graph_states_and_transitions
+from notebooks._shared import (
+    PROJECT_ROOT,
+    make_run,
+    print_notebook_header,
+    print_stage_status,
+    run_graph_states_and_transitions,
+)
 
 RUN_ID = "demo"
 METHOD = "%s"
@@ -415,7 +530,12 @@ GRAPH_CFG = GraphStateConfig(n_states=3, metric="causal_kernel", select_k=False,
 TRANSITION_CFG = TransitionConfig(laplace=1.0, n_null=200, heldout_fraction=0.3, seed=42)
 
 run = make_run(ARTIFACT_ROOT, RUN_ID, METHOD)
-print_stage_status(run)
+print_notebook_header(
+    run,
+    title=f"{METHOD} graph states and transitions",
+    expected_stages=["graph_states", "transitions"],
+    force=FORCE,
+)
 """
             % method
         ),
@@ -448,7 +568,13 @@ def notebook_probabilistic(method: str, method_label: str) -> list[dict]:
         code_cell(
             """
 from effectome.dynamics import ProbabilisticStateConfig
-from notebooks._shared import PROJECT_ROOT, make_run, print_stage_status, run_probabilistic_states
+from notebooks._shared import (
+    PROJECT_ROOT,
+    make_run,
+    print_notebook_header,
+    print_stage_status,
+    run_probabilistic_states,
+)
 
 RUN_ID = "demo"
 METHOD = "%s"
@@ -466,7 +592,12 @@ PROBABILISTIC_CFG = ProbabilisticStateConfig(
 )
 
 run = make_run(ARTIFACT_ROOT, RUN_ID, METHOD)
-print_stage_status(run)
+print_notebook_header(
+    run,
+    title=f"{METHOD} probabilistic states",
+    expected_stages=["probabilistic_states"],
+    force=FORCE,
+)
 """
             % method
         ),
@@ -495,7 +626,7 @@ def notebook_community(method: str, method_label: str) -> list[dict]:
         code_cell(
             """
 from effectome.community import CommunityConfig
-from notebooks._shared import PROJECT_ROOT, make_run, print_stage_status, run_community
+from notebooks._shared import PROJECT_ROOT, make_run, print_notebook_header, print_stage_status, run_community
 
 RUN_ID = "demo"
 METHOD = "%s"
@@ -510,15 +641,22 @@ COMMUNITY_CFG = CommunityConfig(
     seed=42,
     extra={
         "n_communities": 3,
-        "temporal_penalty": 1.5,
-        "n_runs": 4,
-        "max_iter": 20,
         "mode": "prospective",
+        "temporal_penalty": 1.5,
+        "n_runs": 5,
+        "max_iter": 20,
+        "init_window_count": 4,
+        "online_learning_rate": 0.25,
     },
 )
 
 run = make_run(ARTIFACT_ROOT, RUN_ID, METHOD)
-print_stage_status(run)
+print_notebook_header(
+    run,
+    title=f"{METHOD} temporal community",
+    expected_stages=["community"],
+    force=FORCE,
+)
 """
             % method
         ),
@@ -547,7 +685,7 @@ def notebook_manifold(method: str, method_label: str) -> list[dict]:
 from omegaconf import OmegaConf
 
 from effectome.manifold import ManifoldConfig
-from notebooks._shared import PROJECT_ROOT, make_run, print_stage_status, run_manifold
+from notebooks._shared import PROJECT_ROOT, make_run, print_notebook_header, print_stage_status, run_manifold
 
 RUN_ID = "demo"
 METHOD = "%s"
@@ -573,7 +711,12 @@ LINKING_CFG = {
 }
 
 run = make_run(ARTIFACT_ROOT, RUN_ID, METHOD)
-print_stage_status(run)
+print_notebook_header(
+    run,
+    title=f"{METHOD} manifold",
+    expected_stages=["recording_input", "manifold"],
+    force=FORCE,
+)
 """
             % method
         ),
@@ -611,7 +754,7 @@ def notebook_linking(method: str, method_label: str, *, directed: bool) -> list[
         ),
         code_cell(
             """
-from notebooks._shared import PROJECT_ROOT, make_run, print_stage_status, run_linking
+from notebooks._shared import PROJECT_ROOT, make_run, print_notebook_header, print_stage_status, run_linking
 
 RUN_ID = "demo"
 METHOD = "%s"
@@ -638,7 +781,12 @@ LINKING_CFG = {
 }
 
 run = make_run(ARTIFACT_ROOT, RUN_ID, METHOD)
-print_stage_status(run)
+print_notebook_header(
+    run,
+    title=f"{METHOD} linking",
+    expected_stages=["recording_input", "linking"],
+    force=FORCE,
+)
 """
             % method
         ),
@@ -663,36 +811,65 @@ print_stage_status(run)
 def notebook_attribution(method: str, method_label: str) -> list[dict]:
     return [
         markdown_cell(
-            f"# Attribution and Counterfactual Notebook: {method_label}",
+            f"# Attribution and Feature Sensitivity Notebook: {method_label}",
             "",
-            f"Prerequisites: `community`, `manifold`, `{method}` `connectivity`, and `linking` stages, plus `outputs/artifacts/recording.pkl`.",
-            "This notebook stops at validated in-silico counterfactual perturbations and stores the surrogate and perturbation checkpoints separately.",
+            "Prerequisites: identity-preprocessed raw windows and `outputs/artifacts/recording.pkl` from preprocessing. This notebook fits a separate purged chronological outer-owned feature bundle.",
+            "This notebook reports predictor-feature sensitivity only; it does not identify a biological intervention.",
             PROGRESS_NOTE,
         ),
         code_cell(
             """
+from omegaconf import OmegaConf
+from effectome.connectivity import ConnectivityConfig
+
 from notebooks._shared import (
     PROJECT_ROOT,
     make_run,
+    print_notebook_header,
     print_stage_status,
     run_candidate_drivers,
-    run_counterfactual_perturbation,
+    run_feature_sensitivity,
+    run_owned_feature_artifacts,
 )
 
 RUN_ID = "demo"
 METHOD = "%s"
 ARTIFACT_ROOT = PROJECT_ROOT / "outputs" / "notebook_runs"
 RECORDING_PATH = PROJECT_ROOT / "outputs" / "artifacts" / "recording.pkl"
+WINDOWS_PATH = PROJECT_ROOT / "outputs" / "artifacts" / "windows.pkl"
 BEHAVIOR_KEY = "continuous"
+FIT_SCOPE_ID = f"{RUN_ID}/{METHOD}/sensitivity-outer-0"
+MULTIPLICITY_FAMILY = (f"{BEHAVIOR_KEY}:feature-edit",)
+connectivity_data = OmegaConf.to_container(
+    OmegaConf.load(PROJECT_ROOT / "conf" / "connectivity" / f"{METHOD}.yaml"), resolve=True
+)
+CONNECTIVITY_CFG = ConnectivityConfig(**connectivity_data)
 FORCE = False
 
 run = make_run(ARTIFACT_ROOT, RUN_ID, METHOD)
-print_stage_status(run)
+print_notebook_header(
+    run,
+    title=f"{METHOD} attribution and feature sensitivity",
+    expected_stages=[
+        "recording_input",
+        "outer_owned_features",
+        "candidate_drivers",
+        "surrogate_model",
+        "feature_sensitivity",
+    ],
+    force=FORCE,
+)
 """
             % method
         ),
         code_cell(
             """
+owned = run_owned_feature_artifacts(
+    run, windows_path=WINDOWS_PATH, connectivity_cfg=CONNECTIVITY_CFG,
+    fit_scope_id=FIT_SCOPE_ID, evaluation_fraction=0.2, force=FORCE,
+)
+print(f"Training windows: {len(owned.fit_indices)}, held-out windows: {len(owned.evaluation_indices)}")
+
 candidates = run_candidate_drivers(
     run,
     recording_path=RECORDING_PATH,
@@ -702,6 +879,9 @@ candidates = run_candidate_drivers(
     embargo=4,
     seed=42,
     matched_control_percentile=95.0,
+    fit_indices=owned.fit_indices,
+    evaluation_indices=owned.evaluation_indices,
+    fit_scope_id=owned.fit_scope_id,
     force=FORCE,
 )
 top = candidates.scores[0]
@@ -711,7 +891,7 @@ print_stage_status(run)
         ),
         code_cell(
             """
-perturbation = run_counterfactual_perturbation(
+sensitivity = run_feature_sensitivity(
     run,
     recording_path=RECORDING_PATH,
     behavior_key=BEHAVIOR_KEY,
@@ -725,9 +905,20 @@ perturbation = run_counterfactual_perturbation(
     top_k=1,
     endpoint="behavior",
     seed=42,
+    fit_indices=owned.fit_indices,
+    evaluation_indices=owned.evaluation_indices,
+    fit_scope_id=owned.fit_scope_id,
+    multiplicity_family=MULTIPLICITY_FAMILY,
+    hypothesis_id=f"{BEHAVIOR_KEY}:feature-edit",
+    min_absolute_skill=0.0,
+    max_distribution_shift=5.0,
+    n_controls=64,
+    control_resolution_policy="unavailable",
     force=FORCE,
 )
-print(perturbation)
+print(sensitivity)
+print(sensitivity.analysis_kind)
+print(sensitivity.biological_intervention_identified)
 print_stage_status(run)
 """
         ),
@@ -745,7 +936,8 @@ def main() -> None:
             recording_id="bundle-net-worm-0",
             behavior_keys=("motif",),
             primary_behavior="motif",
-            counterfactual_endpoint="manifold",
+            endpoint_type="categorical",
+            feature_sensitivity_endpoint="manifold",
             bundle_net_reference=True,
         ),
         DatasetSpec(
@@ -786,12 +978,48 @@ def main() -> None:
             False,
             "correlation",
         ),
+        (
+            "sparse_var",
+            "Sparse VAR Baseline",
+            True,
+            "sparse_var",
+        ),
+        (
+            "windowed_sparse_var",
+            "Windowed Sparse VAR",
+            True,
+            "windowed_sparse_var",
+        ),
+        (
+            "switching_var",
+            "Switching VAR",
+            True,
+            "switching_var",
+        ),
+        (
+            "tvvar_smooth",
+            "Smooth TVVAR",
+            True,
+            "tvvar_smooth",
+        ),
+        (
+            "tvvar_fused",
+            "Group-fused TVVAR",
+            True,
+            "tvvar_fused",
+        ),
     ]
     for dataset in datasets:
         dataset_root = ROOT / dataset.relative_directory
         preprocessing_path = Path("preprocessing") / "00_preprocess.ipynb"
         write_notebook(dataset_root / preprocessing_path, notebook_preprocessing(dataset))
         print(f"Wrote {dataset.relative_directory / preprocessing_path}")
+        evaluation_path = Path("evaluation") / "08_primary_m0_m1.ipynb"
+        write_notebook(
+            dataset_root / evaluation_path,
+            notebook_primary_evaluation(dataset),
+        )
+        print(f"Wrote {dataset.relative_directory / evaluation_path}")
         for method, label, directed, connectivity_config_name in lanes:
             method_directory = METHOD_DIRECTORIES[method]
             notebooks = {

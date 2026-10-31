@@ -52,9 +52,10 @@ The C. elegans suite currently analyses Bundle-Net worm 0 from the downloaded
 commit and SHA-256 checksums are pinned in `conf/data/c_elegans.yaml`. The source
 file contains five worms with different recorded neuron sets, so the remaining
 four worms require separate recording namespaces rather than pooling.
-Because locomotor motifs are categorical, their counterfactual notebook fits a
-manifold-dynamics surrogate and reports latent displacement; it does not regress
-arbitrary motif integer codes as though their distances were quantitative.
+Because locomotor motifs are categorical, their feature-sensitivity notebook
+fits a manifold-dynamics surrogate and reports latent displacement; it does not
+regress arbitrary motif integer codes as though their distances were
+quantitative.
 
 The C. elegans preprocessing notebook also checkpoints an exact Bundle-Net
 reference lane. It starts from the upstream `deltaFOverF_bc` (already
@@ -85,12 +86,11 @@ annotated RSN roles, but it is a targeted analysis rather than coverage of every
 detected cell. Use a separate `RUN_ID` for a later whole-recording or broader-cell
 sensitivity analysis. Recordings 03 and 04 are present locally but deferred.
 
-For primary effectome estimation, every dataset's temporal history is standardized
-independently per neuron: within each window, each neural trace is centered and
-divided by its own window standard deviation. Constant traces become zero. This
-normalizes the signed ridge-VAR coefficients without changing the saved recording
-or using samples outside the causal history. Raw activity magnitude remains
-available from the unscaled `recording` artifact for separate covariate analyses.
+The shared windows retain unscaled, identity-preprocessed neural histories.
+The primary evaluator and strict sensitivity notebook fit their scales on the
+owned training partition and apply the frozen transform to held-out histories.
+Per-window standardization is a separate legacy sensitivity profile and is
+rejected by these revised entry points.
 
 The primary notebook contract is 120 seconds of history and a 5.164-second
 target/stride, resolved from each recording's sampling frequency. It yields
@@ -105,16 +105,30 @@ remain labeled sensitivities.
 ## Order and parallelism for each dataset
 
 1. Run `preprocessing/00_preprocess.ipynb`. This is the only writer to the shared
-   recording and standardized-window checkpoints.
-2. Run the three `effectomes/*/01_connectivity.ipynb` notebooks in parallel. They write to
+   recording and raw-window checkpoints.
+2. Run `evaluation/08_primary_m0_m1.ipynb` for the outer-owned primary comparison.
+   The historical descriptive stages below are optional and their stitched
+   outputs do not establish prospective validation.
+3. Run the three `effectomes/*/01_connectivity.ipynb` notebooks in parallel. They write to
    separate `cgc`, `cgc_star`, and `correlation_partial` method namespaces.
-3. After a method's connectivity completes, run its notebooks under `clustering/`,
+4. After a method's connectivity completes, run its notebooks under `clustering/`,
    `probabilistic_states/`, `communities/`, and `manifolds/` in parallel.
-4. Run `linking/<method>/06_linking.ipynb` after that method's clustering,
+5. Run `linking/<method>/06_linking.ipynb` after that method's clustering,
    community, and manifold notebooks. The HMM is scientifically required for the
    state-model comparison but is not a computational dependency of linking.
-5. After linking, run `counterfactuals/<method>/07_attribution_counterfactual.ipynb`
-   for c-GC and c-GC*.
+6. Run `counterfactuals/<method>/07_attribution_counterfactual.ipynb` directly
+   after preprocessing for a strict development sensitivity analysis. It builds
+   a separate `outer_owned_features` checkpoint from raw windows, using a trailing
+   evaluation block with full raw-history purging. Scaling, PCA and role centroids
+   use training histories only. The constant VAR fits training histories once;
+   the other audited directed lanes refit from issued causal histories. This
+   notebook does not reuse the descriptive community, manifold or linking fits.
+   Review the derived training/evaluation counts before expensive work, or supply
+   explicit frozen index arrays. Candidate screening, surrogate fitting, matched
+   control eligibility, dose settings and the declared complete multiplicity family
+   remain tied to that outer scope. No passing candidate produces an unavailable
+   result; the top screened-out neuron is never substituted.
+   These notebooks report predictor-feature sensitivity, not biological interventions.
    Partial correlation stops at `06` because an undirected baseline cannot support
    directional candidate-driver claims.
 
@@ -125,15 +139,36 @@ of stages writing to another recording because each notebook writes under its ow
 
 ## Resume contract
 
-- Keep `FORCE=False` for normal execution and resume.
+- Keep `FORCE=False` for normal execution and resume. Every generated notebook
+  starts by printing its `run_dir`, expected stages, current `completed`,
+  `failed`, `running`, and `not started` states, and whether `FORCE` will
+  recompute matching checkpoints.
 - Completed stages are reused only when their configuration and declared input
   hashes match. Same-shaped changed window data also invalidates connectivity
   chunks through an in-memory content digest.
+- Candidate and sensitivity cache identities include the outer partitions,
+  fit scope, frozen candidate set, dose/control settings and hypothesis family.
+  Changing an ownership argument requires rebuilding the corresponding owned bundle.
 - Connectivity is checkpointed in independent chunks, so an interrupted run
   resumes from the first missing or invalid chunk.
 - Atomic replacement prevents incomplete artifacts from appearing completed.
 - A lock prevents concurrent writers to the same dataset/recording/run/method/stage.
   Different methods, stages, or recordings have independent locks.
+- If a run is interrupted, rerun the same notebook from the top. Failed stage
+  records are shown in the header and are recomputed automatically as long as no
+  stale `.lock` remains from a still-running process. Remove a lock only after
+  confirming the original process has stopped.
+
+## Faster-machine run checklist
+
+1. Copy the repository, `data/`, and any wanted `outputs/analysis/` checkpoints.
+2. Install the project environment. C. elegans BunDLe manifold notebooks require
+   PyTorch; the V2a classical-manifold notebooks do not.
+3. Open notebooks in the order above. Leave `FORCE=False` for resume.
+4. Watch each notebook's first printed header before running expensive cells; it
+   should point to the intended dataset/recording/method namespace.
+5. For parallel execution, use different method or recording namespaces. Do not
+   run two notebooks that write the same `run_id/method/stage`.
 
 ## Method boundaries
 

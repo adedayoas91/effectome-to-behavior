@@ -131,4 +131,5 @@ class SmoothTimeVaryingConnectivity(ConnectivityEstimator):
     def _diagnostics(self, segments: WindowedSegments, mats: np.ndarray) -> dict[str, Any]:
         diagnostics = super()._diagnostics(segments, mats)
         diagnostics.update(self._sequence_diagnostics)
+        diagnostics["prospective_evaluation_support"] = "unsupported_future_dependent_smoother"
         return diagnostics

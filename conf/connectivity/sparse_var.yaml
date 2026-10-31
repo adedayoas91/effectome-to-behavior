@@ -1,0 +1,19 @@
+# Constant sparse VAR baseline fitted once on valid contiguous raw rows reconstructed from anchors.
+name: sparse_var
+max_lag: 2
+alpha: 0.05
+partial: false
+ridge: 0.001
+absolute: false
+threshold: 0.0
+extra:
+  n_lags: 2
+  lambda1: 0.0
+  lambda2: 0.001
+  standardize: true
+  max_iter: 10000
+  tol: 1.0e-6
+  lag_aggregation: sum
+  candidate_lambda1: [1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0]
+  candidate_lambda2: [1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0]
+  selection_score: standardized_one_step_mse

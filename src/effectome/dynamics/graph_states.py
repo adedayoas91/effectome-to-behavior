@@ -19,6 +19,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from sklearn.cluster import KMeans, SpectralClustering
+from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score
 
 from effectome.data_module.schema import ConnectivitySeries, TemporalAnchor
@@ -64,6 +65,9 @@ class GraphStateConfig:
     kernel_gamma: float = 1.0
     boundary_gap_factor: float = 3.0
     seed: int = 42
+    feature_representation: str = "legacy"
+    assignment: str = "legacy"
+    pca_components: int | None = None
 
 
 @dataclass
@@ -80,7 +84,7 @@ class GraphStateModel:
         feature_centroids: Optional centroids in feature space used for held-out assignment.
         feature_mean: Fit-time feature mean for held-out standardization.
         feature_scale: Fit-time feature std for held-out standardization.
-        medoid_matrices: Optional medoid graphs used for distance-based assignment.
+    medoid_matrices: Optional medoid graphs used for distance-based assignment.
         fit_indices: Indices used to fit the state model.
         boundary_indices: Start indices of independent transition segments.
     """
@@ -97,6 +101,18 @@ class GraphStateModel:
     medoid_matrices: np.ndarray | None = None
     fit_indices: np.ndarray | None = None
     boundary_indices: np.ndarray | None = None
+    feature_representation: str = "legacy"
+    assignment: str = "legacy"
+    edge_indices: np.ndarray | None = None
+    lag_indices: np.ndarray | None = None
+    lag_count: int | None = None
+    n_nodes: int | None = None
+    pca_components: np.ndarray | None = None
+    pca_mean: np.ndarray | None = None
+    descriptive_centroids: np.ndarray | None = None
+    lag_centroids: np.ndarray | None = None
+    graph_schema: tuple | None = None
+    selection_loss: float | None = None
     eps: float = 1e-6
     gw_epsilon: float = 0.05
     gw_max_iter: int = 200
@@ -108,6 +124,8 @@ class GraphStateModel:
         window_starts: np.ndarray | None = None,
     ) -> np.ndarray:
         """Assign labels to new matrices without refitting the state model."""
+        if self.feature_representation == "signed_lag_offdiag":
+            return assign_graph_states(self, series)
         matrices = series.matrices if isinstance(series, ConnectivitySeries) else np.asarray(series)
         # `window_starts` is accepted for backward compatibility, but held-out assignment must
         # not mutate the fitted model's training coordinates or boundary metadata.
@@ -131,6 +149,30 @@ def _series_metadata(series: ConnectivitySeries) -> dict:
     if isinstance(metadata, dict):
         return metadata
     return {}
+
+
+def graph_schema(series: ConnectivitySeries | np.ndarray, *, strict: bool = False) -> tuple | None:
+    """Registered identity and physical units; missing metadata remains descriptive only."""
+    if not isinstance(series, ConnectivitySeries):
+        if strict:
+            raise ValueError("registered graph schema requires a ConnectivitySeries")
+        return None
+    metadata = series.diagnostics
+    keys = ("node_ids", "physical_lags", "representation_units")
+    if not all(key in metadata for key in keys):
+        if strict or any(key in metadata for key in keys):
+            raise ValueError("graph schema requires node_ids, physical_lags and representation_units")
+        return None
+    nodes = tuple(metadata["node_ids"])
+    lags = tuple(float(x) for x in metadata["physical_lags"])
+    units = str(metadata["representation_units"])
+    tensor = _lagged_tensor_from_series(series)
+    if (len(nodes) != tensor.shape[2] or len(set(nodes)) != len(nodes)
+            or len(lags) != tensor.shape[1] or not units
+            or not np.all(np.isfinite(lags)) or np.any(np.asarray(lags) <= 0)
+            or np.any(np.diff(lags) <= 0)):
+        raise ValueError("invalid registered graph schema")
+    return nodes, lags, units
 
 
 def _boundary_indices_from_anchors(anchors: list[TemporalAnchor]) -> np.ndarray:
@@ -272,6 +314,101 @@ def _assign_feature_labels(features: np.ndarray, centroids: np.ndarray) -> np.nd
     return np.argmin(d2, axis=1).astype(np.int64)
 
 
+def _validate_fit_indices(fit_indices: np.ndarray | None, n_windows: int) -> np.ndarray:
+    if fit_indices is None:
+        return np.arange(n_windows, dtype=int)
+    arr = np.asarray(fit_indices)
+    if arr.ndim != 1:
+        raise ValueError("fit_indices must be a 1D array")
+    if not np.issubdtype(arr.dtype, np.integer):
+        raise ValueError("fit_indices must contain integers")
+    arr = arr.astype(int)
+    if arr.size == 0:
+        raise ValueError("fit_indices must be nonempty")
+    if np.any(arr < 0) or np.any(arr >= n_windows):
+        raise ValueError("fit_indices must be in bounds")
+    if np.any(np.diff(arr) <= 0):
+        raise ValueError("fit_indices must be unique and ordered")
+    return arr
+
+
+def _lagged_tensor_from_series(series: ConnectivitySeries | np.ndarray) -> np.ndarray:
+    if isinstance(series, ConnectivitySeries):
+        if series.lagged_matrices is not None:
+            return np.asarray(series.lagged_matrices, dtype=np.float64)
+        return np.asarray(series.matrices, dtype=np.float64)[:, np.newaxis, :, :]
+    arr = np.asarray(series, dtype=np.float64)
+    if arr.ndim == 3:
+        return arr[:, np.newaxis, :, :]
+    if arr.ndim == 4:
+        return arr
+    raise ValueError("graph state input must have shape (window,node,node) or (window,lag,node,node)")
+
+
+def _signed_lag_offdiag_features(
+    series: ConnectivitySeries | np.ndarray,
+    *,
+    edge_indices: np.ndarray | None = None,
+    lag_indices: np.ndarray | None = None,
+    n_nodes: int | None = None,
+    lag_count: int | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
+    lagged = _lagged_tensor_from_series(series)
+    if lagged.ndim != 4 or lagged.shape[2] != lagged.shape[3]:
+        raise ValueError("lag-resolved graph tensor must be (window,lag,node,node)")
+    if not np.all(np.isfinite(lagged)):
+        raise ValueError("graph-state features must be finite")
+    observed_lags = int(lagged.shape[1])
+    observed_nodes = int(lagged.shape[2])
+    if lag_count is not None and observed_lags != lag_count:
+        raise ValueError("lag schema mismatch for graph-state assignment")
+    if n_nodes is not None and observed_nodes != n_nodes:
+        raise ValueError("node schema mismatch for graph-state assignment")
+    if edge_indices is None:
+        mask = ~np.eye(observed_nodes, dtype=bool)
+        edge_indices = np.argwhere(mask)
+    if lag_indices is None:
+        lag_indices = np.arange(observed_lags, dtype=int)
+    edge_arr = np.asarray(edge_indices, dtype=int)
+    lag_arr = np.asarray(lag_indices, dtype=int)
+    if edge_arr.ndim != 2 or edge_arr.shape[1] != 2:
+        raise ValueError("edge_indices must have shape (edge,2)")
+    features = [
+        lagged[:, lag, edge_arr[:, 0], edge_arr[:, 1]]
+        for lag in lag_arr
+    ]
+    return np.concatenate(features, axis=1), edge_arr, lag_arr, observed_nodes, observed_lags
+
+
+def _apply_pca(
+    features: np.ndarray,
+    *,
+    pca_components: int | None,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None]:
+    if pca_components is None:
+        return features, None, None
+    if pca_components < 1:
+        raise ValueError("pca_components must be positive when provided")
+    n_components = min(int(pca_components), features.shape[0], features.shape[1])
+    pca = PCA(n_components=n_components, random_state=seed)
+    reduced = pca.fit_transform(features)
+    return reduced, pca.components_.astype(np.float64), pca.mean_.astype(np.float64)
+
+
+def _transform_pca(
+    features: np.ndarray,
+    *,
+    components: np.ndarray | None,
+    mean: np.ndarray | None,
+) -> np.ndarray:
+    if components is None:
+        return features
+    if mean is None:
+        raise ValueError("pca_mean is required with pca_components")
+    return (features - mean) @ components.T
+
+
 def _centroids(
     matrices: np.ndarray,
     labels: np.ndarray,
@@ -371,8 +508,28 @@ def _fit_distance_path(
     return labels, medoid_matrices, int(k), float(score)
 
 
-def assign_graph_states(model: GraphStateModel, matrices: np.ndarray) -> np.ndarray:
+def assign_graph_states(model: GraphStateModel, matrices: ConnectivitySeries | np.ndarray) -> np.ndarray:
     """Assign matrices to the nearest learned state without refitting."""
+    if model.feature_representation == "signed_lag_offdiag":
+        if model.graph_schema != graph_schema(matrices):
+            raise ValueError("registered graph schema mismatch")
+        raw, _, _, _, _ = _signed_lag_offdiag_features(
+            matrices,
+            edge_indices=model.edge_indices,
+            lag_indices=model.lag_indices,
+            n_nodes=model.n_nodes,
+            lag_count=model.lag_count,
+        )
+        feats = _Standardizer(model.feature_mean, model.feature_scale).transform(raw)
+        feats = _transform_pca(
+            feats,
+            components=model.pca_components,
+            mean=model.pca_mean,
+        )
+        if model.feature_centroids is None:
+            raise ValueError("feature_centroids are required for graph-state assignment")
+        return _assign_feature_labels(feats, model.feature_centroids)
+
     matrices = np.asarray(matrices, dtype=np.float64)
     if model.metric in FEATURE_METRICS or model.metric in KERNEL_METRICS:
         raw = _raw_features_for(
@@ -414,11 +571,12 @@ def fit_graph_states(
     cfg: GraphStateConfig,
     *,
     fit_indices: np.ndarray | None = None,
+    predictive_losses: dict[int, float] | None = None,
 ) -> GraphStateModel:
     """Fit dataset-global connectivity states and assign held-out windows without refitting."""
     matrices = np.asarray(series.matrices, dtype=np.float64)
     n_windows = matrices.shape[0]
-    train_idx = np.arange(n_windows, dtype=int) if fit_indices is None else np.asarray(fit_indices, dtype=int)
+    train_idx = _validate_fit_indices(fit_indices, n_windows)
     train_matrices = matrices[train_idx]
 
     boundary_indices = boundary_indices_for_series(series, gap_factor=cfg.boundary_gap_factor)
@@ -427,6 +585,120 @@ def fit_graph_states(
     feature_mean = None
     feature_scale = None
     medoid_matrices = None
+    edge_indices = None
+    lag_indices = None
+    lag_count = None
+    n_nodes = None
+    pca_components = None
+    pca_mean = None
+    descriptive_centroids = None
+
+    if cfg.feature_representation not in {"legacy", "signed_lag_offdiag"}:
+        raise ValueError("feature_representation must be 'legacy' or 'signed_lag_offdiag'")
+    if cfg.assignment not in {"legacy", "kmeans"}:
+        raise ValueError("assignment must be 'legacy' or 'kmeans'")
+
+    if cfg.feature_representation == "signed_lag_offdiag":
+        schema = graph_schema(series)
+        if cfg.assignment not in {"legacy", "kmeans"}:
+            raise ValueError("signed_lag_offdiag currently supports kmeans assignment")
+        raw, edge_indices, lag_indices, n_nodes, lag_count = _signed_lag_offdiag_features(series)
+        train_raw = raw[train_idx]
+        if cfg.n_states < 1:
+            raise ValueError("n_states must be at least one")
+        if cfg.select_k:
+            candidate_ks = [k for k in (1, 2, 3, 4, 6) if k <= train_idx.size]
+            if predictive_losses is None or any(
+                k not in predictive_losses or not np.isfinite(predictive_losses[k]) for k in candidate_ks
+            ):
+                raise ValueError("select_k requires caller-owned inner predictive losses for every candidate")
+            candidate_ks = [min(candidate_ks, key=lambda k: (predictive_losses[k], k))]
+        else:
+            candidate_ks = [cfg.n_states]
+        if not candidate_ks or max(candidate_ks) > train_idx.size:
+            raise ValueError("state count is infeasible for the training windows")
+        train_features, standardizer = _fit_standardizer(train_raw, cfg.standardize)
+        train_features, pca_components, pca_mean = _apply_pca(
+            train_features,
+            pca_components=cfg.pca_components,
+            seed=cfg.seed,
+        )
+        best = None
+        for k in candidate_ks:
+            if k == 1:
+                train_labels = np.zeros(train_idx.size, dtype=np.int64)
+                centers = train_features.mean(axis=0, keepdims=True)
+                score = float("nan")
+            else:
+                km = KMeans(n_clusters=k, random_state=cfg.seed, n_init=10).fit(train_features)
+                train_labels = km.labels_.astype(np.int64)
+                centers = km.cluster_centers_.astype(np.float64)
+                score = (
+                    float(silhouette_score(train_features, train_labels))
+                    if 1 < len(np.unique(train_labels)) < train_features.shape[0]
+                    else float("nan")
+                )
+            if best is None or (
+                not np.isnan(score) and (np.isnan(best[0]) or score > best[0])
+            ):
+                best = (score, k, train_labels, centers)
+        silhouette, n_states, train_labels, feature_centroids = best  # type: ignore[misc]
+        all_features = standardizer.transform(raw)
+        all_features = _transform_pca(all_features, components=pca_components, mean=pca_mean)
+        labels = _assign_feature_labels(all_features, feature_centroids)
+        labels[train_idx] = train_labels
+        feature_mean, feature_scale = standardizer.mean, standardizer.scale
+        centroids = _centroids(
+            train_matrices,
+            train_labels,
+            n_states,
+            "frobenius",
+            cfg.eps,
+        )
+        descriptive_centroids = _centroids(matrices, labels, n_states, "frobenius", cfg.eps)
+        logger.info(
+            "Fit %d signed lag-offdiag states (fit_windows=%d/%d)",
+            n_states,
+            len(train_idx),
+            n_windows,
+        )
+        return GraphStateModel(
+            labels=labels.astype(np.int64),
+            centroids=centroids,
+            n_states=int(n_states),
+            silhouette=float(silhouette),
+            metric=cfg.metric,
+            window_starts=np.asarray(series.window_starts, dtype=int),
+            feature_centroids=np.asarray(feature_centroids, dtype=np.float64),
+            feature_mean=None if feature_mean is None else np.asarray(feature_mean, dtype=np.float64),
+            feature_scale=None if feature_scale is None else np.asarray(feature_scale, dtype=np.float64),
+            fit_indices=train_idx,
+            boundary_indices=boundary_indices,
+            feature_representation=cfg.feature_representation,
+            assignment="kmeans",
+            edge_indices=edge_indices,
+            lag_indices=lag_indices,
+            lag_count=lag_count,
+            n_nodes=n_nodes,
+            pca_components=pca_components,
+            pca_mean=pca_mean,
+            descriptive_centroids=descriptive_centroids,
+            lag_centroids=np.stack(
+                [
+                    np.asarray(series.lagged_matrices)[train_idx][
+                        train_labels == state
+                    ].mean(axis=0)
+                    if series.lagged_matrices is not None and np.any(train_labels == state)
+                    else np.zeros((lag_count, n_nodes, n_nodes))
+                    for state in range(n_states)
+                ]
+            ),
+            graph_schema=schema,
+            selection_loss=None if predictive_losses is None else predictive_losses[int(n_states)],
+            eps=cfg.eps,
+            gw_epsilon=cfg.gw_epsilon,
+            gw_max_iter=cfg.gw_max_iter,
+        )
 
     if cfg.metric in FEATURE_METRICS:
         train_labels, feature_centroids, standardizer, n_states, silhouette = _fit_feature_path(

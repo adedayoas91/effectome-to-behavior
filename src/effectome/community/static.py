@@ -46,6 +46,7 @@ class LeidenCommunity(CommunityDetector):
                 resolution_parameter=self.cfg.resolution,
                 seed=self.cfg.seed,
             )
+            self._last_backend = "leidenalg.RBConfigurationVertexPartition"
             return np.asarray(part.membership, dtype=np.int64)
         except ImportError:
             logger.debug("leidenalg not installed; using greedy modularity fallback")
@@ -53,4 +54,5 @@ class LeidenCommunity(CommunityDetector):
             communities = nx.community.greedy_modularity_communities(
                 g, weight="weight", resolution=self.cfg.resolution
             )
+            self._last_backend = "networkx.greedy_modularity"
             return _labels_from_sets([set(c) for c in communities], n)

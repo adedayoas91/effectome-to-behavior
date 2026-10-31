@@ -1,0 +1,10 @@
+# Frozen acquisition clock read from NoStim_Data.fps{1}; no rounded-fps substitution.
+dataset_id: bundle-net-c-elegans
+recording_id: bundle-net-worm-0
+fps: 2.9046296296296297
+retained_samples: 3137
+start_seconds: 0.0
+source: data/c_elegans/bundle_net_raw/NoStim_Data.mat
+source_sha256: 8224b37211e455df4c89b2c6c4216dcde525da00a5f1dc0c22a0c9b4a0f22539
+source_field: NoStim_Data.fps[0,0]
+clock_definition: native_uniform_acquisition_clock

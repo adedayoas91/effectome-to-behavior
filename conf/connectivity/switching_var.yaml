@@ -1,0 +1,20 @@
+# Observed-neuron switching VAR baseline with diagonal innovations.
+name: switching_var
+max_lag: 2
+alpha: 0.05
+partial: false
+ridge: 0.001
+absolute: false
+threshold: 0.0
+extra:
+  n_lags: 2
+  n_states: 2
+  lambda2: 0.001
+  eta_em: 0.5
+  variance_floor: 1.0e-6
+  max_iter: 5
+  tol: 1.0e-6
+  lag_aggregation: sum
+  candidate_states: [1, 2, 3, 4, 6]
+  restart_seeds: [0, 1, 2, 3, 4]
+  manuscript_max_iter_limit: 500

@@ -12,7 +12,161 @@ import numpy as np
 
 from effectome.data_module.schema import ArtifactProvenance, ConnectivitySeries, WindowedSegments
 
+from .predictive import (
+    FilterState,
+    GraphEstimate,
+    NeuralForecast,
+    PredictiveCapabilities,
+    UnsupportedForecastError,
+)
+
 logger = logging.getLogger(__name__)
+
+_INTERNAL_EXTRA_KEYS = frozenset({"lag_contract"})
+_METHOD_EXTRA_KEYS: dict[str, frozenset[str]] = {
+    "correlation": frozenset(),
+    "cgc": frozenset(
+        {
+            "alpha",
+            "beta",
+            "lag_aggregation",
+            "min_valid_fraction",
+            "n_lags",
+            "n_perm",
+            "parallel",
+            "ridge_alpha",
+            "seed",
+            "simulation",
+            "support_test",
+            "temporal",
+            "unsigned",
+            "verbose",
+        }
+    ),
+    "cgc_star": frozenset(
+        {
+            "alpha",
+            "beta",
+            "lag_aggregation",
+            "min_valid_fraction",
+            "n_lags",
+            "n_perm",
+            "parallel",
+            "ridge_alpha",
+            "seed",
+            "simulation",
+            "support_test",
+            "temporal",
+            "unsigned",
+            "verbose",
+        }
+    ),
+    "pcmci": frozenset({"pc_alpha", "run_kwargs", "tau_min"}),
+    "jpcmci": frozenset(
+        {
+            "node_classification",
+            "pc_alpha",
+            "recordings",
+            "run_kwargs",
+            "tau_min",
+            "var_names",
+            "vector_vars",
+        }
+    ),
+    "sparse_var": frozenset(
+        {
+            "candidate_lambda1",
+            "candidate_lambda2",
+            "lag_aggregation",
+            "lambda1",
+            "lambda2",
+            "max_iter",
+            "n_lags",
+            "selection_score",
+            "standardize",
+            "tol",
+        }
+    ),
+    "windowed_sparse_var": frozenset(
+        {
+            "lag_aggregation",
+            "lambda1",
+            "lambda2",
+            "max_iter",
+            "n_lags",
+            "standardize",
+            "tol",
+        }
+    ),
+    "switching_var": frozenset(
+        {
+            "candidate_states",
+            "eta_em",
+            "lag_aggregation",
+            "lambda2",
+            "manuscript_max_iter_limit",
+            "max_iter",
+            "n_lags",
+            "n_states",
+            "restart_seeds",
+            "seed",
+            "tol",
+            "variance_floor",
+        }
+    ),
+    "tvvar_smooth": frozenset(
+        {
+            "candidate_lambda_temporal",
+            "endpoint_policy",
+            "knot_samples",
+            "lag_aggregation",
+            "lambda1",
+            "lambda2",
+            "lambda_T",
+            "lambda_b",
+            "lambda_intercept",
+            "lambda_temporal",
+            "max_iter",
+            "n_lags",
+            "standardize",
+            "tol",
+        }
+    ),
+    "tvvar_fused": frozenset(
+        {
+            "candidate_lambda_temporal",
+            "endpoint_policy",
+            "knot_samples",
+            "lag_aggregation",
+            "lambda1",
+            "lambda2",
+            "lambda_T",
+            "lambda_b",
+            "lambda_intercept",
+            "lambda_temporal",
+            "max_iter",
+            "n_lags",
+            "standardize",
+            "tol",
+        }
+    ),
+    "time_varying": frozenset({"base_estimator", "base_extra", "temporal_lambda"}),
+}
+
+
+def _validate_method_extras(name: str, extra: dict[str, Any], *, path: str = "extra") -> None:
+    allowed = _METHOD_EXTRA_KEYS.get(name, frozenset()) | _INTERNAL_EXTRA_KEYS
+    unknown = sorted(set(extra) - allowed)
+    if unknown:
+        raise ValueError(
+            f"unknown {path} keys for connectivity method {name!r}: {unknown}"
+        )
+    if name == "time_varying" and "base_extra" in extra:
+        base_extra = extra["base_extra"]
+        if not isinstance(base_extra, dict):
+            raise TypeError("extra.base_extra must be a mapping")
+        base_name = str(extra.get("base_estimator", "cgc"))
+        _validate_method_extras(base_name, base_extra, path="extra.base_extra")
 
 
 @dataclass(frozen=True)
@@ -42,6 +196,11 @@ class ConnectivityConfig:
     absolute: bool = False
     threshold: float = 0.0
     extra: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.extra, dict):
+            raise TypeError("connectivity extra must be a mapping")
+        _validate_method_extras(self.name, self.extra)
 
     def resolve(self, fps: float) -> ConnectivityConfig:
         """Resolve a duration-first lag horizon using nearest-half-up rounding."""
@@ -78,7 +237,11 @@ class ConnectivityConfig:
                 "rounding_error_seconds": resolved_seconds - float(self.max_lag_seconds),
             }
         extra = {**self.extra, "lag_contract": contract}
-        if self.max_lag_seconds is not None and "n_lags" not in extra:
+        if (
+            self.max_lag_seconds is not None
+            and "n_lags" in _METHOD_EXTRA_KEYS.get(self.name, frozenset())
+            and "n_lags" not in extra
+        ):
             extra["n_lags"] = resolved_samples
         return replace(self, max_lag=resolved_samples, extra=extra)
 
@@ -98,6 +261,26 @@ class ConnectivityEstimator(ABC):
 
     def __init__(self, cfg: ConnectivityConfig) -> None:
         self.cfg = cfg
+
+    @property
+    def capabilities(self) -> PredictiveCapabilities:
+        return PredictiveCapabilities()
+
+    def initial_state(self, **kwargs: Any) -> FilterState:
+        del kwargs
+        raise UnsupportedForecastError(f"{self.cfg.name} does not provide neural forecast state")
+
+    def observe(self, state: FilterState, samples: np.ndarray, **kwargs: Any) -> FilterState:
+        del state, samples, kwargs
+        raise UnsupportedForecastError(f"{self.cfg.name} does not provide neural forecast state")
+
+    def forecast(self, state: FilterState, **kwargs: Any) -> NeuralForecast:
+        del state, kwargs
+        raise UnsupportedForecastError(f"{self.cfg.name} does not provide neural forecasts")
+
+    def graph_at(self, state: FilterState | None = None) -> GraphEstimate:
+        del state
+        raise UnsupportedForecastError(f"{self.cfg.name} does not provide fitted graph snapshots")
 
     @abstractmethod
     def estimate(self, segment: np.ndarray) -> np.ndarray:

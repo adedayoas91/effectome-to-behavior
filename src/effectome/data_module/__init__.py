@@ -1,12 +1,22 @@
 """Data module: schema, loaders, preprocessing, and windowing (Stages 0-1)."""
 
 from .loaders import get_loader, register_loader
-from .preprocess import PreprocessConfig, bundle_net_bandpass, exclude_named_neurons, preprocess
+from .preprocess import (
+    FittedPreprocessor,
+    PreprocessConfig,
+    bundle_net_bandpass,
+    exclude_named_neurons,
+    preprocess,
+)
 from .schema import (
     ArtifactProvenance,
     CommunitySeries,
     ConnectivitySeries,
+    EndpointMetadata,
+    ExampleSupport,
+    FoldSpec,
     NeuralRecording,
+    RawInterval,
     RecordingIdentity,
     TemporalAnchor,
     Window,
@@ -24,6 +34,10 @@ __all__ = [
     "NeuralRecording",
     "RecordingIdentity",
     "ArtifactProvenance",
+    "RawInterval",
+    "ExampleSupport",
+    "FoldSpec",
+    "EndpointMetadata",
     "TemporalAnchor",
     "Window",
     "WindowedSegments",
@@ -32,6 +46,7 @@ __all__ = [
     "get_loader",
     "register_loader",
     "PreprocessConfig",
+    "FittedPreprocessor",
     "bundle_net_bandpass",
     "exclude_named_neurons",
     "preprocess",

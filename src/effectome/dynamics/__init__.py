@@ -27,7 +27,17 @@ from .probabilistic import (
     ProbabilisticStateProjection,
     fit_probabilistic_states,
 )
-from .transitions import TransitionConfig, TransitionModel, fit_transitions
+from .transitions import (
+    DwellRun,
+    TransitionConfig,
+    TransitionModel,
+    TransitionScore,
+    dwell_runs,
+    fit_transition_model,
+    fit_transitions,
+    score_transition_model,
+    transition_diagnostics,
+)
 
 __all__ = [
     "GraphStateConfig",
@@ -44,7 +54,13 @@ __all__ = [
     "fit_probabilistic_states",
     "TransitionConfig",
     "TransitionModel",
+    "TransitionScore",
+    "DwellRun",
+    "dwell_runs",
+    "fit_transition_model",
     "fit_transitions",
+    "score_transition_model",
+    "transition_diagnostics",
     "vectorize",
     "frobenius_distance",
     "cosine_distance",

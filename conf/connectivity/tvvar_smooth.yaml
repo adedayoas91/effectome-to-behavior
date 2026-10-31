@@ -1,0 +1,20 @@
+# One-sided raw-data TVVAR with squared temporal coefficient differences.
+name: tvvar_smooth
+max_lag: 2
+alpha: 0.05
+partial: false
+ridge: 0.001
+absolute: false
+threshold: 0.0
+extra:
+  n_lags: 2
+  lambda1: 0.0
+  lambda2: 0.001
+  lambda_temporal: 0.01
+  lambda_intercept: 0.01
+  standardize: false
+  max_iter: 2000
+  tol: 1.0e-6
+  lag_aggregation: sum
+  candidate_lambda_temporal: [0.0, 1.0e-3, 1.0e-2, 1.0e-1, 1.0, 10.0]
+  endpoint_policy: one_sided_window_endpoint

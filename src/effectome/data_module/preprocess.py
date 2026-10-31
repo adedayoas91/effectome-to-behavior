@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from hashlib import sha256
 
 import numpy as np
 from scipy import signal
 from scipy.signal import detrend as sp_detrend
 
-from .schema import NeuralRecording
+from .schema import NeuralRecording, RawInterval
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,142 @@ class PreprocessConfig:
     bundle_net_low_fraction: float = 1.0e-10
     bundle_net_high_fraction: float = 0.05
     bundle_net_filter_order: int = 4
+
+
+@dataclass(frozen=True)
+class FittedPreprocessor:
+    """Training-owned channel map and fixed scaling for prospective transforms."""
+
+    config: PreprocessConfig
+    retained_roi_ids: np.ndarray
+    means: np.ndarray
+    scales: np.ndarray
+    fit_intervals: tuple[RawInterval, ...]
+    scale_id: str
+
+    @classmethod
+    def fit(
+        cls,
+        recordings: Sequence[NeuralRecording],
+        allowed_intervals: Mapping[str, Sequence[RawInterval]],
+        config: PreprocessConfig,
+    ) -> FittedPreprocessor:
+        if not recordings:
+            raise ValueError("at least one training recording is required")
+        if (
+            config.bundle_net_bandpass
+            or config.deconvolve
+            or config.detrend
+            or config.smooth_window > 1
+        ):
+            raise ValueError("prospective fitted preprocessing supports fixed channel scaling only")
+        common_ids = set(int(value) for value in recordings[0].neuron_ids)
+        for recording in recordings[1:]:
+            common_ids &= {int(value) for value in recording.neuron_ids}
+        retained = np.asarray(
+            [int(value) for value in recordings[0].neuron_ids if int(value) in common_ids],
+            dtype=np.int64,
+        )
+        if retained.size == 0:
+            raise ValueError("training recordings have no common ROI panel")
+
+        samples: list[np.ndarray] = []
+        used_intervals: list[RawInterval] = []
+        for recording in recordings:
+            source_id = recording.identity.recording_id
+            intervals = tuple(allowed_intervals.get(source_id, ()))
+            if not intervals:
+                raise ValueError(f"no permitted fit intervals for recording {source_id!r}")
+            lookup = {int(roi): index for index, roi in enumerate(recording.neuron_ids)}
+            rows = np.asarray([lookup[int(roi)] for roi in retained], dtype=int)
+            for interval in intervals:
+                if interval.source_id != source_id:
+                    raise ValueError("fit interval source does not match its recording")
+                if interval.stop > recording.n_timepoints:
+                    raise ValueError("fit interval extends beyond the recording")
+                block = recording.traces[rows, interval.start : interval.stop].T
+                if not np.all(np.isfinite(block)):
+                    raise ValueError("fitted scaling intervals must contain finite neural samples")
+                samples.append(block)
+                used_intervals.append(interval)
+        stacked = np.concatenate(samples, axis=0)
+        variances = stacked.var(axis=0)
+        keep = np.ones(retained.size, dtype=bool)
+        if config.drop_low_variance > 0:
+            threshold = np.quantile(variances, config.drop_low_variance)
+            keep = variances >= threshold
+        retained = retained[keep]
+        stacked = stacked[:, keep]
+        means = stacked.mean(axis=0) if config.zscore else np.zeros(stacked.shape[1])
+        scales = stacked.std(axis=0) if config.zscore else np.ones(stacked.shape[1])
+        scales = np.where(scales > 1e-12, scales, 1.0)
+        digest = sha256()
+        digest.update(retained.tobytes())
+        digest.update(means.tobytes())
+        digest.update(scales.tobytes())
+        for interval in used_intervals:
+            digest.update(repr(interval).encode())
+        return cls(
+            config=config,
+            retained_roi_ids=retained,
+            means=means,
+            scales=scales,
+            fit_intervals=tuple(used_intervals),
+            scale_id=digest.hexdigest(),
+        )
+
+    def transform(self, recording: NeuralRecording) -> NeuralRecording:
+        lookup = {int(roi): index for index, roi in enumerate(recording.neuron_ids)}
+        missing = [int(roi) for roi in self.retained_roi_ids if int(roi) not in lookup]
+        if missing:
+            raise ValueError(f"recording is missing fitted ROI IDs: {missing}")
+        rows = np.asarray([lookup[int(roi)] for roi in self.retained_roi_ids], dtype=int)
+        traces = (recording.traces[rows].astype(np.float64) - self.means[:, None]) / self.scales[:, None]
+        metadata = dict(recording.metadata)
+        metadata["fitted_preprocessing"] = {
+            "scale_id": self.scale_id,
+            "fit_intervals": [interval.__dict__ for interval in self.fit_intervals],
+            "retained_roi_ids": self.retained_roi_ids.tolist(),
+            "update_policy": "frozen",
+        }
+        transformed = NeuralRecording(
+            traces=traces.astype(np.float32),
+            time=recording.time.copy(),
+            coords=None if recording.coords is None else recording.coords[rows].copy(),
+            neuron_ids=self.retained_roi_ids.copy(),
+            behavior={name: values.copy() for name, values in recording.behavior.items()},
+            fps=recording.fps,
+            metadata=metadata,
+            identity=recording.identity,
+            endpoint_metadata=dict(recording.endpoint_metadata),
+            neural_validity=(
+                None
+                if recording.neural_validity is None
+                else np.asarray(recording.neural_validity)[rows].copy()
+            ),
+            outcome_validity={
+                name: values.copy() for name, values in recording.outcome_validity.items()
+            },
+            source_indices=(
+                None if recording.source_indices is None else recording.source_indices.copy()
+            ),
+        )
+        transformed.validate()
+        return transformed
+
+    def coefficients_to_raw(
+        self,
+        lagged_coefficients: np.ndarray,
+        intercept: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        coefficients = np.asarray(lagged_coefficients, dtype=np.float64)
+        raw = coefficients * self.scales[None, None, :] / self.scales[None, :, None]
+        raw_intercept = (
+            self.means
+            + self.scales * np.asarray(intercept, dtype=np.float64)
+            - np.sum(np.einsum("lsj,s->lj", raw, self.means), axis=0)
+        )
+        return raw, raw_intercept
 
 
 def _moving_average(x: np.ndarray, w: int) -> np.ndarray:
@@ -157,6 +295,12 @@ def exclude_named_neurons(
         fps=recording.fps,
         metadata=metadata,
         identity=recording.identity,
+        endpoint_metadata=dict(recording.endpoint_metadata),
+        neural_validity=(
+            None if recording.neural_validity is None else recording.neural_validity[keep]
+        ),
+        outcome_validity=dict(recording.outcome_validity),
+        source_indices=recording.source_indices,
     )
     selected.validate()
     return selected
@@ -256,6 +400,12 @@ def preprocess(recording: NeuralRecording, cfg: PreprocessConfig) -> NeuralRecor
             ),
         },
         identity=recording.identity,
+        endpoint_metadata=dict(recording.endpoint_metadata),
+        neural_validity=(
+            None if recording.neural_validity is None else recording.neural_validity[keep]
+        ),
+        outcome_validity=dict(recording.outcome_validity),
+        source_indices=recording.source_indices,
     )
     out.validate()
     return out
