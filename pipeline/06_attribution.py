@@ -6,12 +6,11 @@ import logging
 from pathlib import Path
 from typing import Any, cast
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from effectome.attribution import qualify_candidate_drivers
 from effectome.connectivity import ConnectivityConfig
-from effectome.utils import set_seed
+from effectome.utils import hydra, set_seed
 from effectome.utils.io import save_artifact
 from effectome.workflows.feature_ownership import load_or_fit_owned_features
 

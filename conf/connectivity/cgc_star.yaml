@@ -1,4 +1,4 @@
-# Full-conditioning c-GC* with signed ridge-VAR weights on selected lagged support.
+# fastC-GC* with signed ridge-VAR weights on selected lagged support.
 name: cgc_star
 max_lag: 2
 max_lag_seconds: 0.7
@@ -8,10 +8,11 @@ ridge: 1.0
 absolute: false
 threshold: 0.0
 extra:
-  support_test: analytic
-  n_perm: 0           # only used when support_test=circular_shift
+  support_test: fastcgc
+  support_ridge: 1.0e-6
+  n_perm: 0           # fastcgc enumerates the complete shift orbit
   min_valid_fraction: 0.95
-  beta: 0.01
+  beta: 0.005
   lag_aggregation: sum
   simulation: true
   temporal: true

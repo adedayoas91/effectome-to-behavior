@@ -1,0 +1,12 @@
+# JPCMCI+ via installed Tigramite. Configure pooled recordings explicitly in scoped workflows.
+# Without explicit context labels, every variable is a system node (pooled system analysis).
+name: jpcmci
+max_lag: 3
+alpha: 0.05
+partial: false
+ridge: 1.0
+absolute: false
+threshold: 0.0
+extra:
+  tau_min: 1
+  node_classification: null

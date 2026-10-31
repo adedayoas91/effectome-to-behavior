@@ -21,13 +21,41 @@ METHOD_DIRECTORIES = {
     "tvvar_fused": "TVVAR-fused",
 }
 
+ENVIRONMENT_NOTE = (
+    "Environment: select the project Python 3.14 `.venv` kernel. Install the locked packages "
+    "with `uv sync --python 3.14 --locked --extra dev --extra csl --extra community --extra notebooks` "
+    "from the repository root. The setup cell checks installed package versions; no upstream "
+    "repository clone is required. Stored outputs may predate the backend migration; rerun "
+    "the notebook to produce results with the current backend."
+)
+
 PROGRESS_NOTE = (
     "Progress: long stages print checkpoint-aware timing; iterative stages also display live "
     "progress bars. Reused, failed, running, and missing checkpoints are reported explicitly."
 )
 
+BACKEND_ENVIRONMENT_CHECK = '''
+if sys.version_info[:2] != (3, 14):
+    raise RuntimeError(
+        "Select the project Python 3.14 .venv kernel before running this notebook. "
+        f"Current interpreter: {sys.executable}"
+    )
+_BACKEND_DISTRIBUTIONS = ("fastcgc", "tigramite", "scikit-learn", "kmedoids", "igraph", "leidenalg")
+try:
+    _BACKEND_VERSIONS = {name: version(name) for name in _BACKEND_DISTRIBUTIONS}
+except PackageNotFoundError as error:
+    raise RuntimeError(
+        "The notebook kernel is missing a required installed backend. Run "
+        "uv sync --python 3.14 --locked --extra dev --extra csl --extra community --extra notebooks "
+        "from the repository root, then restart the project .venv kernel."
+    ) from error
+print("Notebook interpreter:", sys.executable)
+print("Installed backends:", _BACKEND_VERSIONS)
+'''
+
 REPOSITORY_BOOTSTRAP = '''
 import sys
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 try:
@@ -45,7 +73,7 @@ sys.path[:0] = [
     for path in (str(_REPOSITORY_ROOT / "src"), str(_REPOSITORY_ROOT))
     if path not in sys.path
 ]
-'''
+''' + BACKEND_ENVIRONMENT_CHECK
 
 
 @dataclass(frozen=True)
@@ -89,6 +117,10 @@ def with_repository_bootstrap(cells: list[dict]) -> list[dict]:
         (index for index, cell in enumerate(cells) if cell["cell_type"] == "code"),
         len(cells),
     )
+    cells = json.loads(json.dumps(cells))
+    first_markdown = next((cell for cell in cells if cell["cell_type"] == "markdown"), None)
+    if first_markdown is not None:
+        first_markdown["source"].extend(["\n", f"{ENVIRONMENT_NOTE}\n"])
     return [*cells[:first_code], code_cell(REPOSITORY_BOOTSTRAP), *cells[first_code:]]
 
 
@@ -97,13 +129,13 @@ def write_notebook(path: Path, cells: list[dict]) -> None:
         "cells": with_repository_bootstrap(cells),
         "metadata": {
             "kernelspec": {
-                "display_name": "Python 3",
+                "display_name": "Python 3.14 (effectome .venv)",
                 "language": "python",
                 "name": "python3",
             },
             "language_info": {
                 "name": "python",
-                "version": "3.12",
+                "version": "3.14",
             },
         },
         "nbformat": 4,
@@ -409,26 +441,6 @@ def datasetize_cells(cells: list[dict], dataset: DatasetSpec) -> list[dict]:
             for old, new in replacements:
                 line = line.replace(old, new)
             source[index] = line
-    is_manifold_notebook = any(
-        "MANIFOLD_CFG" in line for cell in payload for line in cell.get("source", [])
-    )
-    if dataset.bundle_net_reference and is_manifold_notebook:
-        bundle_replacements = [
-            (
-                'RECORDING_PATH = OUTPUT_ROOT / RUN_ID / "shared" / "stages" / "recording" / "artifact.pkl"',
-                'RECORDING_PATH = (\n'
-                '    OUTPUT_ROOT / RUN_ID / "shared" / "stages"\n'
-                '    / "bundle_net_reference_recording" / "artifact.pkl"\n'
-                ')',
-            ),
-            ('MANIFOLD_CONFIG_NAME = "classical"', 'MANIFOLD_CONFIG_NAME = "bunddle"'),
-        ]
-        for cell in payload:
-            source = cell.get("source", [])
-            for index, line in enumerate(source):
-                for old, new in bundle_replacements:
-                    line = line.replace(old, new)
-                source[index] = line
     title_source = payload[0].get("source", [])
     if title_source:
         title_source[0] = title_source[0].replace("# ", f"# {dataset.label} — ", 1)
@@ -504,15 +516,17 @@ print_stage_status(run)
 def notebook_states(method: str, method_label: str) -> list[dict]:
     return [
         markdown_cell(
-            f"# Cluster-Markov State Notebook: {method_label}",
+            f"# Prospective Graph-State Comparison: {method_label}",
             "",
             f"Prerequisite: the `{method}` connectivity stage must already exist for the selected `RUN_ID`.",
-            "Parallel lane: yes, independent across method namespaces.",
+            "Compare one-state and continuous baselines with K-means and regularized mixtures using inner selection and a frozen held-out evaluation.",
+            "Raw-history purging separates training and future graph targets. Regimes remain unknown until raw-process calibration; Label-permutation tests do not establish neural regimes.",
             PROGRESS_NOTE,
         ),
         code_cell(
             """
 from effectome.dynamics import GraphStateConfig, TransitionConfig
+from effectome.dynamics.state_evaluation import StateEvaluationConfig
 from notebooks._shared import (
     PROJECT_ROOT,
     make_run,
@@ -526,14 +540,17 @@ METHOD = "%s"
 ARTIFACT_ROOT = PROJECT_ROOT / "outputs" / "notebook_runs"
 FORCE = False
 
-GRAPH_CFG = GraphStateConfig(n_states=3, metric="causal_kernel", select_k=False, seed=42)
+GRAPH_CFG = GraphStateConfig(
+    n_states=1, feature_representation="signed_lag_offdiag", assignment="kmeans",
+    metric="frobenius", pca_components=8, analysis_scope="prospective", seed=42,
+)
 TRANSITION_CFG = TransitionConfig(laplace=1.0, n_null=200, heldout_fraction=0.3, seed=42)
 
 run = make_run(ARTIFACT_ROOT, RUN_ID, METHOD)
 print_notebook_header(
     run,
     title=f"{METHOD} graph states and transitions",
-    expected_stages=["graph_states", "transitions"],
+    expected_stages=["state_evaluation", "graph_states", "transitions"],
     force=FORCE,
 )
 """
@@ -545,11 +562,18 @@ states, transitions = run_graph_states_and_transitions(
     run,
     graph_cfg=GRAPH_CFG,
     transition_cfg=TRANSITION_CFG,
+    selection_cfg=StateEvaluationConfig(graph=GRAPH_CFG),
+    analysis_scope="prospective",
+    on_unavailable="return",
     force=FORCE,
 )
-print(states.labels.shape, states.metric, states.silhouette)
-print(transitions.transition_matrix)
-print(transitions.p_value)
+if states is None:
+    print("State evaluation unavailable:", run.load_completed("state_evaluation").summary())
+else:
+    print(states.labels.shape, states.metric, states.silhouette)
+    print(transitions.transition_matrix)
+    print("Conditional label-sequence diagnostic only:", transitions.p_value)
+print("Neural regimes remain unvalidated without independent raw-process calibration.")
 print_stage_status(run)
 """
         ),
@@ -562,7 +586,7 @@ def notebook_probabilistic(method: str, method_label: str) -> list[dict]:
             f"# Probabilistic State Notebook: {method_label}",
             "",
             f"Prerequisite: the `{method}` connectivity stage must already exist for the selected `RUN_ID`.",
-            "This notebook fits the HMM and records duration diagnostics that indicate whether an HSMM is warranted later.",
+            "Optional descriptive HMM fit, starting from one state. Duration diagnostics can motivate later models; an HMM fit does not establish neural regimes and is separate from prospective state selection.",
             PROGRESS_NOTE,
         ),
         code_cell(
@@ -582,7 +606,7 @@ ARTIFACT_ROOT = PROJECT_ROOT / "outputs" / "notebook_runs"
 FORCE = False
 
 PROBABILISTIC_CFG = ProbabilisticStateConfig(
-    n_states=3,
+    n_states=1,
     n_components=8,
     standardize=True,
     covariance_floor=1.0e-4,
@@ -617,10 +641,11 @@ print_stage_status(run)
 def notebook_community(method: str, method_label: str) -> list[dict]:
     return [
         markdown_cell(
-            f"# Temporal Community Notebook: {method_label}",
+            f"# Temporal Neuron Roles: {method_label}",
             "",
             f"Prerequisite: the `{method}` connectivity stage must already exist for the selected `RUN_ID`.",
-            "Use `mode='prospective'` if you want positive-lag community prediction later in the linking notebook.",
+            "This optional analysis groups neurons by signed incoming/outgoing roles. Structural community detection is retained separately through the installed Leiden backend; roles are not evidence of densely coupled modules.",
+            "One role is the null summary. Increase the role count only with held-out evidence or an independently declared structural hypothesis.",
             PROGRESS_NOTE,
         ),
         code_cell(
@@ -640,7 +665,8 @@ COMMUNITY_CFG = CommunityConfig(
     use_absolute=False,
     seed=42,
     extra={
-        "n_communities": 3,
+        "n_communities": 1,
+        "feature_representation": "signed_in_out",
         "mode": "prospective",
         "temporal_penalty": 1.5,
         "n_runs": 5,
@@ -653,7 +679,7 @@ COMMUNITY_CFG = CommunityConfig(
 run = make_run(ARTIFACT_ROOT, RUN_ID, METHOD)
 print_notebook_header(
     run,
-    title=f"{METHOD} temporal community",
+    title=f"{METHOD} temporal neuron roles",
     expected_stages=["community"],
     force=FORCE,
 )
@@ -798,10 +824,13 @@ report = run_linking(
     linking_cfg=LINKING_CFG,
     force=FORCE,
 )
-print(len(report["decoding"]))
-print(report["splitter"])
-print(report["positive_lag_incremental"].keys())
-print(report["effectome_to_future_manifold"])
+if report.get("status") == "unavailable":
+    print("Linking unavailable:", report["reason"])
+else:
+    print(len(report["decoding"]))
+    print(report["splitter"])
+    print(report["positive_lag_incremental"].keys())
+    print(report["effectome_to_future_manifold"])
 print_stage_status(run)
 """
         ),
@@ -820,8 +849,8 @@ def notebook_attribution(method: str, method_label: str) -> list[dict]:
         code_cell(
             """
 from omegaconf import OmegaConf
-from effectome.connectivity import ConnectivityConfig
 
+from effectome.connectivity import ConnectivityConfig
 from notebooks._shared import (
     PROJECT_ROOT,
     make_run,
@@ -925,7 +954,55 @@ print_stage_status(run)
     ]
 
 
+def notebook_state_calibration() -> list[dict]:
+    return [
+        markdown_cell(
+            "# Raw State Calibration: Development Checks",
+            "",
+            "Regenerate raw recordings and rerun connectivity and nested state selection for fixed-law, measurement-change, drift, recurrent, nonrecurring and nonlinear scenarios.",
+            "This smoke grid is a software/development check. Multi-state selection is not a validated neural-regime claim; mixed histories are excluded from instantaneous recovery scores.",
+            PROGRESS_NOTE,
+            "The complete bounded calibration grid is checkpointed. Individual graph fits do not display their own progress bars.",
+        ),
+        code_cell(
+            """
+from dataclasses import asdict
+
+from effectome.experiments.state_calibration import (
+    run_state_calibration,
+    state_calibration_profile,
+    write_state_calibration_report,
+)
+from notebooks._shared import PROJECT_ROOT, make_run, print_notebook_header, print_stage_status
+
+CALIBRATION_CFG = state_calibration_profile("smoke")
+OUTPUT_DIRECTORY = PROJECT_ROOT / "outputs" / "state-calibration" / "smoke"
+FORCE = False
+run = make_run(PROJECT_ROOT / "outputs" / "analysis" / "validation", "smoke", "raw-state-calibration")
+print_notebook_header(
+    run, title="Raw state calibration", expected_stages=["state_calibration"], force=FORCE,
+)
+print(CALIBRATION_CFG)
+"""
+        ),
+        code_cell(
+            """
+report = run.execute(
+    "state_calibration", lambda: run_state_calibration(CALIBRATION_CFG),
+    config=asdict(CALIBRATION_CFG), force=FORCE,
+)
+manifest_path, scorecard_path = write_state_calibration_report(report, OUTPUT_DIRECTORY)
+print(report["summary"])
+print("Manifest:", manifest_path)
+print("Scorecard:", scorecard_path)
+print_stage_status(run)
+"""
+        ),
+    ]
+
+
 def main() -> None:
+    write_notebook(ROOT / "validation" / "10_state_calibration.ipynb", notebook_state_calibration())
     datasets = [
         DatasetSpec(
             slug="c_elegans",
@@ -962,13 +1039,13 @@ def main() -> None:
     lanes = [
         (
             "cgc",
-            "c-GC",
+            "fastC-GC",
             True,
             "cgc",
         ),
         (
             "cgc_star",
-            "c-GC*",
+            "fastC-GC*",
             True,
             "cgc_star",
         ),

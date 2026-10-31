@@ -28,7 +28,10 @@ from effectome.data_module import (
 from effectome.dynamics import (
     GraphStateConfig,
     ProbabilisticStateConfig,
+    StateEvaluationConfig,
     TransitionConfig,
+    evaluate_state_models,
+    fit_frozen_state_transitions,
     fit_graph_states,
     fit_probabilistic_states,
     fit_transitions,
@@ -497,9 +500,57 @@ def run_graph_states_and_transitions(
     *,
     graph_cfg: GraphStateConfig,
     transition_cfg: TransitionConfig,
+    selection_cfg: StateEvaluationConfig | None = None,
+    analysis_scope: str = "descriptive",
+    on_unavailable: str = "raise",
     force: bool = False,
 ):
+    """Fit states, optionally checkpointing unavailable prospective results as ``None``."""
+    if on_unavailable not in {"raise", "return"}:
+        raise ValueError("on_unavailable must be raise or return")
     connectivity, connectivity_path = require_stage(run, "connectivity")
+    if analysis_scope not in {"descriptive", "prospective"}:
+        raise ValueError("state analysis_scope must be descriptive or prospective")
+    if analysis_scope == "prospective":
+        selection_cfg = selection_cfg or StateEvaluationConfig(graph=graph_cfg)
+        evaluation = _execute_stage(
+            run, "state_evaluation", lambda: evaluate_state_models(connectivity, selection_cfg),
+            config=asdict(selection_cfg), dependencies={"connectivity": connectivity_path}, force=force,
+        )
+        if evaluation.status != "available" or evaluation.selected_model is None:
+            reason = evaluation.diagnostics.get("reason", "no_selected_state_model")
+            if on_unavailable == "raise":
+                raise ValueError(f"state evaluation unavailable: {reason}")
+            for stage in ("graph_states", "transitions"):
+                _execute_stage(
+                    run, stage, lambda: None,
+                    config={
+                        "scope": analysis_scope,
+                        "status": "unavailable",
+                        "reason": reason,
+                        "selection": asdict(selection_cfg),
+                    },
+                    dependencies={"state_evaluation": stage_artifact_path(run, "state_evaluation")},
+                    force=force,
+                )
+            print(f"State evaluation unavailable: {reason}")
+            print("Graph states and transitions were not fitted; strict temporal purging is retained.")
+            return None, None
+        states = _execute_stage(
+            run, "graph_states", lambda: evaluation.selected_model,
+            config={"scope": analysis_scope, "selection": asdict(selection_cfg)},
+            dependencies={"state_evaluation": stage_artifact_path(run, "state_evaluation")}, force=force,
+        )
+        transitions = _execute_stage(
+            run, "transitions",
+            lambda: fit_frozen_state_transitions(connectivity, evaluation, transition_cfg),
+            config={"scope": analysis_scope, "transition": asdict(transition_cfg)},
+            dependencies={"state_evaluation": stage_artifact_path(run, "state_evaluation")}, force=force,
+        )
+        print("Selected graph summary:", evaluation.selected_algorithm, evaluation.selected_n_states)
+        print("Held-out metrics:", evaluation.metrics)
+        print("Regime claims require raw-process calibration; label tests concern label sequences.")
+        return states, transitions
     states = _execute_stage(
         run,
         "graph_states",
@@ -813,6 +864,35 @@ def run_linking(
 ) -> dict[str, Any]:
     connectivity, connectivity_path = require_stage(run, "connectivity")
     states, states_path = require_stage(run, "graph_states")
+    if states is None:
+        evaluation, evaluation_path = require_stage(run, "state_evaluation")
+        if evaluation.status == "available" and evaluation.selected_model is not None:
+            raise ValueError("graph_states is unavailable but state_evaluation contains a fitted model")
+        reason = evaluation.diagnostics.get("reason", "no_selected_state_model")
+        print(f"Linking unavailable: state evaluation unavailable ({reason})")
+        return _execute_stage(
+            run, "linking",
+            lambda: {
+                "status": "unavailable",
+                "fail_safe_reason": "state_evaluation_unavailable",
+                "reason": reason,
+                "state_evaluation": evaluation.summary(),
+                "decoding": [],
+                "association": {},
+                "lead_lag": {},
+                "lead_lag_activity_adjusted": {},
+                "incremental": {},
+                "positive_lag_incremental": {},
+                "effectome_to_future_manifold": {},
+            },
+            config=linking_cfg,
+            dependencies={
+                "connectivity": connectivity_path,
+                "graph_states": states_path,
+                "state_evaluation": evaluation_path,
+            },
+            force=force,
+        )
     community, community_path = require_stage(run, "community")
     manifold, manifold_path = require_stage(run, "manifold")
     recording = _checkpoint_input(run, stage="recording_input", path=recording_path, force=False)
@@ -1236,7 +1316,7 @@ def run_owned_feature_artifacts(
     evaluation_indices: np.ndarray | None = None,
     evaluation_fraction: float = 0.2,
     n_dims: int = 3,
-    n_roles: int = 3,
+    n_roles: int = 1,
     seed: int = 42,
     force: bool = False,
 ) -> OwnedFeatureArtifacts:

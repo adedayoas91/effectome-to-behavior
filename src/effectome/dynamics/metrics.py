@@ -212,20 +212,15 @@ def kmedoids(
     A medoid is the within-cluster point minimizing summed distance: the discrete
     Fréchet barycenter under whatever metric produced ``distance``.
     """
-    rng = np.random.default_rng(seed)
-    n = distance.shape[0]
-    medoids = rng.choice(n, size=k, replace=False)
-    labels = np.argmin(distance[:, medoids], axis=1)
-    for _ in range(max_iter):
-        new_medoids = medoids.copy()
-        for c in range(k):
-            members = np.where(labels == c)[0]
-            if members.size == 0:
-                continue
-            costs = distance[np.ix_(members, members)].sum(axis=1)
-            new_medoids[c] = members[int(np.argmin(costs))]
-        new_labels = np.argmin(distance[:, new_medoids], axis=1)
-        if np.array_equal(new_labels, labels) and np.array_equal(new_medoids, medoids):
-            break
-        labels, medoids = new_labels, new_medoids
-    return labels.astype(np.int64), medoids
+    from kmedoids import alternating
+
+    distance = np.asarray(distance, dtype=np.float64)
+    if distance.ndim != 2 or distance.shape[0] != distance.shape[1]:
+        raise ValueError("distance must be a square matrix")
+    if not np.isfinite(distance).all() or np.any(distance < 0):
+        raise ValueError("distance must be finite and nonnegative")
+    if not 1 <= k <= len(distance):
+        raise ValueError("k must lie between one and the number of observations")
+    initial_medoids = np.random.default_rng(seed).choice(len(distance), size=k, replace=False)
+    result = alternating(distance, initial_medoids, max_iter=max_iter)
+    return np.asarray(result.labels, dtype=np.int64), np.asarray(result.medoids, dtype=np.int64)

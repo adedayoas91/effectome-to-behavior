@@ -1,4 +1,4 @@
-"""Notebook-friendly c-GC / c-GC* estimators with explicit support selection.
+"""fastC-GC / fastC-GC* support selection with a separate signed VAR readout.
 
 The primary directed effectome is lagged-only (tau >= 1). Support is selected by
 intersecting unconditional and conditional evidence, while signed weights come from
@@ -7,7 +7,9 @@ a separate ridge-regularized VAR fit restricted to the selected support.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from importlib.metadata import distribution
 
 import numpy as np
 from scipy.stats import t as student_t
@@ -144,10 +146,11 @@ def _ridge_regression(x: np.ndarray, y: np.ndarray, alpha: float) -> np.ndarray:
 
 @dataclass
 class CausalisedGC:
-    """c-GC / c-GC* estimator.
+    """fastC-GC / fastC-GC* support with retained-self-history signed readout.
 
-    ``method="cgc"`` uses the pairwise causalised conditioning set.
-    ``method="cgc_star"`` uses the full-conditioning c-GC* variant.
+    ``method="cgc"`` selects fastC-GC; ``method="cgc_star"`` selects fastC-GC*.
+    Explicit ``analytic`` and ``circular_shift`` tests retain the legacy
+    lag-only support implementation for comparison.
     """
 
     n_perm: int = 0
@@ -155,7 +158,8 @@ class CausalisedGC:
     n_lags: int = 1
     temporal: bool = True
     method: str = "cgc"
-    support_test: str = "analytic"
+    support_test: str = "fastcgc"
+    support_ridge: float = 1e-6
     parallel: bool = False
     signed: bool = True
     ridge_alpha: float = 1.0
@@ -170,8 +174,12 @@ class CausalisedGC:
     def __post_init__(self) -> None:
         if self.method not in {"cgc", "cgc_star"}:
             raise ValueError("method must be 'cgc' or 'cgc_star'.")
-        if self.support_test not in {"analytic", "circular_shift"}:
-            raise ValueError("support_test must be 'analytic' or 'circular_shift'.")
+        if self.support_test not in {"fastcgc", "analytic", "circular_shift"}:
+            raise ValueError("support_test must be 'fastcgc', 'analytic' or 'circular_shift'.")
+        if not np.isfinite(self.support_ridge) or self.support_ridge <= 0:
+            raise ValueError("support_ridge must be finite and positive.")
+        if self.support_test == "fastcgc" and self.n_perm != 0:
+            raise ValueError("fastcgc enumerates all circular shifts; n_perm must be zero.")
         if self.support_test == "circular_shift" and self.n_perm <= 0:
             raise ValueError("n_perm must be positive when support_test='circular_shift'.")
         if self.n_pasts < 1:
@@ -213,7 +221,85 @@ class CausalisedGC:
             excluded.add(previous_lag * self.n_neur + source_index)
         return np.asarray([idx for idx in all_indices if idx not in excluded], dtype=int)
 
+    def _compute_fast_support_statistics(self) -> None:
+        from fastCGC import FastGcStar
+
+        backend_type = FastGcStar
+        if self.dropped_design_rows_:
+            # Upstream's public input accepts only finite recordings. Keep the
+            # already aligned columns instead of joining raw samples over gaps.
+            # This override is tied to the immutable dependency revision.
+            from fastCGC.dependence.context import FitContext
+
+            shifted = np.concatenate([self.target_data, self.shifted_data], axis=0)
+            n_variables = self.n_neur
+            n_pasts = self.n_pasts
+
+            class MaskedFastGcStar(FastGcStar):
+                def _prepare_context(self, data: np.ndarray) -> None:
+                    means = shifted.mean(axis=1, keepdims=True)
+                    centered = shifted - means
+                    scales = np.sqrt(np.mean(centered**2, axis=1))
+                    tolerance = np.finfo(float).eps * np.maximum(1.0, np.abs(means[:, 0]))
+                    valid = scales > tolerance
+                    standardized = np.zeros_like(centered)
+                    standardized[valid] = centered[valid] / scales[valid, None]
+                    allowed = valid[:, None] & valid[:n_variables][None, :]
+                    diagonal = np.arange(n_variables)
+                    allowed[diagonal, diagonal] = False
+                    rows = np.arange(shifted.shape[0])
+                    self._fit_context = FitContext(
+                        data=data,
+                        shifted=shifted,
+                        standardized=standardized,
+                        valid_rows=valid,
+                        allowed_pairs=allowed,
+                        n_variables=n_variables,
+                        n_pasts=n_pasts,
+                        n_samples=shifted.shape[1],
+                        row_variable=rows % n_variables,
+                        row_lag=rows // n_variables,
+                        row_mean=means[:, 0],
+                        row_scale=scales,
+                    )
+                    self.shifted_data = shifted
+                    self.standardized_shifted_ = standardized
+                    self.row_mean_ = means[:, 0]
+                    self.row_scale_ = scales
+                    self.valid_row_mask_ = valid
+                    self.n_neur = n_variables
+                    self._context_data_id = id(data)
+
+            backend_type = MaskedFastGcStar
+
+        if self.valid_design_rows_ < 2:
+            raise ValueError("fastcgc support inference needs at least two valid lag-design rows")
+        backend = backend_type(
+            n_pasts=self.n_pasts,
+            n_lags=self.n_lags,
+            method="fcgc" if self.method == "cgc_star" else "cgc",
+            dependence_profile="linear",
+            evaluation_policy="full",
+            exact_permutation=True,
+            ridge=self.support_ridge,
+            parallel=self.parallel,
+            random_state=self.seed,
+        ).fit(self.data)
+        lagged = slice(self.n_neur, None)
+        self.corr_ = np.asarray(backend.marginal_effect_[lagged], dtype=np.float64).copy()
+        self.pval_corr_ = np.asarray(backend.marginal_pvalue_[lagged], dtype=np.float64).copy()
+        self.inv_corr_ = np.asarray(backend.conditional_effect_[lagged], dtype=np.float64).copy()
+        self.pval_inv_corr_ = np.asarray(backend.conditional_pvalue_[lagged], dtype=np.float64).copy()
+        self.support_eligible_ = np.asarray(backend._fit_context.allowed_pairs[lagged], dtype=bool).copy()
+        self.backend_metadata_ = dict(backend.backend_metadata_)
+        package = distribution("fastcgc")
+        self.backend_version_ = package.version
+        self.backend_source_ = json.loads(package.read_text("direct_url.json") or "{}")
+
     def _compute_support_statistics(self) -> None:
+        if self.support_test == "fastcgc":
+            self._compute_fast_support_statistics()
+            return
         n_rows = self.shifted_data.shape[0]
         self.corr_ = np.zeros((n_rows, self.n_neur), dtype=np.float64)
         self.pval_corr_ = np.ones((n_rows, self.n_neur), dtype=np.float64)
@@ -263,6 +349,8 @@ class CausalisedGC:
         """Fit on ``data`` shaped ``(n_variables, T)``."""
         del verbose
         self.data = np.asarray(data, dtype=np.float64).copy()
+        if self.data.ndim != 2 or self.data.shape[0] < 1:
+            raise ValueError("data must have shape (n_variables, T) with at least one variable")
         self.n_neur = self.data.shape[0]
         if self.data.shape[1] <= self.n_pasts:
             raise ValueError("time series is too short for the requested lag depth")
@@ -293,6 +381,15 @@ class CausalisedGC:
             or self.pval_inv_corr_ is None
         ):
             raise RuntimeError("fit must be called before computing support")
+        if not all(np.isfinite(value) and 0.0 <= value <= 1.0 for value in (alpha, beta)):
+            raise ValueError("alpha and beta must be finite and lie in [0, 1]")
+        if self.support_test == "fastcgc":
+            resolution = 1.0 / self.valid_design_rows_
+            if any(0.0 < value and value + 1e-15 < resolution for value in (alpha, beta)):
+                raise ValueError(
+                    "positive alpha and beta must be at least the complete-shift p-value resolution "
+                    f"1/n_valid_rows={resolution:.6g}; increase history or relax the threshold"
+                )
         resolution = 1.0 / (self.n_perm + 1) if self.n_perm > 0 else 0.0
         if self.n_perm > 0 and (alpha + 1e-15 < resolution or beta + 1e-15 < resolution):
             raise ValueError(
@@ -300,6 +397,8 @@ class CausalisedGC:
                 f"1/(n_perm+1)={resolution:.6g}; increase n_perm or relax the threshold"
             )
         support = (self.pval_corr_ <= alpha) & (self.pval_inv_corr_ <= beta)
+        if self.support_test == "fastcgc":
+            support &= self.support_eligible_
         lagged_support = support.reshape(self.n_pasts, self.n_neur, self.n_neur)
         diagonal = np.arange(self.n_neur)
         lagged_support[:, diagonal, diagonal] = False
@@ -365,8 +464,8 @@ class CausalisedGC:
         self,
         *,
         simulation: bool = True,
-        alpha: float = 0.01,
-        beta: float = 0.01,
+        alpha: float | None = None,
+        beta: float | None = None,
         aggregation: str | None = None,
         return_lagged: bool = False,
     ) -> np.ndarray:
@@ -374,6 +473,9 @@ class CausalisedGC:
         if not simulation:
             raise ValueError("tau=0 edges are not part of the primary c-GC effectome")
 
+        default_threshold = 0.05 if self.support_test == "fastcgc" else 0.01
+        alpha = default_threshold if alpha is None else alpha
+        beta = default_threshold if beta is None else beta
         support = self._support_mask(alpha, beta)
         lagged_coefficients = self._lagged_coefficients(support)
         collapsed = self.collapse_lagged_coefficients(
@@ -393,8 +495,25 @@ class CausalisedGC:
         support = self.last_support_
         lagged = self.last_lagged_coefficients_
         resolution = 1.0 / (self.n_perm + 1) if self.n_perm > 0 else 0.0
+        if self.support_test == "fastcgc":
+            resolution = 1.0 / self.valid_design_rows_
         return {
             "method": self.method,
+            "backend": "fastcgc" if self.support_test == "fastcgc" else "legacy_effectome",
+            "backend_version": getattr(self, "backend_version_", None),
+            "backend_source": getattr(self, "backend_source_", {}),
+            "shift_time_axis": (
+                "retained_lag_design_rows" if self.support_test == "fastcgc" else None
+            ),
+            "algorithm": (
+                "fastC-GC*" if self.method == "cgc_star" else "fastC-GC"
+            ) if self.support_test == "fastcgc" else self.method,
+            "support_ridge": self.support_ridge if self.support_test == "fastcgc" else None,
+            "support_backend_metadata": getattr(self, "backend_metadata_", {}),
+            "support_expansion": (
+                "present_plus_lags_with_lagged_only_export"
+                if self.support_test == "fastcgc" else "lags_only"
+            ),
             "n_perm": self.n_perm if self.support_test == "circular_shift" else 0,
             "n_pasts": self.n_pasts,
             "n_lags": self.n_lags,
@@ -406,7 +525,10 @@ class CausalisedGC:
             "support_test": self.support_test,
             "nonfinite_row_policy": "drop_only_rows_whose_lagged_chain_touches_nonfinite_samples",
             "support_test_assumption": (
-                "analytic correlation calibration; autocorrelation-aware sensitivity required"
+                "complete circular shifts require a suitable shift-invariant null law; "
+                "no automatic graph-wide error control"
+                if self.support_test == "fastcgc"
+                else "analytic correlation calibration; autocorrelation-aware sensitivity required"
                 if self.support_test == "analytic"
                 else "circular shifts preserve each tested series' marginal autocorrelation"
             ),
@@ -427,10 +549,10 @@ class CausalisedGC:
             ),
             "support_density": float(np.mean(support[: self.n_lags])),
             "pvalue_resolution": (
-                float(resolution) if self.support_test == "circular_shift" else None
+                float(resolution) if self.support_test in {"circular_shift", "fastcgc"} else None
             ),
-            "total_design_rows": int(getattr(self, "total_design_rows_", self.design_.shape[0])),
-            "valid_design_rows": int(getattr(self, "valid_design_rows_", self.design_.shape[0])),
+            "total_design_rows": int(self.total_design_rows_),
+            "valid_design_rows": int(self.valid_design_rows_),
             "dropped_design_rows": int(getattr(self, "dropped_design_rows_", 0)),
             "valid_row_fraction": float(getattr(self, "valid_row_fraction_", 1.0)),
             "invalid_timepoint_count": int(getattr(self, "invalid_timepoint_count_", 0)),

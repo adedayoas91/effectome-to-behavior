@@ -27,6 +27,12 @@ from .probabilistic import (
     ProbabilisticStateProjection,
     fit_probabilistic_states,
 )
+from .state_evaluation import (
+    StateEvaluationConfig,
+    StateEvaluationResult,
+    evaluate_state_models,
+    fit_frozen_state_transitions,
+)
 from .transitions import (
     DwellRun,
     TransitionConfig,
@@ -40,6 +46,10 @@ from .transitions import (
 )
 
 __all__ = [
+    "StateEvaluationConfig",
+    "StateEvaluationResult",
+    "evaluate_state_models",
+    "fit_frozen_state_transitions",
     "GraphStateConfig",
     "GraphStateModel",
     "fit_graph_states",

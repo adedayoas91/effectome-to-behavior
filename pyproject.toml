@@ -3,17 +3,19 @@ name = "effectome"
 version = "0.1.0"
 description = "From dynamic effectomes to behavior: causal-structure-learning of time-varying neural connectivity and its link to a behavioral manifold."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14,<3.15"
 license = { text = "MIT" }
 authors = [{ name = "Sadiq Adedayo" }]
 
 dependencies = [
+    "fastcgc @ https://github.com/adedayoas91/fastC-GC/archive/985de54bf3d2474a5e692ad1d236c74f8452e197.tar.gz",
     "numpy>=1.24",
     "scipy>=1.10",
     "pandas>=2.0",
     "scikit-learn>=1.3",
+    "kmedoids==0.5.5",
     "networkx>=3.1",
-    "hydra-core>=1.3",
+    "hydra-core>=1.3.8",
     "omegaconf>=2.3",
     "statsmodels>=0.14",
     "h5py>=3.9",
@@ -22,12 +24,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Preserve notebook kernel support in the Python 3.14 environment.
+notebooks = ["ipykernel>=7.3"]
 # Causal structure learning (PCMCI+)
 csl = ["tigramite>=5.2"]
 # Community detection backends
 community = ["python-igraph>=0.11", "leidenalg>=0.10"]
 # Behavioral manifold learning
 manifold = ["umap-learn>=0.5", "cebra>=0.4"]
+# Faithful BunDLe reference; requires a platform with compatible PyTorch wheels.
+bundle = ["torch>=2.9"]
 # Deconvolution of calcium traces
 deconv = ["oasis-deconv>=0.3.2"]
 # Everything for a full run
@@ -44,6 +50,9 @@ dev = ["pytest>=7.4", "pytest-cov>=4.1", "ruff>=0.4", "mypy>=1.8"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/effectome"]
 
@@ -58,7 +67,7 @@ select = ["E", "F", "I", "N", "UP", "B"]
 ignore = ["N802", "N806"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.14"
 ignore_missing_imports = true
 warn_unused_ignores = true
 

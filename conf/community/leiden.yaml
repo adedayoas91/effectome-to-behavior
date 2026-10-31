@@ -1,4 +1,4 @@
-# Static Leiden community detection (falls back to greedy modularity without '.[community]').
+# Static Leiden via installed igraph/leidenalg (requires the community extra).
 name: leiden
 resolution: 1.0
 symmetrize: true

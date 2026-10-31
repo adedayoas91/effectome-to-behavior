@@ -1,15 +1,10 @@
-"""Static per-window community detection: Leiden (preferred) or greedy modularity (fallback)."""
+"""Static community detection using the installed Leiden implementation."""
 
 from __future__ import annotations
 
-import logging
-
-import networkx as nx
 import numpy as np
 
 from .base import CommunityDetector, register_community
-
-logger = logging.getLogger(__name__)
 
 
 def _labels_from_sets(communities: list[set[int]], n: int) -> np.ndarray:
@@ -22,37 +17,34 @@ def _labels_from_sets(communities: list[set[int]], n: int) -> np.ndarray:
 
 @register_community("leiden")
 class LeidenCommunity(CommunityDetector):
-    """Leiden community detection via igraph+leidenalg; falls back to greedy modularity.
-
-    Leiden optimizes modularity (with a resolution parameter) and guarantees well-connected
-    communities. Without the optional `community` extra installed, this transparently falls back
-    to NetworkX greedy modularity so the pipeline still runs.
-    """
+    """Leiden RB modularity via installed igraph/leidenalg on nonnegative weights."""
 
     def detect_one(self, matrix: np.ndarray) -> np.ndarray:
-        n = matrix.shape[0]
         try:
             import igraph as ig
             import leidenalg as la
-
-            sources, targets = np.nonzero(np.triu(matrix, k=1))
-            weights = matrix[sources, targets]
-            g = ig.Graph(n=n, edges=list(zip(sources.tolist(), targets.tolist(), strict=False)))
-            g.es["weight"] = weights.tolist()
-            part = la.find_partition(
-                g,
-                la.RBConfigurationVertexPartition,
-                weights="weight",
-                resolution_parameter=self.cfg.resolution,
-                seed=self.cfg.seed,
-            )
-            self._last_backend = "leidenalg.RBConfigurationVertexPartition"
-            return np.asarray(part.membership, dtype=np.int64)
-        except ImportError:
-            logger.debug("leidenalg not installed; using greedy modularity fallback")
-            g = nx.from_numpy_array(matrix)
-            communities = nx.community.greedy_modularity_communities(
-                g, weight="weight", resolution=self.cfg.resolution
-            )
-            self._last_backend = "networkx.greedy_modularity"
-            return _labels_from_sets([set(c) for c in communities], n)
+        except ImportError as exc:
+            raise ImportError(
+                "Leiden requires installed igraph and leidenalg; run uv sync --extra community "
+                "alongside your other environment extras."
+            ) from exc
+        if not np.isfinite(matrix).all() or np.any(matrix < 0):
+            raise ValueError("Leiden RB requires finite nonnegative weights; use use_absolute=True")
+        directed = not self.cfg.symmetrize
+        selected = matrix if directed else np.triu(matrix, k=1)
+        sources, targets = np.nonzero(selected)
+        graph = ig.Graph(
+            n=matrix.shape[0],
+            edges=list(zip(sources.tolist(), targets.tolist(), strict=False)),
+            directed=directed,
+        )
+        graph.es["weight"] = matrix[sources, targets].tolist()
+        partition = la.find_partition(
+            graph,
+            la.RBConfigurationVertexPartition,
+            weights="weight",
+            resolution_parameter=self.cfg.resolution,
+            seed=self.cfg.seed,
+        )
+        self._last_backend = "leidenalg.RBConfigurationVertexPartition"
+        return np.asarray(partition.membership, dtype=np.int64)

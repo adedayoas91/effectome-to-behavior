@@ -118,9 +118,12 @@ def _load_torch():
     try:
         import torch
         from torch import nn
-    except ImportError as exc:  # pragma: no cover - exercised through fit/skip behavior
+    except ImportError as exc:
         raise ImportError(
-            "BundDLe-Net requires PyTorch. Install '.[manifold]' or `uv pip install torch`."
+            "BundDLe-Net requires PyTorch. Install `uv pip install -e '.[bundle]'` on a "
+            "platform with compatible PyTorch wheels. Python 3.14 on Intel macOS has no "
+            "published PyTorch wheel; use the default classical PCA lane here, or run the "
+            "optional BunDLe reference on a supported Linux or Apple Silicon machine."
         ) from exc
     return torch, nn
 

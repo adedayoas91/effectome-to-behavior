@@ -1,17 +1,14 @@
-"""Temporally regularized community inference across the dynamic effectome.
+"""Temporal role clustering over signed, directed connectivity profiles.
 
-The primary ``temporal`` method is a dependency-free joint objective over node roles across
-time: each neuron's signed directed role vector is clustered into a shared community vocabulary
-while an interlayer penalty discourages gratuitous switching between adjacent windows. This gives
-one community label per neuron per layer without relying on independent per-window partitions plus
-greedy relabeling.
+The ``temporal`` registry key estimates neuronal roles with K-means initialization
+and an interlayer switching penalty. It is distinct from structural community
+or block-model inference. Default profiles contain one incoming and outgoing
+signed coordinate per registered neuron, with self coefficients excluded.
 
-Two modes are supported:
-
-* ``retrospective``: full-sequence alternating optimization with Viterbi smoothing.
-* ``prospective``: one-sided online assignment / centroid updates that do not use future layers.
-
-The legacy greedy label-matching baseline is kept as ``temporal_greedy``.
+``retrospective`` mode uses full-sequence alternating optimization with Viterbi
+smoothing. ``prospective`` mode uses one-sided assignment and centroid updates.
+The expanded legacy feature weighting and greedy Leiden baseline remain explicit
+compatibility options.
 """
 
 from __future__ import annotations
@@ -62,26 +59,73 @@ def _match_labels(prev: np.ndarray, cur: np.ndarray) -> np.ndarray:
     return np.array([mapping[int(x)] for x in cur], dtype=np.int64)
 
 
-def _signed_role_features(matrix: np.ndarray) -> np.ndarray:
-    """Per-node signed directed features preserving in/out roles and sign structure."""
+def _signed_role_features(
+    matrix: np.ndarray, *, feature_representation: str = "signed_in_out"
+) -> np.ndarray:
+    """Build one signed incoming/outgoing profile or explicit legacy features.
+
+    Self entries are zero placeholders in the default representation, preserving
+    the shared neighbour-identity axis across neurons without including self
+    coefficients in the distance. Removing a different column for each neuron
+    would instead compare coordinates belonging to different neighbours.
+    """
     w = np.asarray(matrix, dtype=np.float64)
+    if w.ndim != 2 or w.shape[0] != w.shape[1] or not np.isfinite(w).all():
+        raise ValueError("temporal role matrix must be square and finite")
+    if feature_representation == "signed_in_out":
+        w = w.copy()
+        np.fill_diagonal(w, 0.0)
+        return np.concatenate([w, w.T], axis=1)
+    if feature_representation != "legacy_expanded":
+        raise ValueError("feature_representation must be 'signed_in_out' or 'legacy_expanded'")
     pos = np.maximum(w, 0.0)
     neg = np.maximum(-w, 0.0)
-    out_signed = w
-    in_signed = w.T
     out_strength = np.stack([pos.sum(axis=1), neg.sum(axis=1)], axis=1)
     in_strength = np.stack([pos.sum(axis=0), neg.sum(axis=0)], axis=1)
     balance = np.stack(
-        [
-            out_strength[:, 0] - out_strength[:, 1],
-            in_strength[:, 0] - in_strength[:, 1],
-        ],
+        [out_strength[:, 0] - out_strength[:, 1], in_strength[:, 0] - in_strength[:, 1]],
         axis=1,
     )
     return np.concatenate(
-        [out_signed, in_signed, pos, neg, pos.T, neg.T, out_strength, in_strength, balance],
-        axis=1,
+        [w, w.T, pos, neg, pos.T, neg.T, out_strength, in_strength, balance], axis=1,
     )
+
+
+def _role_lag_schema(series: ConnectivitySeries, feature_representation: str) -> tuple:
+    if feature_representation == "signed_in_out" and series.lagged_matrices is not None:
+        tensor = np.asarray(series.lagged_matrices)
+        expected = (series.n_windows, series.n_neurons, series.n_neurons)
+        if tensor.ndim != 4 or (tensor.shape[0], *tensor.shape[2:]) != expected or tensor.shape[1] < 1:
+            raise ValueError("temporal role lag tensor must have shape (window,lag,node,node)")
+        physical = series.diagnostics.get("physical_lags")
+        lags = None if physical is None else tuple(float(value) for value in physical)
+        if lags is not None and (
+            len(lags) != tensor.shape[1] or not np.isfinite(lags).all()
+            or np.any(np.asarray(lags) <= 0) or np.any(np.diff(lags) <= 0)
+        ):
+            raise ValueError("temporal role physical_lags must match positive ordered lag coordinates")
+        return "lag_resolved", int(tensor.shape[1]), lags
+    return "collapsed_lag", 1, None
+
+
+def _role_feature_tensor(
+    series: ConnectivitySeries, feature_representation: str, *, indices: np.ndarray | None = None
+) -> np.ndarray:
+    source, lag_count, _ = _role_lag_schema(series, feature_representation)
+    if source == "lag_resolved":
+        lagged = np.asarray(series.lagged_matrices)
+        if indices is not None:
+            lagged = lagged[indices]
+        return np.concatenate([
+            np.stack([
+                _signed_role_features(matrix, feature_representation=feature_representation)
+                for matrix in lagged[:, lag]
+            ]) for lag in range(lag_count)
+        ], axis=2)
+    matrices = series.matrices if indices is None else series.matrices[indices]
+    return np.stack([
+        _signed_role_features(matrix, feature_representation=feature_representation) for matrix in matrices
+    ])
 
 
 def _standardize_node_features(features: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -202,6 +246,7 @@ class _TemporalSettings:
     mode: str
     init_window_count: int
     online_learning_rate: float
+    feature_representation: str
 
 
 @dataclass(frozen=True)
@@ -209,6 +254,7 @@ class TemporalRoleFilterState:
     centroids: np.ndarray
     previous_labels: np.ndarray | None
     layers_seen: int
+    feature_representation: str = "signed_in_out"
 
 
 @dataclass(frozen=True)
@@ -216,6 +262,12 @@ class TemporalRoleProjection:
     labels: np.ndarray
     state_snapshots: tuple[TemporalRoleFilterState, ...]
     final_state: TemporalRoleFilterState
+    feature_representation: str = "signed_in_out"
+    grouping_target: str = "roles"
+    graph_schema: tuple | None = None
+    feature_source: str = "collapsed_lag"
+    lag_count: int = 1
+    physical_lags: tuple[float, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -227,9 +279,16 @@ class FittedTemporalRoleModel:
     temporal_penalty: float
     rho: float
     graph_schema: tuple
+    feature_representation: str = "signed_in_out"
+    grouping_target: str = "roles"
+    feature_source: str = "collapsed_lag"
+    lag_count: int = 1
+    physical_lags: tuple[float, ...] | None = None
 
     def initial_state(self) -> TemporalRoleFilterState:
-        return TemporalRoleFilterState(self.initial_centroids.copy(), None, 0)
+        return TemporalRoleFilterState(
+            self.initial_centroids.copy(), None, 0, self.feature_representation
+        )
 
     def filter(
         self,
@@ -238,12 +297,14 @@ class FittedTemporalRoleModel:
         state: TemporalRoleFilterState | None = None,
         boundary_indices: np.ndarray | None = None,
     ) -> TemporalRoleProjection:
-        schema = _role_schema(series)
+        schema = _role_schema(series, self.feature_representation)
         if schema != self.graph_schema:
             raise ValueError("temporal role graph schema mismatch")
-        features = np.stack([_signed_role_features(matrix) for matrix in series.matrices])
+        features = _role_feature_tensor(series, self.feature_representation)
         features = (features - self.feature_mean) / self.feature_scale
         current = self.initial_state() if state is None else state
+        if current.feature_representation != self.feature_representation:
+            raise ValueError("temporal role state feature representation mismatch")
         if np.asarray(current.centroids).shape != self.initial_centroids.shape:
             raise ValueError("temporal role state centroid shape mismatch")
         if current.previous_labels is not None and np.asarray(current.previous_labels).shape != (
@@ -284,18 +345,25 @@ class FittedTemporalRoleModel:
                     centroids.copy(),
                     assigned.copy(),
                     current.layers_seen + layer + 1,
+                    self.feature_representation,
                 )
             )
         final = snapshots[-1] if snapshots else current
-        return TemporalRoleProjection(labels, tuple(snapshots), final)
+        return TemporalRoleProjection(
+            labels, tuple(snapshots), final, self.feature_representation, self.grouping_target, schema,
+            self.feature_source, self.lag_count, self.physical_lags,
+        )
 
 
-def _role_schema(series: ConnectivitySeries) -> tuple:
+def _role_schema(series: ConnectivitySeries, feature_representation: str = "signed_in_out") -> tuple:
     nodes = series.diagnostics.get("node_ids")
     node_ids = tuple(nodes) if nodes is not None else tuple(range(series.n_neurons))
     if len(node_ids) != series.n_neurons or len(set(node_ids)) != len(node_ids):
         raise ValueError("temporal roles require unique ordered node IDs")
-    return node_ids, series.weight_semantics, bool(series.directed), bool(series.signed)
+    return (
+        node_ids, series.weight_semantics, bool(series.directed), bool(series.signed),
+        *_role_lag_schema(series, feature_representation), feature_representation,
+    )
 
 
 def fit_temporal_role_model(
@@ -320,10 +388,11 @@ def fit_temporal_role_model(
         mode=str(extra.get("mode", "retrospective")),
         init_window_count=max(1, int(extra.get("init_window_count", 4))),
         online_learning_rate=float(extra.get("online_learning_rate", 0.25)),
+        feature_representation=str(extra.get("feature_representation", "signed_in_out")),
     )
     if not 0 <= settings.online_learning_rate <= 1:
         raise ValueError("online_learning_rate must lie in [0, 1]")
-    features = np.stack([_signed_role_features(series.matrices[index]) for index in indices])
+    features = _role_feature_tensor(series, settings.feature_representation, indices=indices)
     flat = features.reshape(-1, features.shape[-1])
     mean = flat.mean(axis=0, keepdims=True)
     scale = flat.std(axis=0, keepdims=True)
@@ -334,6 +403,7 @@ def fit_temporal_role_model(
         random_state=cfg.seed,
         n_init=10,
     ).fit(standardized).cluster_centers_
+    feature_source, lag_count, physical_lags = _role_lag_schema(series, settings.feature_representation)
     return FittedTemporalRoleModel(
         feature_mean=mean,
         feature_scale=scale,
@@ -341,7 +411,11 @@ def fit_temporal_role_model(
         n_communities=settings.n_communities,
         temporal_penalty=settings.temporal_penalty,
         rho=settings.online_learning_rate,
-        graph_schema=_role_schema(series),
+        graph_schema=_role_schema(series, settings.feature_representation),
+        feature_representation=settings.feature_representation,
+        feature_source=feature_source,
+        lag_count=lag_count,
+        physical_lags=physical_lags,
     )
 
 
@@ -358,6 +432,7 @@ class _TemporalRegularizedMixin:
             mode=str(extra.get("mode", "retrospective")),
             init_window_count=max(1, int(extra.get("init_window_count", 4))),
             online_learning_rate=float(extra.get("online_learning_rate", 0.25)),
+            feature_representation=str(extra.get("feature_representation", "signed_in_out")),
         )
 
     def _prepare_signed(self, matrix: np.ndarray) -> np.ndarray:
@@ -369,8 +444,17 @@ class _TemporalRegularizedMixin:
 
     def _feature_tensor(self, series: ConnectivitySeries) -> np.ndarray:
         settings = self._settings()
-        matrices = np.stack([self._prepare_signed(w) for w in series.matrices])
-        feats = np.stack([_signed_role_features(w) for w in matrices])
+        # Exported connectivity has zero self edges. Apply any display threshold
+        # in feature coordinates without collapsing separate lag contributions.
+        if settings.feature_representation == "legacy_expanded":
+            feats = np.stack([
+                _signed_role_features(self._prepare_signed(w), feature_representation="legacy_expanded")
+                for w in series.matrices
+            ])
+        else:
+            feats = _role_feature_tensor(series, settings.feature_representation)
+            if self.cfg.weight_threshold > 0:
+                feats = np.where(np.abs(feats) >= self.cfg.weight_threshold, feats, 0.0)
         if settings.mode == "prospective":
             # A prospective label at layer k may not depend on k+1.  Initialize scaling and
             # centroids from the first observed layer only; init_window_count remains a retained
@@ -505,6 +589,7 @@ class _TemporalRegularizedMixin:
         boundary_indices: np.ndarray | None = None,
     ) -> CommunitySeries:
         settings = self._settings()
+        feature_source, lag_count, physical_lags = _role_lag_schema(series, settings.feature_representation)
         if settings.mode == "prospective":
             # Prospective output cannot choose a reference run or align labels by using layers
             # that occur after the issued origin. Pairwise coassignment is label-invariant across
@@ -563,6 +648,15 @@ class _TemporalRegularizedMixin:
                     "temporal_penalty": float(settings.temporal_penalty),
                     "reference_run": ref_idx,
                     "grouping_target": "roles",
+                    "feature_representation": settings.feature_representation,
+                    "feature_source": feature_source,
+                    "lag_count": lag_count,
+                    "physical_lags": physical_lags,
+                    "actual_backend": "sklearn.KMeans_with_temporal_role_assignment",
+                    "self_coefficients": (
+                        "excluded_with_identity_aligned_zero_slots"
+                        if settings.feature_representation == "signed_in_out" else "legacy_feature_policy"
+                    ),
                 },
             },
         )
@@ -570,7 +664,7 @@ class _TemporalRegularizedMixin:
 
 @register_community("temporal")
 class TemporalCommunity(_TemporalRegularizedMixin, CommunityDetector):
-    """Joint temporally regularized community detection on signed directed node roles."""
+    """Temporal neuronal-role clustering; separate from assortative community detection."""
 
     def detect_one(self, matrix: np.ndarray) -> np.ndarray:  # pragma: no cover - run() is primary API
         raise NotImplementedError("temporal communities are inferred jointly across windows")

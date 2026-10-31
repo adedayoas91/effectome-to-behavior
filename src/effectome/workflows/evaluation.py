@@ -23,6 +23,7 @@ from effectome.connectivity.sparse_var import fit_sparse_var_model
 from effectome.data_module.schema import ArtifactProvenance, TemporalAnchor, WindowedSegments
 from effectome.linking import (
     DependencySupport,
+    anchor_dependency_intervals,
     anchor_group_labels,
     purged_blocked_splits,
     valid_positive_lag_origins,
@@ -61,6 +62,7 @@ class EvaluationConfig:
     decoder_alpha_grid: tuple[float, ...] = (0.1, 1.0, 10.0)
     selection_seed: int = 260926
     training_calibration_policy: str = "outer_training_only"
+    graph_selection_objective: str = "neural_dynamics"
     neural_selection_metric: str = "standardized_one_step_mse"
     decoder_selection_metric: str = "log_loss"
     solver_tolerance: float = 1e-6
@@ -195,6 +197,8 @@ class EvaluationConfig:
             "registered_unscored_prefix",
         }:
             raise ValueError("unsupported training calibration policy")
+        if self.graph_selection_objective not in {"neural_dynamics", "endpoint_prediction"}:
+            raise ValueError("graph_selection_objective must be neural_dynamics or endpoint_prediction")
         if self.neural_selection_metric != "standardized_one_step_mse":
             raise ValueError("unsupported neural selection metric")
         if self.decoder_selection_metric != "log_loss":
@@ -446,6 +450,7 @@ def _evaluation_provenance(
             "class_vocabulary_source": cfg.class_vocabulary_source,
             "categorical_summary": cfg.categorical_summary,
             "representation_scaling": cfg.representation_scaling,
+            "graph_selection_objective": cfg.graph_selection_objective,
             "declared_source_manifest_hash": cfg.source_manifest_hash,
             "claim_to_test_map": dict(cfg.claim_to_test_map),
         },
@@ -891,6 +896,227 @@ def _select_neural_lambda(
     return min(losses, key=lambda value: (float(np.mean(losses[value])), value))
 
 
+def _endpoint_dependency_support(
+    windows: WindowedSegments, support: DependencySupport | None = None
+) -> DependencySupport:
+    if support is not None:
+        return support
+    declared = windows.metadata.get("preprocess_dependency", {})
+    if not isinstance(declared, Mapping) or declared.get("kind") != "finite":
+        raise ValueError("endpoint graph selection requires finite preprocessing support")
+    return DependencySupport(
+        preprocessing_past=int(declared.get("past_support", 0)),
+        preprocessing_future=int(declared.get("future_support", 0)),
+    )
+
+
+def _endpoint_inner_splits(
+    windows: WindowedSegments,
+    origin_indices: np.ndarray,
+    cfg: EvaluationConfig,
+    dependency_support: DependencySupport | None = None,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Forward-only inner origins, purged by history and shifted endpoint support."""
+    origins = np.asarray(origin_indices)
+    eligible = valid_positive_lag_origins(windows.n_windows, cfg.positive_lag, windows.anchors, strict=True)
+    if (
+        origins.ndim != 1 or not np.issubdtype(origins.dtype, np.integer)
+        or origins.size < 4 or np.any(np.diff(origins) <= 0)
+        or not np.isin(origins, eligible).all()
+    ):
+        raise ValueError("endpoint graph selection needs at least four ordered eligible training origins")
+    support = _endpoint_dependency_support(windows, dependency_support)
+    anchors = [windows.anchors[int(index)] for index in origins]
+    outcomes = [windows.anchors[int(index) + cfg.positive_lag] for index in origins]
+    try:
+        candidates = purged_blocked_splits(
+            origins.size, min(3, max(2, cfg.n_outer_folds)), embargo=cfg.embargo,
+            anchors=anchors, outcome_anchors=outcomes, dependency_support=support,
+        )
+    except ValueError as exc:
+        raise ValueError("endpoint graph selection has no feasible purged chronological inner split") from exc
+    splits = []
+    for train, validation in candidates:
+        train = train[train < validation.min()]
+        if train.size >= max(2, cfg.min_train_examples) and validation.size >= cfg.min_test_examples:
+            splits.append((origins[train], origins[validation]))
+    if not splits:
+        raise ValueError("endpoint graph selection has no feasible purged chronological inner split")
+    return splits
+
+
+def _purge_endpoint_outer_manifest(
+    windows: WindowedSegments,
+    origins: np.ndarray,
+    cfg: EvaluationConfig,
+    manifest: SplitManifest,
+    dependency_support: DependencySupport | None,
+) -> SplitManifest:
+    """Protect outer held-out histories and their actual future endpoint intervals."""
+    if cfg.graph_selection_objective != "endpoint_prediction":
+        return manifest
+    support = _endpoint_dependency_support(windows, dependency_support)
+    groups = anchor_group_labels(windows.anchors, group_by="segment")
+    intervals = {
+        int(origin): anchor_dependency_intervals(
+            windows.anchors[int(origin)], support, windows.anchors[int(origin) + cfg.positive_lag]
+        ) for origin in origins
+    }
+    folds = []
+    for fold in manifest.outer_folds:
+        if fold.status != "available":
+            folds.append(fold)
+            continue
+        protected: dict[str, list[tuple[int, int]]] = {}
+        for index in fold.test_indices:
+            origin = int(origins[index])
+            protected.setdefault(str(groups[origin]), []).extend(intervals[origin])
+        train = []
+        for index in fold.train_indices:
+            origin = int(origins[index])
+            overlaps = any(
+                max(left[0], right[0]) < min(left[1], right[1])
+                for left in intervals[origin] for right in protected.get(str(groups[origin]), [])
+            )
+            if not overlaps:
+                train.append(index)
+        available = len(train) >= cfg.min_train_examples and len(fold.test_indices) >= cfg.min_test_examples
+        folds.append(replace(
+            fold, train_indices=tuple(train), status="available" if available else "unavailable",
+            failure_reason=None if available else "future_endpoint_purge_left_insufficient_training_examples",
+        ))
+    return replace(manifest, outer_folds=tuple(folds))
+
+
+def _endpoint_probability_loss(
+    decoder: _ProbabilityDecoder, features: np.ndarray, labels: np.ndarray
+) -> float:
+    probabilities = decoder.predict_proba(features)
+    columns = {label: index for index, label in enumerate(decoder.class_order)}
+    observed = np.full(labels.size, decoder.probability_floor, dtype=float)
+    for row, label in enumerate(labels):
+        if label in columns:
+            observed[row] = probabilities[row, columns[label]]
+    return float(-np.mean(np.log(np.maximum(observed, decoder.probability_floor))))
+
+
+def _endpoint_candidate_loss(
+    x_train: np.ndarray, y_train: np.ndarray, x_valid: np.ndarray, y_valid: np.ndarray,
+    penalty: float, cfg: EvaluationConfig,
+) -> float:
+    if cfg.endpoint_type == "categorical":
+        classes = tuple(cfg.class_vocabulary) or tuple(np.unique(y_train).tolist())
+        decoder = _fit_probability_decoder(
+            x_train, y_train, class_order=classes, c_value=penalty,
+            probability_floor=cfg.probability_floor, seed=cfg.selection_seed,
+            solver_max_iterations=cfg.solver_max_iterations, solver_tolerance=cfg.solver_tolerance,
+        )
+        return _endpoint_probability_loss(decoder, x_valid, y_valid)
+    regression = _fit_regression_decoder(x_train, y_train, alpha=penalty)
+    return float(np.mean((regression.predict(x_valid) - y_valid.astype(float)) ** 2))
+
+
+def _select_endpoint_baseline_penalty(
+    windows: WindowedSegments, origin_indices: np.ndarray, cfg: EvaluationConfig,
+    dependency_support: DependencySupport | None = None,
+) -> float:
+    """Give M0 the same chronological, raw-purged inner information boundaries as M1."""
+    splits = _endpoint_inner_splits(windows, origin_indices, cfg, dependency_support)
+    endpoint = np.asarray(windows.behavior_per_window[cfg.endpoint_name])
+    features = {int(origin): _baseline_feature(windows.segments[int(origin)]) for origin in origin_indices}
+    grid = cfg.decoder_c_grid if cfg.endpoint_type == "categorical" else cfg.decoder_alpha_grid
+    losses = {}
+    for penalty in sorted(set(grid)):
+        fold_losses = []
+        for train, validation in splits:
+            try:
+                loss = _endpoint_candidate_loss(
+                    np.stack([features[int(origin)] for origin in train]), endpoint[train + cfg.positive_lag],
+                    np.stack([features[int(origin)] for origin in validation]),
+                    endpoint[validation + cfg.positive_lag], float(penalty), cfg,
+                )
+                fold_losses.append(loss if np.isfinite(loss) else float("inf"))
+            except (ValueError, np.linalg.LinAlgError):
+                fold_losses.append(float("inf"))
+        losses[float(penalty)] = float(np.mean(fold_losses))
+    feasible = {penalty: loss for penalty, loss in losses.items() if np.isfinite(loss)}
+    if not feasible:
+        raise ValueError("endpoint baseline selection has no feasible decoder candidate")
+    return min(feasible, key=lambda penalty: (feasible[penalty], penalty))
+
+
+def _select_endpoint_parameters(
+    windows: WindowedSegments,
+    origin_indices: np.ndarray,
+    cfg: EvaluationConfig,
+    dependency_support: DependencySupport | None = None,
+) -> tuple[float, float]:
+    """Select graph sparsity and augmented-decoder penalty jointly on outer training data."""
+    splits = _endpoint_inner_splits(windows, origin_indices, cfg, dependency_support)
+    origins = np.asarray(origin_indices, dtype=int)
+    endpoint = np.asarray(windows.behavior_per_window[cfg.endpoint_name])
+    baseline = {int(origin): _baseline_feature(windows.segments[int(origin)]) for origin in origins}
+    decoder_grid = cfg.decoder_c_grid if cfg.endpoint_type == "categorical" else cfg.decoder_alpha_grid
+    losses: dict[tuple[float, float], float] = {}
+    for lambda1 in sorted(set(cfg.neural_lambda1_grid)):
+        graph_features = {
+            int(origin): _effectome_feature(windows.segments[int(origin)], cfg, float(lambda1))[0]
+            for origin in origins
+        }
+        for penalty in sorted(set(decoder_grid)):
+            pair = float(lambda1), float(penalty)
+            fold_losses = []
+            for train, validation in splits:
+                used = np.r_[train, validation]
+                if any(graph_features[int(origin)] is None for origin in used):
+                    fold_losses.append(float("inf"))
+                    continue
+                features = {
+                    int(origin): np.concatenate([baseline[int(origin)], graph_features[int(origin)]])
+                    for origin in used
+                }
+                x_train = np.stack([features[int(origin)] for origin in train])
+                x_valid = np.stack([features[int(origin)] for origin in validation])
+                y_train = endpoint[train + cfg.positive_lag]
+                y_valid = endpoint[validation + cfg.positive_lag]
+                try:
+                    loss = _endpoint_candidate_loss(
+                        x_train, y_train, x_valid, y_valid, float(penalty), cfg
+                    )
+                    fold_losses.append(loss if np.isfinite(loss) else float("inf"))
+                except (ValueError, np.linalg.LinAlgError):
+                    fold_losses.append(float("inf"))
+            losses[pair] = float(np.mean(fold_losses))
+    feasible = {pair: loss for pair, loss in losses.items() if np.isfinite(loss)}
+    if not feasible:
+        raise ValueError("endpoint graph selection has no feasible graph/decoder candidate")
+    return min(feasible, key=lambda pair: (feasible[pair], *pair))
+
+
+def _select_endpoint_lambda(
+    windows: WindowedSegments, origin_indices: np.ndarray, cfg: EvaluationConfig,
+    dependency_support: DependencySupport | None = None,
+) -> float:
+    return _select_endpoint_parameters(windows, origin_indices, cfg, dependency_support)[0]
+
+
+def _select_graph_lambda(
+    windows: WindowedSegments, origin_indices: np.ndarray, cfg: EvaluationConfig,
+    dependency_support: DependencySupport | None = None,
+) -> float:
+    if cfg.graph_selection_objective == "endpoint_prediction":
+        return _select_endpoint_lambda(windows, origin_indices, cfg, dependency_support)
+    return _select_neural_lambda(windows, origin_indices, cfg)
+
+
+def _tuning_candidate_count(cfg: EvaluationConfig) -> int:
+    decoders = len(set(cfg.decoder_c_grid if cfg.endpoint_type == "categorical" else cfg.decoder_alpha_grid))
+    graphs = len(set(cfg.neural_lambda1_grid))
+    if cfg.graph_selection_objective == "endpoint_prediction":
+        return graphs * decoders + decoders
+    return graphs + 2 * decoders
+
+
 def _baseline_feature(segment: np.ndarray) -> np.ndarray:
     values = np.asarray(segment, dtype=np.float64)
     return np.concatenate([values[-1], values.mean(axis=0), values.std(axis=0)])
@@ -972,8 +1198,7 @@ def run_primary_evaluation(
         or contract.get("panel_mapping_id") != cfg.panel_mapping_id
     ):
         raise ValueError("confirmatory windows require the matching raw-source and canonical-panel contract")
-    decoder_grid = cfg.decoder_c_grid if cfg.endpoint_type == "categorical" else cfg.decoder_alpha_grid
-    tuning_trials = len(set(cfg.neural_lambda1_grid)) + 2 * len(set(decoder_grid))
+    tuning_trials = _tuning_candidate_count(cfg)
     if cfg.tuning_trial_ceiling is not None and tuning_trials > cfg.tuning_trial_ceiling:
         raise ValueError(
             "registered per-fold tuning trial ceiling is smaller than the planned candidate count"
@@ -1003,7 +1228,12 @@ def run_primary_evaluation(
         **result.diagnostics,
         "resource_accounting": {
             "tuning_candidate_count_per_fold": tuning_trials,
-            "tuning_count_definition": "unique neural candidates plus M0/M1 decoder candidates",
+            "tuning_count_definition": (
+                "joint graph/M1 decoder candidates plus M0 decoder candidates"
+                if cfg.graph_selection_objective == "endpoint_prediction"
+                else "unique neural candidates plus M0/M1 decoder candidates"
+            ),
+            "graph_selection_objective": cfg.graph_selection_objective,
             "elapsed_seconds": elapsed,
             "peak_memory_mb": peak_mb,
             "runtime_method": "posthoc_wall_clock_budget",
@@ -1051,6 +1281,7 @@ def _run_primary_evaluation(
     manifest = build_split_manifest(
         len(origins), cfg, anchors=origin_anchors, dependency_support=dependency_support
     )
+    manifest = _purge_endpoint_outer_manifest(windows, origins, cfg, manifest, dependency_support)
     endpoint = np.asarray(windows.behavior_per_window[cfg.endpoint_name])
     registered_class_order: tuple[Any, ...] = ()
     if cfg.endpoint_type == "categorical":
@@ -1081,7 +1312,17 @@ def _run_primary_evaluation(
             )
             if not class_order:
                 raise ValueError("outer training fold has no categorical vocabulary")
-        lambda1 = _select_neural_lambda(windows, origins[train], cfg)
+        selected_m1_penalty = None
+        selected_m0_penalty = None
+        if cfg.graph_selection_objective == "endpoint_prediction":
+            lambda1, selected_m1_penalty = _select_endpoint_parameters(
+                windows, origins[train], cfg, dependency_support
+            )
+            selected_m0_penalty = _select_endpoint_baseline_penalty(
+                windows, origins[train], cfg, dependency_support
+            )
+        else:
+            lambda1 = _select_graph_lambda(windows, origins[train], cfg, dependency_support)
         graph_features: dict[int, np.ndarray] = {}
         graph_failures: dict[int, str] = {}
         for local_index in np.concatenate([train, test]):
@@ -1098,7 +1339,7 @@ def _run_primary_evaluation(
         m0_predictions = np.empty(0, dtype=float)
         m0_scale: float | None = None
         if cfg.endpoint_type == "categorical":
-            m0_tuning = _select_decoder_c(
+            m0_tuning = selected_m0_penalty if selected_m0_penalty is not None else _select_decoder_c(
                 baseline_features[train], labels[train], cfg, class_order
             )
             m0 = _fit_probability_decoder(
@@ -1113,7 +1354,7 @@ def _run_primary_evaluation(
             )
             m0_probabilities = m0.predict_proba(baseline_features[test])
         else:
-            m0_tuning = _select_decoder_alpha(
+            m0_tuning = selected_m0_penalty if selected_m0_penalty is not None else _select_decoder_alpha(
                 baseline_features[train], labels[train], cfg
             )
             m0_regression = _fit_regression_decoder(
@@ -1138,7 +1379,7 @@ def _run_primary_evaluation(
             )
             available_test = np.asarray([int(index) in graph_features for index in test])
             if cfg.endpoint_type == "categorical":
-                m1_tuning = _select_decoder_c(
+                m1_tuning = selected_m1_penalty if selected_m1_penalty is not None else _select_decoder_c(
                     m1_features[train], labels[train], cfg, class_order
                 )
                 m1 = _fit_probability_decoder(
@@ -1154,7 +1395,10 @@ def _run_primary_evaluation(
                 if np.any(available_test):
                     m1_probabilities = m1.predict_proba(m1_features[test[available_test]])
             else:
-                m1_tuning = _select_decoder_alpha(m1_features[train], labels[train], cfg)
+                m1_tuning = (
+                    selected_m1_penalty if selected_m1_penalty is not None
+                    else _select_decoder_alpha(m1_features[train], labels[train], cfg)
+                )
                 m1_regression = _fit_regression_decoder(
                     m1_features[train], labels[train], alpha=m1_tuning
                 )
@@ -1255,6 +1499,15 @@ def _run_primary_evaluation(
                 )
         fold_diagnostics[fold.fold_id] = {
             "lambda1": lambda1,
+            "graph_selection_objective": cfg.graph_selection_objective,
+            "graph_selection_metric": (
+                cfg.neural_selection_metric if cfg.graph_selection_objective == "neural_dynamics"
+                else "endpoint_log_loss" if cfg.endpoint_type == "categorical" else "endpoint_mse"
+            ),
+            "graph_selection_inner_policy": (
+                "per_history_neural_holdout" if cfg.graph_selection_objective == "neural_dynamics"
+                else "chronological_raw_history_and_future_target_purge"
+            ),
             "decoder_parameter": "C" if cfg.endpoint_type == "categorical" else "alpha",
             "m0_decoder_value": m0_tuning,
             "m1_decoder_value": m1_tuning,
@@ -1271,6 +1524,7 @@ def _run_primary_evaluation(
             "profile": cfg.profile,
             "mode": cfg.mode,
             "endpoint": cfg.endpoint_name,
+            "graph_selection_objective": cfg.graph_selection_objective,
             "origin_count": int(origins.size),
             "available_folds": sum(
                 fold.status == "available" for fold in manifest.outer_folds
@@ -1308,6 +1562,7 @@ def primary_evaluation_fold_ids(
         anchors=[windows.anchors[int(index)] for index in origins],
         dependency_support=dependency_support,
     )
+    manifest = _purge_endpoint_outer_manifest(windows, origins, cfg, manifest, dependency_support)
     return tuple(
         fold.fold_id for fold in manifest.outer_folds if fold.status == "available"
     )

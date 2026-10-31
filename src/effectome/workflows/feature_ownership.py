@@ -111,7 +111,7 @@ def fit_owned_feature_artifacts(
     evaluation_indices: np.ndarray,
     fit_scope_id: str,
     n_dims: int = 3,
-    n_roles: int = 3,
+    n_roles: int = 1,
     seed: int = 42,
 ) -> OwnedFeatureArtifacts:
     """Construct new owned artifacts; never relabel globally fitted artifacts."""

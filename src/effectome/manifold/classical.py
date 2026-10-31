@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 
 import numpy as np
 from sklearn.decomposition import PCA
 
 from .base import ManifoldEmbedder, register_manifold
-
-logger = logging.getLogger(__name__)
 
 
 @register_manifold("classical")
@@ -32,13 +29,15 @@ class ClassicalManifold(ManifoldEmbedder):
         if self.cfg.method == "umap":
             try:
                 import umap
-
-                self._model = umap.UMAP(n_components=self.cfg.n_dims, random_state=self.cfg.seed)
-                self._model.fit(x)
-                self._is_fitted = True
-                return self
-            except ImportError:
-                logger.warning("umap-learn not installed; falling back to PCA. Install '.[manifold]'.")
+            except ImportError as exc:
+                raise ImportError(
+                    "UMAP requires umap-learn. Install it with `uv pip install umap-learn`, "
+                    "or explicitly select method='pca'."
+                ) from exc
+            self._model = umap.UMAP(n_components=self.cfg.n_dims, random_state=self.cfg.seed)
+            self._model.fit(x)
+            self._is_fitted = True
+            return self
 
         self._model = PCA(n_components=self.cfg.n_dims, random_state=self.cfg.seed)
         self._model.fit(x)

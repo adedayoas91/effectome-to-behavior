@@ -82,7 +82,8 @@ def fit_causalised_gc_model(
         n_lags=int(extra.get("n_lags", max(1, resolved.max_lag))),
         temporal=bool(extra.get("temporal", True)),
         method=method or ("cgc_star" if resolved.name == "cgc_star" else "cgc"),
-        support_test=str(extra.get("support_test", "analytic")),
+        support_test=str(extra.get("support_test", "fastcgc")),
+        support_ridge=float(extra.get("support_ridge", 1e-6)),
         parallel=bool(extra.get("parallel", False)),
         signed=not bool(extra.get("unsigned", False)),
         ridge_alpha=float(extra.get("ridge_alpha", resolved.ridge)),
@@ -94,7 +95,9 @@ def fit_causalised_gc_model(
     exported_matrix = estimator.get_connectivity_matrix(
         simulation=bool(extra.get("simulation", True)),
         alpha=float(extra.get("alpha", resolved.alpha)),
-        beta=float(extra.get("beta", min(resolved.alpha, 1e-2))),
+        beta=float(extra.get(
+            "beta", resolved.alpha if estimator.support_test == "fastcgc" else min(resolved.alpha, 0.01)
+        )),
     )
     full_lagged = np.asarray(estimator.last_fitted_lagged_coefficients_, dtype=np.float64)
     coefficients = full_lagged.reshape(estimator.n_pasts * estimator.n_neur, estimator.n_neur)
@@ -131,7 +134,9 @@ def fit_causalised_gc_model(
         fit_support=np.asarray(estimator.last_fit_support_, dtype=bool),
         diagnostics=estimator.summary(
             alpha=float(extra.get("alpha", resolved.alpha)),
-            beta=float(extra.get("beta", min(resolved.alpha, 1e-2))),
+            beta=float(extra.get(
+            "beta", resolved.alpha if estimator.support_test == "fastcgc" else min(resolved.alpha, 0.01)
+        )),
             aggregation=str(extra.get("lag_aggregation", "sum")),
         ),
     )
@@ -187,6 +192,10 @@ class _CausalisedGCConnectivityBase(ConnectivityEstimator):
                 "support_kind": "logical_and_of_marginal_and_conditional_evidence",
                 "support_description": "intersection_of_unconditional_and_conditional_evidence",
                 "support_variant": self.method,
+                "backend": (
+                    "fastcgc"
+                    if self.cfg.extra.get("support_test", "fastcgc") == "fastcgc" else "legacy"
+                ),
                 "signed_weight_source": "ridge_var_on_selected_support",
                 "primary_tau_policy": "lagged_only_tau_ge_1",
                 "lag_resolved": list(getattr(self, "_window_diagnostics", [])),

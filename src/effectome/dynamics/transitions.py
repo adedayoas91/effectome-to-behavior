@@ -50,6 +50,8 @@ class TransitionModel:
     prior_concentration: float = 1.0
     posterior_mean: np.ndarray | None = None
     per_transition_log_scores: np.ndarray = field(default_factory=lambda: np.empty(0))
+    null_scope: str = "conditional_label_sequence_only"
+    regime_claim_eligible: bool = False
 
 
 @dataclass(frozen=True)

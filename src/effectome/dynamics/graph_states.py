@@ -21,6 +21,7 @@ import numpy as np
 from sklearn.cluster import KMeans, SpectralClustering
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score
+from sklearn.mixture import GaussianMixture
 
 from effectome.data_module.schema import ConnectivitySeries, TemporalAnchor
 
@@ -29,7 +30,7 @@ from .metrics import expm_sym, kmedoids, log_euclidean_features, logm_spd, pairw
 logger = logging.getLogger(__name__)
 
 FEATURE_METRICS = ("frobenius", "cosine", "log_euclidean")
-KERNEL_METRICS = ("causal_kernel",)
+KERNEL_METRICS = ("causal_kernel", "legacy_rbf")
 DISTANCE_METRICS = ("affine_invariant", "gromov_wasserstein")
 
 
@@ -39,15 +40,17 @@ class GraphStateConfig:
 
     Attributes:
         n_states: Number of states K (ignored if select_k is True).
-        select_k: If True, pick K in [k_min, k_max] by best silhouette score.
+        select_k: Signed-lag models require caller-owned inner predictive losses including K=1.
+            Legacy descriptive models select by silhouette over [k_min, k_max].
         k_min: Minimum K when selecting.
         k_max: Maximum K when selecting.
         standardize: Z-score features before clustering (fit subset only).
-        metric: Graph-space geometry. One of FEATURE_METRICS, KERNEL_METRICS, DISTANCE_METRICS.
+        metric: Legacy graph-space geometry. Signed-lag models use fitted feature coordinates
+            and record their actual assignment distance separately.
         eps: Eigenvalue floor for SPD projection (log_euclidean / affine_invariant).
         gw_epsilon: Entropic regularization for Gromov-Wasserstein.
         gw_max_iter: Outer iterations for Gromov-Wasserstein.
-        kernel_gamma: RBF bandwidth multiplier for the causal-kernel affinity.
+        kernel_gamma: RBF bandwidth multiplier for the legacy descriptive graph affinity.
         boundary_gap_factor: Gaps larger than this multiple of the nominal stride start a new
             transition segment when explicit recording ids are unavailable.
         seed: Random seed for KMeans / spectral clustering / k-medoids.
@@ -68,6 +71,20 @@ class GraphStateConfig:
     feature_representation: str = "legacy"
     assignment: str = "legacy"
     pca_components: int | None = None
+    mixture_reg_covar: float = 1e-3
+    mixture_n_init: int = 5
+    mixture_max_iter: int = 200
+    analysis_scope: str = "descriptive"
+
+    def __post_init__(self) -> None:
+        if self.assignment not in {"legacy", "kmeans", "gaussian_mixture"}:
+            raise ValueError("assignment must be 'legacy', 'kmeans' or 'gaussian_mixture'")
+        if not np.isfinite(self.mixture_reg_covar) or self.mixture_reg_covar <= 0:
+            raise ValueError("mixture_reg_covar must be finite and positive")
+        if self.mixture_n_init < 1 or self.mixture_max_iter < 1:
+            raise ValueError("mixture_n_init and mixture_max_iter must be positive")
+        if self.analysis_scope not in {"descriptive", "prospective"}:
+            raise ValueError("analysis_scope must be 'descriptive' or 'prospective'")
 
 
 @dataclass
@@ -116,6 +133,58 @@ class GraphStateModel:
     eps: float = 1e-6
     gw_epsilon: float = 0.05
     gw_max_iter: int = 200
+    mixture: GaussianMixture | None = None
+    membership_probabilities: np.ndarray | None = None
+    feature_weights: np.ndarray | None = None
+    effective_algorithm: str = "legacy"
+    effective_distance: str = "legacy"
+    requested_metric: str | None = None
+    analysis_scope: str = "descriptive"
+    inductive_assignment_valid: bool = True
+
+    def transform_features(self, series: ConnectivitySeries | np.ndarray) -> np.ndarray:
+        """Apply only the fitted feature vocabulary, scaling, weights and PCA."""
+        if self.feature_representation == "signed_lag_offdiag":
+            if self.graph_schema != graph_schema(series):
+                raise ValueError("registered graph schema mismatch")
+            raw, _, _, _, _ = _signed_lag_offdiag_features(
+                series,
+                edge_indices=self.edge_indices,
+                lag_indices=self.lag_indices,
+                n_nodes=self.n_nodes,
+                lag_count=self.lag_count,
+            )
+        else:
+            if self.metric not in FEATURE_METRICS + KERNEL_METRICS:
+                raise ValueError("distance-based models do not expose fitted Euclidean feature coordinates")
+            matrices = series.matrices if isinstance(series, ConnectivitySeries) else np.asarray(series)
+            raw = _raw_features_for(
+                matrices, self.metric, GraphStateConfig(metric=self.metric, eps=self.eps)
+            )
+        features = _Standardizer(self.feature_mean, self.feature_scale).transform(raw)
+        if self.feature_weights is not None:
+            features = features * np.sqrt(self.feature_weights)
+        return _transform_pca(features, components=self.pca_components, mean=self.pca_mean)
+
+    def transform_proba(self, series: ConnectivitySeries | np.ndarray) -> np.ndarray:
+        """Return mixture responsibilities or hard one-hot quantizer assignments.
+
+        Mixture responsibilities condition on the fitted plug-in graphs and
+        model; they do not propagate connectivity-estimation uncertainty.
+        """
+        if self.analysis_scope == "prospective" and not self.inductive_assignment_valid:
+            raise ValueError("legacy spectral assignment has no validated inductive extension")
+        if self.mixture is not None:
+            return np.asarray(self.mixture.predict_proba(self.transform_features(series)), dtype=np.float64)
+        return np.eye(self.n_states, dtype=np.float64)[self.transform(series)]
+
+    @property
+    def assignment_entropy(self) -> np.ndarray | None:
+        """Conditional membership entropy; hard K-means assignments have zero entropy."""
+        if self.membership_probabilities is None:
+            return None
+        probabilities = self.membership_probabilities
+        return -np.sum(probabilities * np.log(np.maximum(probabilities, np.finfo(float).tiny)), axis=1)
 
     def transform(
         self,
@@ -267,7 +336,7 @@ def _fit_standardizer(features: np.ndarray, standardize: bool) -> tuple[np.ndarr
     return (features - mean) / scale, _Standardizer(mean=mean, scale=scale)
 
 
-def _causal_kernel_raw_features(matrices: np.ndarray) -> np.ndarray:
+def _legacy_rbf_raw_features(matrices: np.ndarray) -> np.ndarray:
     pos = np.maximum(matrices, 0.0)
     neg = np.maximum(-matrices, 0.0)
     return np.concatenate(
@@ -304,8 +373,8 @@ def _raw_features_for(matrices: np.ndarray, metric: str, cfg: GraphStateConfig) 
         return feats / norms
     if metric == "frobenius":
         return vectorize(matrices)
-    if metric == "causal_kernel":
-        return _causal_kernel_raw_features(matrices)
+    if metric in KERNEL_METRICS:
+        return _legacy_rbf_raw_features(matrices)
     raise ValueError(f"metric '{metric}' does not use direct features")
 
 
@@ -440,7 +509,7 @@ def _fit_kernel_path(
 ) -> tuple[np.ndarray, np.ndarray, _Standardizer, int, float]:
     """Spectral clustering on signed directed effectome features."""
     n = train_matrices.shape[0]
-    raw = _raw_features_for(train_matrices, "causal_kernel", cfg)
+    raw = _raw_features_for(train_matrices, "legacy_rbf", cfg)
     feats, standardizer = _fit_standardizer(raw, cfg.standardize)
     affinity = _rbf_affinity(feats, cfg.kernel_gamma)
     ks = range(cfg.k_min, min(cfg.k_max, n - 1) + 1) if cfg.select_k else [cfg.n_states]
@@ -510,22 +579,12 @@ def _fit_distance_path(
 
 def assign_graph_states(model: GraphStateModel, matrices: ConnectivitySeries | np.ndarray) -> np.ndarray:
     """Assign matrices to the nearest learned state without refitting."""
+    if model.analysis_scope == "prospective" and not model.inductive_assignment_valid:
+        raise ValueError("legacy spectral assignment has no validated inductive extension")
     if model.feature_representation == "signed_lag_offdiag":
-        if model.graph_schema != graph_schema(matrices):
-            raise ValueError("registered graph schema mismatch")
-        raw, _, _, _, _ = _signed_lag_offdiag_features(
-            matrices,
-            edge_indices=model.edge_indices,
-            lag_indices=model.lag_indices,
-            n_nodes=model.n_nodes,
-            lag_count=model.lag_count,
-        )
-        feats = _Standardizer(model.feature_mean, model.feature_scale).transform(raw)
-        feats = _transform_pca(
-            feats,
-            components=model.pca_components,
-            mean=model.pca_mean,
-        )
+        feats = model.transform_features(matrices)
+        if model.mixture is not None:
+            return np.asarray(model.mixture.predict(feats), dtype=np.int64)
         if model.feature_centroids is None:
             raise ValueError("feature_centroids are required for graph-state assignment")
         return _assign_feature_labels(feats, model.feature_centroids)
@@ -572,8 +631,14 @@ def fit_graph_states(
     *,
     fit_indices: np.ndarray | None = None,
     predictive_losses: dict[int, float] | None = None,
+    feature_weights: np.ndarray | None = None,
 ) -> GraphStateModel:
-    """Fit dataset-global connectivity states and assign held-out windows without refitting."""
+    """Fit graph summaries and assign unseen windows with a frozen training transform.
+
+    Optional nonnegative ``feature_weights`` are supplied by an external
+    training-only reliability procedure. No graph uncertainty is inferred from
+    the held-out windows here.
+    """
     matrices = np.asarray(series.matrices, dtype=np.float64)
     n_windows = matrices.shape[0]
     train_idx = _validate_fit_indices(fit_indices, n_windows)
@@ -595,13 +660,18 @@ def fit_graph_states(
 
     if cfg.feature_representation not in {"legacy", "signed_lag_offdiag"}:
         raise ValueError("feature_representation must be 'legacy' or 'signed_lag_offdiag'")
-    if cfg.assignment not in {"legacy", "kmeans"}:
-        raise ValueError("assignment must be 'legacy' or 'kmeans'")
+    if cfg.metric not in FEATURE_METRICS + KERNEL_METRICS + DISTANCE_METRICS:
+        raise ValueError(f"unknown metric '{cfg.metric}'")
+    if cfg.analysis_scope == "prospective" and cfg.feature_representation == "legacy":
+        if cfg.metric in KERNEL_METRICS:
+            raise ValueError("legacy spectral assignment has no validated inductive extension")
+    if cfg.assignment == "gaussian_mixture" and cfg.feature_representation != "signed_lag_offdiag":
+        raise ValueError("gaussian_mixture requires signed_lag_offdiag features")
+    if feature_weights is not None and cfg.feature_representation != "signed_lag_offdiag":
+        raise ValueError("feature_weights require signed_lag_offdiag features")
 
     if cfg.feature_representation == "signed_lag_offdiag":
         schema = graph_schema(series)
-        if cfg.assignment not in {"legacy", "kmeans"}:
-            raise ValueError("signed_lag_offdiag currently supports kmeans assignment")
         raw, edge_indices, lag_indices, n_nodes, lag_count = _signed_lag_offdiag_features(series)
         train_raw = raw[train_idx]
         if cfg.n_states < 1:
@@ -618,6 +688,14 @@ def fit_graph_states(
         if not candidate_ks or max(candidate_ks) > train_idx.size:
             raise ValueError("state count is infeasible for the training windows")
         train_features, standardizer = _fit_standardizer(train_raw, cfg.standardize)
+        weights = None
+        if feature_weights is not None:
+            weights = np.asarray(feature_weights, dtype=np.float64)
+            if (weights.shape != (raw.shape[1],) or not np.all(np.isfinite(weights))
+                    or np.any(weights < 0) or not np.any(weights > 0)):
+                raise ValueError("feature_weights must be finite nonnegative nonzero weights per feature")
+            weights = weights.copy()
+            train_features = train_features * np.sqrt(weights)
         train_features, pca_components, pca_mean = _apply_pca(
             train_features,
             pca_components=cfg.pca_components,
@@ -625,7 +703,28 @@ def fit_graph_states(
         )
         best = None
         for k in candidate_ks:
-            if k == 1:
+            mixture = None
+            if cfg.assignment == "gaussian_mixture":
+                if train_features.shape[0] < 2:
+                    raise ValueError("gaussian_mixture needs at least two training observations")
+                mixture = GaussianMixture(
+                    n_components=k,
+                    covariance_type="diag",
+                    reg_covar=cfg.mixture_reg_covar,
+                    n_init=cfg.mixture_n_init,
+                    max_iter=cfg.mixture_max_iter,
+                    random_state=cfg.seed,
+                ).fit(train_features)
+                if not mixture.converged_:
+                    raise ValueError("gaussian_mixture did not converge; increase mixture_max_iter")
+                train_labels = mixture.predict(train_features).astype(np.int64)
+                centers = mixture.means_.astype(np.float64)
+                score = (
+                    float(silhouette_score(train_features, train_labels))
+                    if 1 < len(np.unique(train_labels)) < train_features.shape[0]
+                    else float("nan")
+                )
+            elif k == 1:
                 train_labels = np.zeros(train_idx.size, dtype=np.int64)
                 centers = train_features.mean(axis=0, keepdims=True)
                 score = float("nan")
@@ -641,11 +740,18 @@ def fit_graph_states(
             if best is None or (
                 not np.isnan(score) and (np.isnan(best[0]) or score > best[0])
             ):
-                best = (score, k, train_labels, centers)
-        silhouette, n_states, train_labels, feature_centroids = best  # type: ignore[misc]
+                best = (score, k, train_labels, centers, mixture)
+        silhouette, n_states, train_labels, feature_centroids, mixture = best  # type: ignore[misc]
         all_features = standardizer.transform(raw)
+        if weights is not None:
+            all_features = all_features * np.sqrt(weights)
         all_features = _transform_pca(all_features, components=pca_components, mean=pca_mean)
-        labels = _assign_feature_labels(all_features, feature_centroids)
+        memberships = (
+            np.asarray(mixture.predict_proba(all_features), dtype=np.float64)
+            if mixture is not None
+            else np.eye(n_states, dtype=np.float64)[_assign_feature_labels(all_features, feature_centroids)]
+        )
+        labels = np.argmax(memberships, axis=1).astype(np.int64)
         labels[train_idx] = train_labels
         feature_mean, feature_scale = standardizer.mean, standardizer.scale
         centroids = _centroids(
@@ -655,7 +761,10 @@ def fit_graph_states(
             "frobenius",
             cfg.eps,
         )
-        descriptive_centroids = _centroids(matrices, labels, n_states, "frobenius", cfg.eps)
+        descriptive_centroids = (
+            _centroids(matrices, labels, n_states, "frobenius", cfg.eps)
+            if cfg.analysis_scope == "descriptive" else None
+        )
         logger.info(
             "Fit %d signed lag-offdiag states (fit_windows=%d/%d)",
             n_states,
@@ -667,7 +776,7 @@ def fit_graph_states(
             centroids=centroids,
             n_states=int(n_states),
             silhouette=float(silhouette),
-            metric=cfg.metric,
+            metric="frobenius",
             window_starts=np.asarray(series.window_starts, dtype=int),
             feature_centroids=np.asarray(feature_centroids, dtype=np.float64),
             feature_mean=None if feature_mean is None else np.asarray(feature_mean, dtype=np.float64),
@@ -675,7 +784,17 @@ def fit_graph_states(
             fit_indices=train_idx,
             boundary_indices=boundary_indices,
             feature_representation=cfg.feature_representation,
-            assignment="kmeans",
+            assignment="gaussian_mixture" if mixture is not None else "kmeans",
+            mixture=mixture,
+            membership_probabilities=memberships,
+            feature_weights=weights,
+            effective_algorithm="gaussian_mixture_diag" if mixture is not None else "kmeans",
+            effective_distance=(
+                "diagonal_gaussian_negative_log_density" if mixture is not None
+                else "squared_euclidean_in_fitted_feature_space"
+            ),
+            requested_metric=cfg.metric,
+            analysis_scope=cfg.analysis_scope,
             edge_indices=edge_indices,
             lag_indices=lag_indices,
             lag_count=lag_count,
@@ -737,7 +856,13 @@ def fit_graph_states(
             f"unknown metric '{cfg.metric}'; choices: {FEATURE_METRICS + KERNEL_METRICS + DISTANCE_METRICS}"
         )
 
-    centroids = _centroids(matrices, labels, n_states, cfg.metric, cfg.eps, medoid_matrices=medoid_matrices)
+    centroids = _centroids(
+        train_matrices, train_labels, n_states, cfg.metric, cfg.eps, medoid_matrices=medoid_matrices
+    )
+    descriptive_centroids = (
+        _centroids(matrices, labels, n_states, cfg.metric, cfg.eps)
+        if cfg.analysis_scope == "descriptive" else None
+    )
     logger.info(
         "Fit %d dataset-global connectivity states (metric=%s, silhouette=%.3f, fit_windows=%d/%d)",
         n_states,
@@ -761,6 +886,18 @@ def fit_graph_states(
         medoid_matrices=None if medoid_matrices is None else np.asarray(medoid_matrices, dtype=np.float64),
         fit_indices=train_idx,
         boundary_indices=boundary_indices,
+        membership_probabilities=np.eye(n_states, dtype=np.float64)[labels],
+        descriptive_centroids=descriptive_centroids,
+        effective_algorithm=(
+            "spectral_legacy_original_feature_assignment_proxy" if cfg.metric in KERNEL_METRICS
+            else "kmedoids_alternating" if cfg.metric in DISTANCE_METRICS else "kmeans"
+        ),
+        effective_distance=(
+            "rbf_on_duplicated_signed_graph_features" if cfg.metric in KERNEL_METRICS else cfg.metric
+        ),
+        requested_metric=cfg.metric,
+        analysis_scope=cfg.analysis_scope,
+        inductive_assignment_valid=cfg.metric not in KERNEL_METRICS,
         eps=cfg.eps,
         gw_epsilon=cfg.gw_epsilon,
         gw_max_iter=cfg.gw_max_iter,

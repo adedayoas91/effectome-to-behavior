@@ -7,12 +7,11 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, cast
 
-import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from effectome.linking import valid_positive_lag_origins
-from effectome.utils import set_seed
+from effectome.utils import hydra, set_seed
 from effectome.utils.io import load_artifact, save_artifact
 from effectome.workflows.evaluation import (
     EvaluationConfig,

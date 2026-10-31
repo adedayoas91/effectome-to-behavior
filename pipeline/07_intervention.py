@@ -6,14 +6,13 @@ import logging
 from pathlib import Path
 from typing import Any, cast
 
-import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from effectome.attribution import qualify_candidate_drivers
 from effectome.connectivity import ConnectivityConfig
 from effectome.intervention import fit_linear_surrogate, run_predictor_feature_sensitivity
-from effectome.utils import set_seed
+from effectome.utils import hydra, set_seed
 from effectome.utils.io import load_artifact, save_artifact
 from effectome.workflows.feature_ownership import load_or_fit_owned_features
 
@@ -49,7 +48,7 @@ def main(cfg: DictConfig) -> None:
 
     declared_behavior_keys = [str(key) for key in iv["behavior_keys"]]
     available_behavior_keys = []
-    report = {}
+    report: dict[str, dict[str, Any]] = {}
     for key in declared_behavior_keys:
         if key not in series.behavior_per_window:
             logger.warning("behavior '%s' missing from windows; skipping", key)

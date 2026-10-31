@@ -27,6 +27,7 @@ decoder_c_grid: [0.1, 1.0, 10.0]
 decoder_alpha_grid: [0.1, 1.0, 10.0]
 selection_seed: 260926
 training_calibration_policy: outer_training_only
+graph_selection_objective: neural_dynamics  # endpoint_prediction is a separately reported sensitivity
 neural_selection_metric: standardized_one_step_mse
 decoder_selection_metric: log_loss
 solver_tolerance: 1.0e-6

@@ -645,7 +645,10 @@ def _prediction_endpoint(model: LinearSurrogateModel, predictions: np.ndarray, e
         pred = pred.reshape(-1, 1)
     if pred.ndim != 2:
         raise ValueError(f"surrogate predictions must be 2D, got shape {pred.shape}")
-    expected_dim = int(model.metadata.get("target_dim", pred.shape[1]))
+    target_dim = model.metadata.get("target_dim", pred.shape[1])
+    if target_dim is None:
+        raise ValueError("surrogate target_dim metadata must be an integer")
+    expected_dim = int(target_dim)
     if pred.shape[1] != expected_dim:
         raise ValueError(
             f"surrogate prediction dimension {pred.shape[1]} does not match fitted target "

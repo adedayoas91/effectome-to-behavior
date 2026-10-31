@@ -6,7 +6,6 @@ import logging
 from pathlib import Path
 from typing import Any, cast
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from effectome.data_module.loaders import get_loader
@@ -17,7 +16,7 @@ from effectome.data_module.preprocess import (
     preprocess as preprocess_recording,
 )
 from effectome.data_module.windowing import WindowConfig, make_windows
-from effectome.utils import set_seed
+from effectome.utils import hydra, set_seed
 from effectome.utils.io import save_artifact
 
 logger = logging.getLogger(__name__)

@@ -7,26 +7,8 @@ from typing import Any
 
 import numpy as np
 
+from effectome.connectivity.pcmci import _collapse_tigramite_results, _jpcmci_node_classification
 from effectome.core import CausalisedGC
-
-
-def _collapse_tigramite_results(
-    val_matrix: np.ndarray,
-    p_matrix: np.ndarray,
-    *,
-    alpha: float,
-    tau_min: int,
-) -> np.ndarray:
-    val = np.asarray(val_matrix, dtype=np.float64)
-    pmat = np.asarray(p_matrix, dtype=np.float64)
-    lag_slice = slice(max(tau_min, 0), val.shape[2])
-    sig = np.where(pmat[:, :, lag_slice] <= alpha, val[:, :, lag_slice], 0.0)
-    strongest = np.argmax(np.abs(sig), axis=2)
-    rows = np.arange(sig.shape[0])[:, None]
-    cols = np.arange(sig.shape[1])[None, :]
-    influence = sig[rows, cols, strongest]
-    np.fill_diagonal(influence, 0.0)
-    return influence
 
 
 def _load_tigramite_pcmci():
@@ -124,7 +106,9 @@ def _run_jpcmciplus_matrix(
             var_names=var_names if var_names is not None else [str(i) for i in range(first.shape[1])],
         ),
         cond_ind_test=ParCorrMult(significance="analytic"),
-        node_classification=node_classification,
+        node_classification=_jpcmci_node_classification(
+            len(vector_vars) if vector_vars else first.shape[1], node_classification
+        ),
         verbosity=0,
     )
     results = estimator.run_jpcmciplus(
@@ -150,6 +134,7 @@ def _run_causalised_gc_single_depth(
     beta: float,
     n_perm: int,
     support_test: str,
+    support_ridge: float,
     n_lags: int,
     temporal: bool,
     verbose: int,
@@ -166,6 +151,7 @@ def _run_causalised_gc_single_depth(
         temporal=temporal,
         method=method,
         support_test=support_test,
+        support_ridge=support_ridge,
         signed=signed,
         ridge_alpha=ridge_alpha,
         lag_aggregation=lag_aggregation,
@@ -183,9 +169,10 @@ def make_causalised_gc_analyzer(
     method: str,
     *,
     alpha: float = 0.01,
-    beta: float = 0.01,
+    beta: float | None = None,
     n_perm: int = 0,
-    support_test: str = "analytic",
+    support_test: str = "fastcgc",
+    support_ridge: float = 1e-6,
     n_lags: int = 1,
     temporal: bool = True,
     verbose: int = 0,
@@ -205,9 +192,10 @@ def make_causalised_gc_analyzer(
                 int(p_value),
                 method=method,
                 alpha=alpha,
-                beta=beta,
+                beta=(0.005 if support_test == "fastcgc" else 0.01) if beta is None else beta,
                 n_perm=n_perm,
                 support_test=support_test,
+                support_ridge=support_ridge,
                 n_lags=n_lags,
                 temporal=temporal,
                 verbose=verbose,

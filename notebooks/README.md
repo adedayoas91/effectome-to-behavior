@@ -66,9 +66,13 @@ published paired inputs from overlapping 15-sample slices. The pairing uses each
 16-sample block as `X[t:t+15]` and `X[t+1:t+16]`, with behavior at `t+15`, so a
 recording of length `T` produces `T-15` pairs. These are saved as
 `bundle_net_reference_recording` and `bundle_net_training_pairs`.
-The C. elegans manifold notebooks load that reference recording and fit the
-pinned faithful BunDLe architecture as a retrospective correspondence lane.
-They do not mark the full-fit/noncausally filtered chart as prospective.
+All manifold notebooks default to cross-fitted classical PCA on the main
+recording. The pinned faithful BunDLe architecture and reference preprocessing
+remain available for an optional retrospective reproduction: use
+`conf/manifold/bunddle.yaml` with `bundle_net_reference_recording` in a separate
+output namespace. That full-fit/noncausally filtered chart is not prospective.
+Install the `bundle` extra on a platform supported by PyTorch. Python 3.14 on
+Intel macOS has no published PyTorch wheel; use the PCA default there.
 
 That exact filter is global and noncausal: every filtered time point can depend
 on future samples, and its unpadded reversal retains endpoint transients. It is
@@ -114,8 +118,8 @@ remain labeled sensitivities.
 4. After a method's connectivity completes, run its notebooks under `clustering/`,
    `probabilistic_states/`, `communities/`, and `manifolds/` in parallel.
 5. Run `linking/<method>/06_linking.ipynb` after that method's clustering,
-   community, and manifold notebooks. The HMM is scientifically required for the
-   state-model comparison but is not a computational dependency of linking.
+   community, and manifold notebooks. The HMM is a descriptive optional comparison and is not a computational
+   dependency of linking.
 6. Run `counterfactuals/<method>/07_attribution_counterfactual.ipynb` directly
    after preprocessing for a strict development sensitivity analysis. It builds
    a separate `outer_owned_features` checkpoint from raw windows, using a trailing
@@ -162,8 +166,9 @@ of stages writing to another recording because each notebook writes under its ow
 ## Faster-machine run checklist
 
 1. Copy the repository, `data/`, and any wanted `outputs/analysis/` checkpoints.
-2. Install the project environment. C. elegans BunDLe manifold notebooks require
-   PyTorch; the V2a classical-manifold notebooks do not.
+2. Install the locked environment with the `dev`, `csl`, `community`, and
+   `notebooks` extras. All default notebook lanes use installed packages; the
+   optional BunDLe reproduction additionally requires the `bundle` extra.
 3. Open notebooks in the order above. Leave `FORCE=False` for resume.
 4. Watch each notebook's first printed header before running expensive cells; it
    should point to the intended dataset/recording/method namespace.
@@ -172,8 +177,11 @@ of stages writing to another recording because each notebook writes under its ow
 
 ## Method boundaries
 
-- c-GC and c-GC* use the analytic marginal/conditional screen by default; retain
-  circular-shift inference as the autocorrelation-aware sensitivity analysis.
+- The `c-GC` / `c-GC-star` directories now use installed fastC-GC / fastC-GC*
+  with complete FFT circular-shift enumeration. Restart kernels on the Python
+  3.14 `.venv` after migration. Legacy analytic and sampled circular-shift tests
+  remain explicit sensitivity options. The fast estimator changes the screening
+  method; old graph outputs are not interchangeable with new outputs.
 - Lag-resolved signed ridge-VAR weights are primary; lag-collapsed matrices are
   downstream graph summaries.
 - The probabilistic notebook fits a diagonal-Gaussian HMM. Its dwell diagnostic
@@ -182,3 +190,38 @@ of stages writing to another recording because each notebook writes under its ow
 - The prospective manifold outcome is the within-fold Euclidean displacement
   from the current anchor to the next valid anchor; its magnitude is invariant
   to fold-chart rotation/reflection. The exact BunDLe reference is descriptive.
+
+## Installed backend environment — 31 October 2026
+
+All 173 notebooks and the generator now use Python 3.14 kernel metadata and a
+shared setup check for fastcgc, Tigramite, scikit-learn, kmedoids, igraph, and
+leidenalg. From the package root, run:
+
+```bash
+uv sync --python 3.14 --locked --extra dev --extra csl --extra community --extra notebooks
+```
+
+Select the project `.venv` kernel and restart it. Existing outputs were preserved;
+they may reflect earlier code and are not evidence that the new backends have
+been run on biological data. No upstream repository checkout or path injection
+is needed. Internal project path discovery remains for opening notebooks from
+their nested dataset directories.
+
+PCMCI+ and JPCMCI+ are available through the installed Tigramite adapters and
+`pcmci`/`jpcmci` configuration keys. The existing notebook lane layout is retained.
+Leiden uses igraph/leidenalg, K-means and spectral clustering use scikit-learn,
+and the optional distance-based k-medoids path uses the installed kmedoids solver.
+Temporal role inference remains a distinct project-specific model.
+
+The current [execution-order guide](../exec_order.md) includes the raw-calibration
+notebook and distinguishes the primary experiment from optional summaries.
+State notebooks now perform nested purged comparisons rather than force three
+states; role notebooks preserve signed lag profiles. Full-series descriptive
+outputs and existing stored cell outputs do not establish latent regimes.
+
+State notebooks preserve the full raw-history purge. If a recording cannot
+support the nested splits, they checkpoint `status="unavailable"` with the
+reason, and linking reports the same limitation. No descriptive fit replaces
+that missing evaluation. Both supplied V2a recordings currently have this
+limitation at the default 120-second history; preprocessing, primary endpoint
+evaluation, PCA, neuron roles, and owned feature sensitivity remain separate.

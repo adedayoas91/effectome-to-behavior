@@ -6,11 +6,10 @@ import logging
 from pathlib import Path
 from typing import Any, cast
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from effectome.community import CommunityConfig, CommunityFactory
-from effectome.utils import set_seed
+from effectome.utils import hydra, set_seed
 from effectome.utils.io import load_artifact, save_artifact
 
 logger = logging.getLogger(__name__)

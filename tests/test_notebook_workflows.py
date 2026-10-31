@@ -231,7 +231,7 @@ def test_counterfactual_notebooks_label_feature_sensitivity_claim_boundary():
         assert "biological_intervention_identified" in code, path
 
 
-def test_c_elegans_manifold_notebooks_load_canonical_bunddle_profile():
+def test_c_elegans_manifold_notebooks_load_supported_pca_profile():
     root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans" / "manifolds"
     for method_directory in ("c-GC", "c-GC-star", "partial-correlation"):
         payload = json.loads(
@@ -242,7 +242,7 @@ def test_c_elegans_manifold_notebooks_load_canonical_bunddle_profile():
             for cell in payload["cells"]
             if cell.get("cell_type") == "code"
         )
-        assert 'MANIFOLD_CONFIG_NAME = "bunddle"' in text
+        assert 'MANIFOLD_CONFIG_NAME = "classical"' in text
         assert 'MANIFOLD_BEHAVIOR_KEY = "motif"' in text
         assert "OmegaConf.load(MANIFOLD_CONFIG_PATH)" in text
 

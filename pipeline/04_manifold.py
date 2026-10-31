@@ -7,7 +7,6 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
-import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
@@ -21,7 +20,7 @@ from effectome.manifold import (
     TargetSlice,
     causal_forward_fill_nonfinite,
 )
-from effectome.utils import set_seed
+from effectome.utils import hydra, set_seed
 from effectome.utils.io import load_artifact, save_artifact
 from effectome.viz import plot_manifold
 
