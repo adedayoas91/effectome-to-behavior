@@ -333,8 +333,17 @@ def test_effectome_notebooks_load_canonical_connectivity_profiles():
             for cell in payload["cells"]
             if cell.get("cell_type") == "code"
         )
+        markdown = "\n".join(
+            "".join(cell.get("source", []))
+            for cell in payload["cells"]
+            if cell.get("cell_type") == "markdown"
+        )
         assert f'/ "{config_name}"' in text
         assert "ConnectivityConfig(**CONNECTIVITY_YAML)" in text
+        if method_directory in {"c-GC", "c-GC-star"}:
+            assert "CHECKPOINT_CHUNK_SIZE = 16" in text
+            assert "chunk_size=CHECKPOINT_CHUNK_SIZE" in text
+            assert "one model is fit per window" in markdown
 
 
 def test_full_analysis_notebook_uses_revised_cgc_backend():
@@ -469,22 +478,49 @@ def test_preprocessing_notebook_helper_checkpoints_shared_inputs(tmp_path):
     ]
 
 
-def test_notebook_helpers_run_resumable_method_lane(tmp_path, windows):
+def test_notebook_helpers_run_resumable_method_lane(monkeypatch, tmp_path, windows):
     small = _subset_windows(windows, n_windows=6)
     windows_path = save_artifact(small, tmp_path / "artifacts" / "windows.pkl")
     run = make_run(tmp_path / "runs", "demo", "cgc")
+    progress_events: list[tuple[int, int, bool]] = []
 
+    class ProgressRecorder:
+        def __init__(self, _description, _unit):
+            pass
+
+        def __call__(self, completed, total, reused=False):
+            progress_events.append((completed, total, reused))
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(shared, "_ProgressReporter", ProgressRecorder)
+
+    connectivity_cfg = ConnectivityConfig(
+        name="cgc",
+        max_lag=1,
+        extra={"support_test": "analytic", "n_perm": 0, "n_lags": 1, "seed": 0},
+    )
     connectivity = run_connectivity(
         run,
         windows_path=windows_path,
-        connectivity_cfg=ConnectivityConfig(
-            name="cgc",
-            max_lag=1,
-            extra={"support_test": "analytic", "n_perm": 0, "n_lags": 1, "seed": 0},
-        ),
+        connectivity_cfg=connectivity_cfg,
+        chunk_size=3,
+    )
+    resumed = run_connectivity(
+        run,
+        windows_path=windows_path,
+        connectivity_cfg=connectivity_cfg,
         chunk_size=3,
     )
     assert connectivity.n_windows == 6
+    assert resumed.n_windows == 6
+    assert progress_events == [
+        (3, 6, False),
+        (6, 6, False),
+        (3, 6, True),
+        (6, 6, True),
+    ]
     assert run.completed_stages() == [
         "connectivity",
         "connectivity.chunk-00000",

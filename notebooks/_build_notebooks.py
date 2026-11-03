@@ -454,6 +454,7 @@ def notebook_connectivity(title: str, method: str, config_name: str) -> list[dic
             "",
             "Prerequisite: `outputs/artifacts/windows.pkl` must exist.",
             "Parallel lane: yes. This notebook owns only its method namespace under `outputs/notebook_runs/<RUN_ID>/<METHOD>/`.",
+            "Execution: one model is fit per window. `CHECKPOINT_CHUNK_SIZE` controls how many fits share an atomic resume checkpoint; it is not the total fit count.",
             PROGRESS_NOTE,
         ),
         code_cell(
@@ -476,7 +477,7 @@ ARTIFACT_ROOT = PROJECT_ROOT / "outputs" / "notebook_runs"
 WINDOWS_PATH = PROJECT_ROOT / "outputs" / "artifacts" / "windows.pkl"
 CONNECTIVITY_CONFIG_PATH = PROJECT_ROOT / "conf" / "connectivity" / "%s.yaml"
 FORCE = False
-CHUNK_SIZE = 16
+CHECKPOINT_CHUNK_SIZE = 16
 
 CONNECTIVITY_YAML = OmegaConf.to_container(
     OmegaConf.load(CONNECTIVITY_CONFIG_PATH), resolve=True
@@ -501,7 +502,7 @@ connectivity = run_connectivity(
     run,
     windows_path=WINDOWS_PATH,
     connectivity_cfg=CONNECTIVITY_CFG,
-    chunk_size=CHUNK_SIZE,
+    chunk_size=CHECKPOINT_CHUNK_SIZE,
     force=FORCE,
 )
 print(connectivity.matrices.shape)

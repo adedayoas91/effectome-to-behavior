@@ -133,6 +133,14 @@ def estimate_connectivity_resumable(
         (start, min(start + chunk_size, segments.n_windows))
         for start in range(0, segments.n_windows, chunk_size)
     ]
+
+    def report_window_progress(completed_chunks: int, total_chunks: int, reused: bool) -> None:
+        del total_chunks
+        if progress_callback is None:
+            return
+        completed_windows = chunks[completed_chunks - 1][1]
+        progress_callback(completed_windows, segments.n_windows, reused)
+
     return run.execute_chunks(
         "connectivity",
         chunks,
@@ -141,5 +149,5 @@ def estimate_connectivity_resumable(
         config=config,
         dependencies=input_artifacts,
         force=force,
-        progress_callback=progress_callback,
+        progress_callback=report_window_progress if progress_callback is not None else None,
     )

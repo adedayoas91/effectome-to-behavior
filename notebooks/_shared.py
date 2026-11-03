@@ -107,10 +107,11 @@ class _ProgressReporter:
                 dynamic_ncols=True,
                 leave=True,
             )
+        increment = max(0, completed - self._bar.n)
         if reused:
-            self._reused += 1
-            self._bar.set_postfix(reused=self._reused, refresh=False)
-        self._bar.update(max(0, completed - self._bar.n))
+            self._reused += increment
+            self._bar.set_postfix(resumed=self._reused, refresh=False)
+        self._bar.update(increment)
 
     def close(self) -> None:
         if self._bar is not None:
@@ -421,8 +422,24 @@ def run_connectivity(
     force: bool = False,
 ):
     windows = _checkpoint_input(run, stage="windows_input", path=windows_path, force=False)
-    estimator = ConnectivityFactory(connectivity_cfg.resolve(windows.fps))
-    progress = _ProgressReporter("Connectivity", "chunk")
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    estimator = ConnectivityFactory(connectivity_cfg)
+    is_sequence = (
+        not estimator.capabilities.independent_window
+        and estimator.estimation_mode != "rolling_window"
+    )
+    if is_sequence:
+        print(f"[{run.run_id}/{run.method}] connectivity plan: 1 complete-sequence fit")
+        progress = _ProgressReporter("Connectivity sequence", "fit")
+    else:
+        n_chunks = (windows.n_windows + chunk_size - 1) // chunk_size
+        print(
+            f"[{run.run_id}/{run.method}] connectivity plan: {windows.n_windows} independent "
+            f"window fits in {n_chunks} resumable checkpoint chunks "
+            f"(up to {chunk_size} fits per chunk)"
+        )
+        progress = _ProgressReporter("Connectivity fits", "fit")
     try:
         return _run_with_status(
             run,

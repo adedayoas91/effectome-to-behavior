@@ -8,6 +8,8 @@ import numpy as np
 import pytest
 from fastCGC import FastGcStar
 
+from effectome.connectivity import ConnectivityConfig
+from effectome.connectivity.causalised_gc import fit_causalised_gc_model
 from effectome.core import CausalisedGC
 
 
@@ -108,6 +110,31 @@ def test_fast_support_rejects_monte_carlo_options_instead_of_ignoring_them():
         CausalisedGC(n_perm=99)
     with pytest.raises(ValueError, match="support_ridge"):
         CausalisedGC(support_ridge=0.0)
+
+
+def test_cgc_fit_preserves_recording_resolved_duration_lags():
+    config = ConnectivityConfig(
+        name="cgc",
+        max_lag=1,
+        max_lag_seconds=0.7,
+        extra={"support_test": "analytic"},
+    ).resolve(2.9046296296296297)
+
+    fitted = fit_causalised_gc_model(
+        np.random.default_rng(13).normal(size=(120, 3)),
+        cfg=config,
+    )
+
+    assert fitted.diagnostics["n_pasts"] == 2
+    assert fitted.diagnostics["n_lags"] == 2
+
+
+def test_cgc_direct_fit_rejects_unresolved_duration_lags():
+    with pytest.raises(ValueError, match="recording sampling rate"):
+        fit_causalised_gc_model(
+            np.random.default_rng(14).normal(size=(120, 3)),
+            cfg=ConnectivityConfig(name="cgc", max_lag_seconds=0.7),
+        )
 
 
 def test_explicit_legacy_modes_preserve_default_thresholds():

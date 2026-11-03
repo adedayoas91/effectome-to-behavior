@@ -74,7 +74,12 @@ def fit_causalised_gc_model(
 ) -> CausalisedGCModel:
     if available_inputs is not None:
         raise UnsupportedForecastError("cGC does not support exogenous inputs")
-    resolved = cfg.resolve(1.0)
+    if cfg.max_lag_seconds is not None and "lag_contract" not in cfg.extra:
+        raise ValueError(
+            "duration-based cGC lags must be resolved with the recording sampling rate "
+            "before fitting"
+        )
+    resolved = cfg
     extra = dict(resolved.extra)
     estimator = CausalisedGC(
         n_perm=int(extra.get("n_perm", 0)),

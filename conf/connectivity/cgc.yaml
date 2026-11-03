@@ -12,7 +12,7 @@ extra:
   support_ridge: 1.0e-6
   n_perm: 0           # fastcgc enumerates the complete shift orbit
   min_valid_fraction: 0.95
-  beta: 0.005
+  beta: 0.005       # must meet the 1 / n_valid_rows floor (C. elegans: 1 / 347)
   lag_aggregation: sum
   simulation: true
   temporal: true
