@@ -17,13 +17,15 @@ behavior_keys:
   motif: motif
 source_url: https://github.com/akshey-kumar/BunDLe-Net/tree/main/data/raw
 source_commit: cbefad93fe98b5860c7e219e5af9a7bb0a177143
+# Match BunDLe-Net's analysis cohort exactly. The upstream implementation
+# compares these labels with the raw per-worm NeuronNames values; unidentified
+# numeric labels remain in the analysis. Worm 0 contains six of the eight
+# requested names, so its 109 recorded neurons become 103 analysis neurons.
+exclude_neuron_name_source: raw
+exclude_neuron_names: [AVAR, AVAL, SMDVR, SMDVL, SMDDR, SMDDL, RIBR, RIBL]
 bundle_net_reference:
   source_file: functions.py
   input_field: deltaFOverF_bc
-  # Kept inside the retrospective reference lane: excluding these neurons from
-  # the primary effectome would remove plausible behavioral drivers.
-  exclude_neuron_name_source: raw
-  exclude_neuron_names: [AVAR, AVAL, SMDVR, SMDVL, SMDDR, SMDDL, RIBR, RIBL]
   preprocessing:
     detrend: false
     zscore: false

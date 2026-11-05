@@ -47,6 +47,38 @@ records the state, timestamps, configuration and input signature; the artifact
 contains the full typed analysis result, including anchors and provenance. Only
 load pickle artifacts created by this trusted local project.
 
+### Interactive 3D manifold trajectories
+
+The tracked [`visualization/11_manifold_trajectory_3d.ipynb`](visualization/11_manifold_trajectory_3d.ipynb)
+and `scripts/plot_manifold_trajectory.py` helper turn a completed three-dimensional
+manifold checkpoint into a draggable Matplotlib view, a static PNG, and a rotating
+GIF. The notebook provides start-step, segment-count, and active-effectome sliders
+plus Previous/Next buttons. It shows the active effectome and the mean effectome
+for the selected consecutive window beside the trajectory.
+
+Temporal joins use endpoint-preserving centripetal Catmull--Rom curves rather
+than straight chords. The curves pass through every observed manifold point,
+with tangent arrows showing direction. They stop across recording gaps,
+bad-frame boundaries, and cross-fit fold boundaries. Black rings mark behavior
+or state changes.
+
+From the package root, generate motif, graph-state, and HMM-state views with:
+
+```bash
+uv run python scripts/plot_manifold_trajectory.py \
+  --run-root outputs/analysis/bundle-net-c-elegans/bundle-net-worm-0/reference \
+  --method cgc \
+  --color-by motif graph hmm \
+  --show
+```
+
+Drag a native plot window to rotate it and scroll to zoom. The files are written beneath
+`outputs/analysis-output/manifold-3d/`. Use `--arrow-stride N` only when showing
+every arrow is visually too dense; the default is one arrow per step. GIF speed
+and smoothness are controlled by `--frames`, `--fps`, and `--dpi`. The smoothing
+is visual interpolation only; it does not create additional observations or
+establish continuous-time dynamics.
+
 The C. elegans suite currently analyses Bundle-Net worm 0 from the downloaded
 `NoStim_Data.mat`; its endpoint is the eight-class locomotor motif. The source
 commit and SHA-256 checksums are pinned in `conf/data/c_elegans.yaml`. The source
@@ -57,10 +89,13 @@ fits a manifold-dynamics surrogate and reports latent displacement; it does not
 regress arbitrary motif integer codes as though their distances were
 quantitative.
 
-The C. elegans preprocessing notebook also checkpoints an exact Bundle-Net
-reference lane. It starts from the upstream `deltaFOverF_bc` (already
-bleach-corrected) field, matches the eight published exclusions against the raw
-per-worm `NeuronNames`, applies the pinned fourth-order Butterworth filter once
+The C. elegans loader matches the eight published exclusions against the raw
+per-worm `NeuronNames` before creating any analysis checkpoint. As in the
+upstream BunDLe-Net code, unidentified numeric labels are retained. For worm 0,
+six requested names are present, so all downstream methods use 103 of the 109
+recorded neurons. The preprocessing notebook also checkpoints an exact
+Bundle-Net reference lane. It starts from the upstream `deltaFOverF_bc` (already
+bleach-corrected) field, applies the pinned fourth-order Butterworth filter once
 forward and once on the reversed full recording without padding, and creates the
 published paired inputs from overlapping 15-sample slices. The pairing uses each
 16-sample block as `X[t:t+15]` and `X[t+1:t+16]`, with behavior at `t+15`, so a
@@ -77,10 +112,9 @@ Intel macOS has no published PyTorch wheel; use the PCA default there.
 That exact filter is global and noncausal: every filtered time point can depend
 on future samples, and its unpadded reversal retains endpoint transients. It is
 therefore a retrospective reproduction/sensitivity artifact, not the input to
-prospective c-GC claims. The main `recording` and `windows` checkpoints retain
-all recorded neurons and use the bleach-corrected signal without that filter.
-This also avoids removing plausible command/interneuron drivers merely because
-Bundle-Net excluded them for its representation-learning control.
+prospective c-GC claims. The main `recording` and `windows` checkpoints use the
+same selected neuron cohort but retain the bleach-corrected signal without that
+noncausal filter.
 
 The first two V2a-RSN suites are bound to `220119_F2_run11` and
 `220127_F4_run2`. Their configs use fluorescence, registered coordinates, tail

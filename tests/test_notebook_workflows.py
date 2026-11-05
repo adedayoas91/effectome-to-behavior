@@ -186,6 +186,10 @@ def test_preprocess_notebooks_use_configured_output_ids():
     assert "bundle_net_training_pairs" in c_elegans_text
     assert "BUNDLE_NET_EXCLUDE_NEURONS" in c_elegans_text
     assert "BUNDLE_NET_EXCLUDE_NAME_SOURCE" in c_elegans_text
+    assert 'DATA_CFG["exclude_neuron_names"]' in c_elegans_text
+    assert 'DATA_CFG["exclude_neuron_name_source"]' in c_elegans_text
+    assert 'DATA_CFG["bundle_net_reference"]["exclude_neuron_names"]' not in c_elegans_text
+    assert "source -> {recording.n_neurons} analysis" in c_elegans_text
 
 
 def test_c_elegans_counterfactual_targets_manifold_not_motif_codes():

@@ -258,6 +258,15 @@ def exclude_named_neurons(
     if metadata_key is None:
         raise ValueError("name_source must be 'raw' or 'canonical'")
 
+    # Dataset loaders may already have applied the registered cohort selection.
+    # Treat an identical request as idempotent so a downstream reference lane
+    # retains the loader's record of which requested names were actually present.
+    if (
+        recording.metadata.get("exclude_neuron_name_source") == normalized_source
+        and recording.metadata.get("requested_excluded_neuron_names") == requested
+    ):
+        return recording
+
     source_names = [str(name) for name in recording.metadata.get(metadata_key, [])]
     if len(source_names) != recording.n_neurons:
         raise ValueError(

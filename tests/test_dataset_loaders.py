@@ -7,6 +7,7 @@ from pathlib import Path
 
 import h5py
 import numpy as np
+from omegaconf import OmegaConf
 
 from effectome.data_module import get_loader
 
@@ -30,7 +31,13 @@ def _write_ref_vector(
     return handle.create_dataset(path, data=refs)
 
 
-def _write_bundle_fixture(base: Path) -> dict:
+def _write_bundle_fixture(
+    base: Path,
+    *,
+    raw_neuron_names: list[str] | None = None,
+) -> dict:
+    if raw_neuron_names is None:
+        raw_neuron_names = ["1", "2"]
     recordings_path = base / "NoStim_Data.mat"
     order_path = base / "Order279.mat"
     class_ids_path = base / "ClassIDs_279.mat"
@@ -45,12 +52,19 @@ def _write_bundle_fixture(base: Path) -> dict:
         root = handle.create_group("NoStim_Data")
         traces = handle.create_dataset(
             "worm0_deltaFOverF_bc",
-            data=np.array([[0.1, 0.2, 0.4, 0.8], [0.3, 0.6, 0.9, 1.2]], dtype=np.float64),
+            data=np.arange(4 * len(raw_neuron_names), dtype=np.float64).reshape(
+                len(raw_neuron_names), 4
+            ),
         )
         fps = handle.create_dataset("worm0_fps", data=np.array([[2.0]], dtype=np.float64))
         tv = handle.create_dataset("worm0_tv", data=np.array([[0.0, 0.5, 1.0, 1.5]], dtype=np.float64))
         dataset_name = _write_char_dataset(handle, "worm0_dataset_name", "bundle-test")
-        neuron_names = _write_ref_vector(handle, "worm0_neuron_names", ["1", "2"], prefix="neuron_name")
+        neuron_names = _write_ref_vector(
+            handle,
+            "worm0_neuron_names",
+            raw_neuron_names,
+            prefix="neuron_name",
+        )
 
         states = handle.create_group("worm0_states")
         states.create_dataset("fwd", data=np.array([[1.0], [0.0], [0.0], [1.0]], dtype=np.float64))
@@ -250,3 +264,36 @@ def test_bundle_net_loader_reproduces_raw_name_exclusion(tmp_path):
     assert rec.metadata["raw_neuron_names"] == ["2"]
     assert rec.metadata["excluded_neuron_names"] == ["1"]
     assert rec.metadata["requested_but_absent_excluded_neuron_names"] == ["not-present"]
+
+
+def test_c_elegans_config_selects_bundle_net_neuron_cohort(tmp_path):
+    base = tmp_path / "bundle"
+    base.mkdir()
+    files = _write_bundle_fixture(
+        base,
+        raw_neuron_names=["AVAR", "1", "RIBL", "2", "AVAL"],
+    )
+    config_path = Path(__file__).resolve().parents[1] / "conf" / "data" / "c_elegans.yaml"
+    config = OmegaConf.to_container(OmegaConf.load(config_path), resolve=True)
+    assert isinstance(config, dict)
+    config.update(
+        {
+            "path": str(base),
+            "state_names": ["fwd", "rev"],
+            "files": files,
+        }
+    )
+
+    rec = get_loader("bundle_net_c_elegans")(config)
+
+    assert rec.metadata["source_neuron_count"] == 5
+    assert rec.n_neurons == 2
+    assert rec.metadata["raw_neuron_names"] == ["1", "2"]
+    assert rec.metadata["excluded_neuron_names"] == ["AVAR", "AVAL", "RIBL"]
+    assert rec.metadata["requested_but_absent_excluded_neuron_names"] == [
+        "SMDVR",
+        "SMDVL",
+        "SMDDR",
+        "SMDDL",
+        "RIBR",
+    ]

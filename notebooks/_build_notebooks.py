@@ -165,10 +165,10 @@ BUNDLE_NET_TARGET_LENGTH = int(
     DATA_CFG["bundle_net_reference"]["paired_window_length"]
 )
 BUNDLE_NET_EXCLUDE_NEURONS = list(
-    DATA_CFG["bundle_net_reference"]["exclude_neuron_names"]
+    DATA_CFG["exclude_neuron_names"]
 )
 BUNDLE_NET_EXCLUDE_NAME_SOURCE = str(
-    DATA_CFG["bundle_net_reference"]["exclude_neuron_name_source"]
+    DATA_CFG["exclude_neuron_name_source"]
 )
 '''
         if dataset.bundle_net_reference
@@ -258,6 +258,13 @@ if missing_behavior:
     raise KeyError(f"Dataset is missing configured behavior keys: {missing_behavior}")
 
 print(f"recording: {recording.n_neurons} neurons x {recording.n_timepoints} samples")
+source_neuron_count = recording.metadata.get("source_neuron_count")
+if source_neuron_count is not None:
+    print(
+        "neuron cohort: "
+        f"{source_neuron_count} source -> {recording.n_neurons} analysis; "
+        f"excluded={recording.metadata.get('excluded_neuron_names', [])}"
+    )
 print(f"windows: {windows.n_windows}; shape={windows.segments.shape}")
 timing = windows.metadata["temporal_contract"]
 print(
@@ -1002,8 +1009,154 @@ print_stage_status(run)
     ]
 
 
+def notebook_manifold_trajectory_visualization() -> list[dict]:
+    return [
+        markdown_cell(
+            "# Interactive 3D Manifold Trajectory and Effectomes",
+            "",
+            "Explore a consecutive manifold window with rounded temporal paths and synchronized active/mean effectome panels. Start-step and segment-count sliders choose the visible range; Previous and Next move by the selected range size.",
+            "The rounded paths use endpoint-preserving centripetal Catmull--Rom interpolation inspired by the BunDLe trajectory presentation. Every observed manifold point is retained. Curves stop at recording gaps, bad-frame boundaries, and cross-fit fold boundaries, so smoothing never bridges a declared discontinuity.",
+            "The visualization is descriptive. A smooth display curve does not add observations, establish continuous-time dynamics, or support causal interpretation.",
+            PROGRESS_NOTE,
+        ),
+        code_cell(
+            '''
+import importlib
+import sys
+
+from IPython import get_ipython
+
+shell = get_ipython()
+if shell is None:
+    raise RuntimeError("Run this file as a Jupyter notebook")
+
+# Prefer an embedded widget when ipympl is available. The project adds no new
+# dependency for this visualization, so a local native window is the default
+# fallback (macOS first, then Tk, then a noninteractive inline figure).
+backend_candidates = ["widget"]
+if sys.platform == "darwin":
+    backend_candidates.append("osx")
+else:
+    backend_candidates.append("tk")
+backend_candidates.append("inline")
+backend_errors = {}
+for backend_name in backend_candidates:
+    try:
+        shell.run_line_magic("matplotlib", backend_name)
+        INTERACTIVE_BACKEND = backend_name
+        break
+    except (ImportError, ModuleNotFoundError, RuntimeError) as error:
+        backend_errors[backend_name] = str(error)
+else:
+    raise RuntimeError(f"No Matplotlib notebook backend is available: {backend_errors}")
+
+shared = importlib.import_module("notebooks._shared")
+visualization = importlib.import_module("scripts.plot_manifold_trajectory")
+PROJECT_ROOT = shared.PROJECT_ROOT
+make_run = shared.make_run
+print_notebook_header = shared.print_notebook_header
+print_stage_status = shared.print_stage_status
+TrajectoryExplorer = visualization.TrajectoryExplorer
+load_trajectory_data = visualization.load_trajectory_data
+
+OUTPUT_BASE = PROJECT_ROOT / "outputs"
+DATASET_OUTPUT_ID = "bundle-net-c-elegans"
+RECORDING_ID = "bundle-net-worm-0"
+RUN_ID = "reference"
+METHOD = "cgc"
+COLOR_BY = "motif"  # "motif", "graph", or "hmm"
+BEHAVIOR_KEY = "motif"
+
+# Initial control values. The sliders can change all three after this cell runs.
+START_STEP = 0
+SEGMENTS_PER_VIEW = 25
+ACTIVE_EFFECTOME_STEP = START_STEP
+CURVE_SAMPLES_PER_SEGMENT = 20
+ARROW_STRIDE = 1
+
+OUTPUT_ROOT = OUTPUT_BASE / "analysis" / DATASET_OUTPUT_ID / RECORDING_ID
+RUN_ROOT = OUTPUT_ROOT / RUN_ID
+run = make_run(OUTPUT_ROOT, RUN_ID, METHOD)
+expected = ["connectivity", "manifold"]
+if COLOR_BY == "graph":
+    expected.append("graph_states")
+elif COLOR_BY == "hmm":
+    expected.append("probabilistic_states")
+print_notebook_header(
+    run,
+    title="Interactive 3D manifold trajectory",
+    expected_stages=expected,
+    force=False,
+)
+print("Matplotlib backend:", INTERACTIVE_BACKEND)
+'''
+        ),
+        code_cell(
+            '''
+trajectory = load_trajectory_data(
+    RUN_ROOT,
+    method=METHOD,
+    color_by=COLOR_BY,
+    behavior_key=BEHAVIOR_KEY,
+)
+print(
+    f"Loaded {trajectory.embedding.shape[0]} manifold steps, "
+    f"{trajectory.effectomes.shape[1]} effectome rows, "
+    f"and {trajectory.valid_steps.sum()} valid temporal joins"
+)
+print_stage_status(run)
+'''
+        ),
+        markdown_cell(
+            "## Explore consecutive segments",
+            "",
+            "Use **Start step** and **Segments** to select the consecutive trajectory window. **Previous** and **Next** move by the current segment count. **Effectome step** selects the black-diamond manifold point and its matching matrix; the lower matrix is the mean across all points in the visible window.",
+            "",
+            "Drag the 3D axis to rotate it and scroll to zoom. If the backend falls back to `inline`, edit the initial values above and rerun this cell; sliders need an interactive Matplotlib backend.",
+        ),
+        code_cell(
+            '''
+explorer = TrajectoryExplorer(
+    trajectory,
+    start_step=START_STEP,
+    segment_count=SEGMENTS_PER_VIEW,
+    active_step=ACTIVE_EFFECTOME_STEP,
+    curve_samples=CURVE_SAMPLES_PER_SEGMENT,
+    arrow_stride=ARROW_STRIDE,
+)
+explorer.figure
+'''
+        ),
+        markdown_cell(
+            "## Export the current selection",
+            "",
+            "Move the controls to the desired window before running this cell. The PNG and GIF preserve the active and mean effectome panels. Adjust frame count, rate, and DPI as needed.",
+        ),
+        code_cell(
+            '''
+EXPORT_DIRECTORY = PROJECT_ROOT / "outputs" / "analysis-output" / "manifold-3d"
+start, count, active = explorer.selection
+stem = f"manifold-3d-{METHOD}-{COLOR_BY}-steps-{start}-{start + count}-active-{active}"
+png_path = explorer.save_png(EXPORT_DIRECTORY / f"{stem}.png", dpi=160)
+gif_path = explorer.save_gif(
+    EXPORT_DIRECTORY / f"{stem}.gif",
+    frames=72,
+    fps=12,
+    dpi=110,
+)
+print("Saved:", png_path)
+print("Saved:", gif_path)
+'''
+        ),
+    ]
+
+
 def main() -> None:
     write_notebook(ROOT / "validation" / "10_state_calibration.ipynb", notebook_state_calibration())
+    write_notebook(
+        ROOT / "visualization" / "11_manifold_trajectory_3d.ipynb",
+        notebook_manifold_trajectory_visualization(),
+    )
     datasets = [
         DatasetSpec(
             slug="c_elegans",

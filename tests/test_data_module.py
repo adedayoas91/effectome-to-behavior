@@ -108,6 +108,20 @@ def test_named_neuron_exclusion_uses_exact_raw_names(synthetic_recording):
     ]
 
 
+def test_named_neuron_exclusion_is_idempotent(synthetic_recording):
+    synthetic_recording.metadata["raw_neuron_names"] = [
+        f"raw-{idx}" for idx in range(synthetic_recording.n_neurons)
+    ]
+    requested = ["raw-1", "absent"]
+
+    selected = exclude_named_neurons(synthetic_recording, requested, name_source="raw")
+    repeated = exclude_named_neurons(selected, requested, name_source="raw")
+
+    assert repeated is selected
+    assert repeated.metadata["excluded_neuron_names"] == ["raw-1"]
+    assert repeated.metadata["requested_but_absent_excluded_neuron_names"] == ["absent"]
+
+
 def test_sliding_windows_shapes(synthetic_recording):
     w = make_windows(synthetic_recording, WindowConfig(length=100, stride=50, mode="sliding"))
     assert w.segments.shape[1] == 100

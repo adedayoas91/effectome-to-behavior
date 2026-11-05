@@ -26,19 +26,19 @@ data:
     motif: motif
   source_url: https://github.com/akshey-kumar/BunDLe-Net/tree/main/data/raw
   source_commit: cbefad93fe98b5860c7e219e5af9a7bb0a177143
+  exclude_neuron_name_source: raw
+  exclude_neuron_names:
+  - AVAR
+  - AVAL
+  - SMDVR
+  - SMDVL
+  - SMDDR
+  - SMDDL
+  - RIBR
+  - RIBL
   bundle_net_reference:
     source_file: functions.py
     input_field: deltaFOverF_bc
-    exclude_neuron_name_source: raw
-    exclude_neuron_names:
-    - AVAR
-    - AVAL
-    - SMDVR
-    - SMDVL
-    - SMDDR
-    - SMDDL
-    - RIBR
-    - RIBL
     preprocessing:
       detrend: false
       zscore: false
