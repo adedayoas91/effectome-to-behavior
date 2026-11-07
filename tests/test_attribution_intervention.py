@@ -629,6 +629,52 @@ def test_manifold_surrogate_one_hot_encodes_integer_behavior_covariate():
     assert perturb.biological_intervention_identified is False
 
 
+def test_manifold_surrogate_ignores_categories_unseen_in_owned_fit():
+    series, _, manifold, behavior = _toy_lane_artifacts()
+    categorical = (np.arange(len(behavior)) % 2).astype(np.int64)
+    categorical[40:] = 2
+    _assign_fit_scope(series, manifold, "outer-fold-0")
+
+    surrogate = fit_linear_surrogate(
+        series,
+        manifold,
+        categorical,
+        endpoint="manifold",
+        fit_indices=np.arange(40),
+        evaluation_indices=np.arange(40, 60),
+        fit_scope_id="outer-fold-0",
+        strict_outer_ownership=True,
+        candidate_nodes=[0],
+        multiplicity_family=["motif:feature-edit"],
+        hypothesis_id="motif:feature-edit",
+        min_skill=-1e9,
+        min_absolute_skill=-1e9,
+        max_shift=1e9,
+        n_controls=2,
+    )
+
+    assert surrogate.metadata["behavior_categories"] == [0, 1]
+    assert surrogate.metadata["behavior_unseen_categories"] == [2]
+    assert (
+        surrogate.metadata["behavior_unknown_category_policy"]
+        == "all_zero_frozen_fit_vocabulary"
+    )
+    assert surrogate.feature_shape == (39, series.n_neurons**2 + 2 + 2)
+    assert surrogate.validation.status == "valid"
+
+    result = run_predictor_feature_sensitivity(
+        surrogate,
+        series,
+        manifold,
+        categorical,
+        node_indices=[0],
+        endpoint="manifold",
+        n_controls=2,
+        hypothesis_id="motif:feature-edit",
+    )
+    assert result.status == "valid"
+
+
 @pytest.mark.parametrize("endpoint", ["behavior", "joint"])
 def test_integer_behavior_cannot_be_used_as_regression_target(endpoint: str):
     series, _, manifold, behavior = _toy_lane_artifacts()

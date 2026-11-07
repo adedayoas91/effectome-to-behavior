@@ -138,12 +138,15 @@ def _behavior_design(
     n_windows: int,
     *,
     categories: np.ndarray | None = None,
+    allow_unknown: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, str, np.ndarray | None]:
     """Return behavior values and stable current-state covariates.
 
     Integer-valued behavior is treated as categorical state rather than as an
     ordered scalar.  The returned categories can be reused when rebuilding the
-    design matrix for a fitted model.
+    design matrix for a fitted model. When ``allow_unknown`` is true, values
+    outside that frozen vocabulary receive an all-zero one-hot vector, matching
+    the leakage-safe ``handle_unknown='ignore'`` convention.
     """
     values = np.asarray(behavior)
     if values.ndim == 2 and values.shape[1] == 1:
@@ -164,7 +167,7 @@ def _behavior_design(
     if fitted_categories.ndim != 1 or fitted_categories.size == 0:
         raise ValueError("categorical behavior requires at least one fitted category")
     known = np.isin(values, fitted_categories)
-    if not np.all(known):
+    if not allow_unknown and not np.all(known):
         unknown = np.unique(values[~known]).tolist()
         raise ValueError(f"behavior contains categories not seen during surrogate fitting: {unknown}")
     one_hot = (values[:, None] == fitted_categories[None, :]).astype(float)
@@ -198,6 +201,7 @@ def _build_design(
         behavior,
         series.n_windows,
         categories=behavior_categories,
+        allow_unknown=endpoint == "manifold" and behavior_categories is not None,
     )
     if encoding == "categorical_one_hot" and endpoint in {"joint", "behavior"}:
         raise ValueError(
@@ -376,6 +380,11 @@ def fit_linear_surrogate(
     _, _, behavior_encoding, behavior_categories = _behavior_design(
         training_behavior,
         len(owned_fit),
+    )
+    unseen_behavior_categories = (
+        np.setdiff1d(np.unique(np.asarray(behavior)), behavior_categories).tolist()
+        if behavior_categories is not None
+        else []
     )
     x, y = _build_design(
         series,
@@ -560,6 +569,12 @@ def fit_linear_surrogate(
             "behavior_categories": (
                 behavior_categories.tolist() if behavior_categories is not None else None
             ),
+            "behavior_unknown_category_policy": (
+                "all_zero_frozen_fit_vocabulary"
+                if behavior_categories is not None and endpoint == "manifold"
+                else None
+            ),
+            "behavior_unseen_categories": unseen_behavior_categories,
             "design_origins": origins,
             "fit_origins": fit_origins.tolist(),
             "evaluation_origins": origins[evaluation_rows].tolist(),
