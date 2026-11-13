@@ -68,8 +68,10 @@ changes and stored scientific outputs were preserved.
   matched raw-purged M0/M1 tuning boundaries. The original neural objective is
   preserved as the primary default.
 - Calibration: seven raw scenarios, paired history/dwell designs, JSON/CSV
-  manifests, CLI and a new resumable notebook. All 173 notebooks/543 code cells
-  parse. Seventy-two existing notebooks were updated without erasing outputs.
+  manifests, CLI and a new resumable notebook. At the time of that review, all
+  173 notebooks/543 code cells parsed. Seventy-two existing notebooks were
+  updated without erasing outputs. The current flattened layout contains 173
+  notebooks/543 code cells and retains every implemented estimator lane.
 
 Verification: the full suite passed **368 tests with 1 optional skip**; after the
 independent review's invalid-anchor correction, all seven state-evaluation

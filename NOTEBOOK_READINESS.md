@@ -38,7 +38,7 @@ owned feature sensitivity do not require the graph-state analysis.
 
 ## Scope of verification
 
-The full suite passes **378 tests, with 1 optional PyTorch skip**. Regression
+The full suite passes all **392 collected tests**. Regression
 tests exercise synthetic analysis stages, installed backends,
 checkpoint reuse, and insufficient-data handling. Ruff, mypy, compilation,
 locked environment synchronization and installed-package compatibility checks

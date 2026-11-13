@@ -250,8 +250,11 @@ def test_load_trajectory_verifies_and_returns_aligned_effectomes(tmp_path):
 
 
 def test_visualization_notebook_exposes_segment_controls():
-    path = Path(__file__).resolve().parents[1] / "notebooks" / "visualization" / (
-        "11_manifold_trajectory_3d.ipynb"
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "notebooks"
+        / "11_visualization"
+        / "manifold_trajectory_3d.ipynb"
     )
     payload = json.loads(path.read_text())
     source = "\n".join("".join(cell.get("source", [])) for cell in payload["cells"])

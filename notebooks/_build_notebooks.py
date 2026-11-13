@@ -1,4 +1,4 @@
-"""Generate method-split resumable analysis notebooks."""
+"""Generate flattened resumable analysis notebooks."""
 
 # ruff: noqa: E501, UP031 -- template strings are kept verbatim for readable notebook cells.
 
@@ -9,17 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-
-METHOD_DIRECTORIES = {
-    "cgc": "c-GC",
-    "cgc_star": "c-GC-star",
-    "correlation_partial": "partial-correlation",
-    "sparse_var": "sparse-VAR",
-    "windowed_sparse_var": "windowed-sparse-VAR",
-    "switching_var": "switching-VAR",
-    "tvvar_smooth": "TVVAR-smooth",
-    "tvvar_fused": "TVVAR-fused",
-}
 
 ENVIRONMENT_NOTE = (
     "Environment: select the project Python 3.14 `.venv` kernel. Install the locked packages "
@@ -1152,9 +1141,9 @@ print("Saved:", gif_path)
 
 
 def main() -> None:
-    write_notebook(ROOT / "validation" / "10_state_calibration.ipynb", notebook_state_calibration())
+    write_notebook(ROOT / "10_validation" / "state_calibration.ipynb", notebook_state_calibration())
     write_notebook(
-        ROOT / "visualization" / "11_manifold_trajectory_3d.ipynb",
+        ROOT / "11_visualization" / "manifold_trajectory_3d.ipynb",
         notebook_manifold_trajectory_visualization(),
     )
     datasets = [
@@ -1191,94 +1180,45 @@ def main() -> None:
         ),
     ]
     lanes = [
-        (
-            "cgc",
-            "fastC-GC",
-            True,
-            "cgc",
-        ),
-        (
-            "cgc_star",
-            "fastC-GC*",
-            True,
-            "cgc_star",
-        ),
-        (
-            "correlation_partial",
-            "Partial Correlation Baseline",
-            False,
-            "correlation",
-        ),
-        (
-            "sparse_var",
-            "Sparse VAR Baseline",
-            True,
-            "sparse_var",
-        ),
-        (
-            "windowed_sparse_var",
-            "Windowed Sparse VAR",
-            True,
-            "windowed_sparse_var",
-        ),
-        (
-            "switching_var",
-            "Switching VAR",
-            True,
-            "switching_var",
-        ),
-        (
-            "tvvar_smooth",
-            "Smooth TVVAR",
-            True,
-            "tvvar_smooth",
-        ),
-        (
-            "tvvar_fused",
-            "Group-fused TVVAR",
-            True,
-            "tvvar_fused",
-        ),
+        ("cgc", "fastC-GC", True, "cgc", True),
+        ("cgc_star", "fastC-GC*", True, "cgc_star", True),
+        ("correlation_partial", "Partial Correlation Baseline", False, "correlation", False),
+        ("sparse_var", "Sparse VAR Baseline", True, "sparse_var", True),
+        ("windowed_sparse_var", "Windowed Sparse VAR", True, "windowed_sparse_var", True),
+        ("switching_var", "Switching VAR", True, "switching_var", True),
+        ("tvvar_smooth", "Smooth TVVAR", True, "tvvar_smooth", True),
+        ("tvvar_fused", "Group-fused TVVAR", True, "tvvar_fused", True),
     ]
     for dataset in datasets:
         dataset_root = ROOT / dataset.relative_directory
-        preprocessing_path = Path("preprocessing") / "00_preprocess.ipynb"
+        preprocessing_path = Path("00_preprocessing") / "preprocess.ipynb"
         write_notebook(dataset_root / preprocessing_path, notebook_preprocessing(dataset))
         print(f"Wrote {dataset.relative_directory / preprocessing_path}")
-        evaluation_path = Path("evaluation") / "08_primary_m0_m1.ipynb"
+        evaluation_path = Path("08_evaluation") / "primary_m0_m1.ipynb"
         write_notebook(
             dataset_root / evaluation_path,
             notebook_primary_evaluation(dataset),
         )
         print(f"Wrote {dataset.relative_directory / evaluation_path}")
-        for method, label, directed, connectivity_config_name in lanes:
-            method_directory = METHOD_DIRECTORIES[method]
+        for method, label, directed, connectivity_config_name, supports_feature_sensitivity in lanes:
             notebooks = {
-                Path("effectomes") / method_directory / "01_connectivity.ipynb": notebook_connectivity(
+                Path("01_effectomes") / f"{method}.ipynb": notebook_connectivity(
                     f"Connectivity Notebook: {label}", method, connectivity_config_name
                 ),
-                Path("clustering")
-                / method_directory
-                / "02_cluster_markov.ipynb": notebook_states(method, label),
-                Path("probabilistic_states")
-                / method_directory
-                / "03_hmm.ipynb": notebook_probabilistic(method, label),
-                Path("communities")
-                / method_directory
-                / "04_temporal_community.ipynb": notebook_community(method, label),
-                Path("manifolds")
-                / method_directory
-                / "05_manifold.ipynb": notebook_manifold(method, label),
-                Path("linking")
-                / method_directory
-                / "06_linking.ipynb": notebook_linking(method, label, directed=directed),
+                Path("02_clustering") / f"{method}.ipynb": notebook_states(method, label),
+                Path("03_probabilistic_states") / f"{method}.ipynb": notebook_probabilistic(
+                    method, label
+                ),
+                Path("04_communities") / f"{method}.ipynb": notebook_community(method, label),
+                Path("05_manifolds") / f"{method}.ipynb": notebook_manifold(method, label),
+                Path("06_linking") / f"{method}.ipynb": notebook_linking(
+                    method, label, directed=directed
+                ),
             }
-            if directed:
-                notebooks[
-                    Path("counterfactuals")
-                    / method_directory
-                    / "07_attribution_counterfactual.ipynb"
-                ] = notebook_attribution(method, label)
+            if supports_feature_sensitivity:
+                notebooks[Path("07_counterfactuals") / f"{method}.ipynb"] = notebook_attribution(
+                    method, label
+                )
             for relative_path, cells in notebooks.items():
                 write_notebook(dataset_root / relative_path, datasetize_cells(cells, dataset))
                 print(f"Wrote {dataset.relative_directory / relative_path}")

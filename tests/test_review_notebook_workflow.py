@@ -33,7 +33,7 @@ def _keyword_calls(payload, function):
 
 
 def test_state_notebooks_use_nested_prospective_selection_instead_of_forced_states():
-    paths = sorted(NOTEBOOKS.glob("**/clustering/*/02_cluster_markov.ipynb"))
+    paths = sorted(NOTEBOOKS.glob("**/02_clustering/*.ipynb"))
     assert len(paths) == 24
     for path in paths:
         payload = json.loads(path.read_text())
@@ -53,7 +53,7 @@ def test_state_notebooks_use_nested_prospective_selection_instead_of_forced_stat
 
 
 def test_role_and_hmm_notebooks_keep_their_distinct_optional_scope():
-    for path in NOTEBOOKS.glob("**/communities/*/04_temporal_community.ipynb"):
+    for path in NOTEBOOKS.glob("**/04_communities/*.ipynb"):
         payload = json.loads(path.read_text())
         configuration, = _keyword_calls(payload, "CommunityConfig")
         extras = ast.literal_eval(configuration["extra"])
@@ -61,7 +61,7 @@ def test_role_and_hmm_notebooks_keep_their_distinct_optional_scope():
         assert extras["feature_representation"] == "signed_in_out", path
         source = _source(payload)
         assert "Temporal Neuron Roles" in source and "Leiden" in source, path
-    for path in NOTEBOOKS.glob("**/probabilistic_states/*/03_hmm.ipynb"):
+    for path in NOTEBOOKS.glob("**/03_probabilistic_states/*.ipynb"):
         payload = json.loads(path.read_text())
         configuration, = _keyword_calls(payload, "ProbabilisticStateConfig")
         assert ast.literal_eval(configuration["n_states"]) == 1, path
@@ -78,7 +78,7 @@ def test_generator_and_new_raw_calibration_notebook_use_the_same_contract():
                 ast.parse("".join(cell["source"]))
     graph, = _keyword_calls({"cells": notebook_states("cgc", "fastC-GC")}, "GraphStateConfig")
     assert ast.literal_eval(graph["n_states"]) == 1
-    path = NOTEBOOKS / "validation" / "10_state_calibration.ipynb"
+    path = NOTEBOOKS / "10_validation" / "state_calibration.ipynb"
     payload = json.loads(path.read_text())
     source = _source(payload)
     assert 'state_calibration_profile("smoke")' in source
@@ -88,10 +88,10 @@ def test_generator_and_new_raw_calibration_notebook_use_the_same_contract():
 
 
 def test_manifold_defaults_are_supported_and_linking_handles_unavailable_states():
-    for path in NOTEBOOKS.glob("**/manifolds/*/05_manifold.ipynb"):
+    for path in NOTEBOOKS.glob("**/05_manifolds/*.ipynb"):
         source = _source(json.loads(path.read_text()))
         assert 'MANIFOLD_CONFIG_NAME = "classical"' in source, path
         assert '"bundle_net_reference_recording" / "artifact.pkl"' not in source, path
-    for path in NOTEBOOKS.glob("**/linking/*/06_linking.ipynb"):
+    for path in NOTEBOOKS.glob("**/06_linking/*.ipynb"):
         source = _source(json.loads(path.read_text()))
         assert 'if report.get("status") == "unavailable":' in source, path

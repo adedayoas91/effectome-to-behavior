@@ -12,31 +12,31 @@ uv sync --python 3.14 --locked --extra dev --extra csl --extra community --extra
    --profile smoke --run --output-dir outputs/validation/smoke`, then
    `pipeline/10_state_calibration.py --profile smoke --output-dir
    outputs/state-calibration/smoke`, both with `.venv/bin/python`.
-   Alternatively, run [validation/10_state_calibration.ipynb](notebooks/validation/10_state_calibration.ipynb).
+   Alternatively, run [10_validation/state_calibration.ipynb](notebooks/10_validation/state_calibration.ipynb).
    Calibration has no biological notebook prerequisites.
-2. **Prepare each recording.** Run `<recording>/preprocessing/00_preprocess.ipynb`.
+2. **Prepare each recording.** Run `<recording>/00_preprocessing/preprocess.ipynb`.
    Recording roots are `notebooks/c_elegans/`,
    `notebooks/v2a_rsns/220119_F2_run11/`, and
    `notebooks/v2a_rsns/220127_F4_run2/`.
 3. **Run the primary comparison.** Run that recording's
-   `evaluation/08_primary_m0_m1.ipynb`. It needs preprocessing only; it constructs
+   `08_evaluation/primary_m0_m1.ipynb`. It needs preprocessing only; it constructs
    its own training-owned graph features. States, communities, and manifolds are
    optional and are not prerequisites.
-4. **Run optional method analyses** in the order below. Method folders retain
-   names such as `c-GC` and `c-GC-star`, whose backends are now fastC-GC/*.
+4. **Run optional method analyses** in the order below. Each numbered stage
+   directory contains method-named notebooks for every retained estimator.
 
 | Notebook under the same recording | Required prior notebooks |
 | --- | --- |
-| `effectomes/<method>/01_connectivity.ipynb` | `preprocessing/00_preprocess.ipynb` |
-| `clustering/<method>/02_cluster_markov.ipynb` | That method's `01_connectivity` |
-| `probabilistic_states/<method>/03_hmm.ipynb` | That method's `01_connectivity`; descriptive HMM only |
-| `communities/<method>/04_temporal_community.ipynb` | That method's `01_connectivity`; estimates neuronal roles |
-| `manifolds/<method>/05_manifold.ipynb` | That method's `01_connectivity` and shared preprocessing artifacts |
-| `linking/<method>/06_linking.ipynb` | That method's `02`, `04`, and `05`; HMM `03` is not required |
-| `counterfactuals/<method>/07_attribution_counterfactual.ipynb` | Preprocessing only; builds its own purged training-owned features |
+| `01_effectomes/<method>.ipynb` | `00_preprocessing/preprocess.ipynb` |
+| `02_clustering/<method>.ipynb` | That method's `01_effectomes` notebook |
+| `03_probabilistic_states/<method>.ipynb` | That method's `01_effectomes` notebook; descriptive HMM only |
+| `04_communities/<method>.ipynb` | That method's `01_effectomes` notebook; estimates neuronal roles |
+| `05_manifolds/<method>.ipynb` | That method's `01_effectomes` notebook and shared preprocessing artifacts |
+| `06_linking/<method>.ipynb` | That method's `02`, `04`, and `05`; HMM `03` is not required |
+| `07_counterfactuals/<method>.ipynb` | Preprocessing only; c-GC/c-GC* owned-feature sensitivity |
 
 Use only notebooks present for the selected method; partial correlation has no
-directional `07`. All `05` notebooks default to cross-fitted PCA. Exact C. elegans
+directional `07` notebook. All `05` notebooks default to cross-fitted PCA. Exact C. elegans
 BunDLe reproduction is optional and requires PyTorch on a supported platform
 (`bundle` extra); Python 3.14 on Intel macOS cannot install its published wheels.
 

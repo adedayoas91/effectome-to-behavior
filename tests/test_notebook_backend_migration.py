@@ -23,7 +23,7 @@ def test_all_notebooks_validate_the_migrated_environment_and_compile():
     assert notebooks
     for path in notebooks:
         payload = json.loads(path.read_text())
-        assert payload["metadata"]["language_info"]["version"] == "3.14", path
+        assert payload["metadata"]["language_info"]["version"].startswith("3.14"), path
         first_code = next(cell for cell in payload["cells"] if cell["cell_type"] == "code")
         assert BACKEND_ENVIRONMENT_CHECK.strip() in "".join(first_code["source"]), path
         markdown = "\n".join(

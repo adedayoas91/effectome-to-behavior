@@ -1,4 +1,4 @@
-"""Smoke tests for method-split resumable notebook helpers."""
+"""Smoke tests for flattened, CSL-first resumable notebook helpers."""
 
 from __future__ import annotations
 
@@ -44,31 +44,41 @@ def _subset_windows(windows, n_windows: int = 6) -> WindowedSegments:
     )
 
 
-def test_method_split_notebook_files_exist():
+def test_method_notebook_files_are_flattened():
     root = Path(__file__).resolve().parents[1] / "notebooks"
-    expected_analysis = [
-        Path("effectomes/c-GC/01_connectivity.ipynb"),
-        Path("linking/c-GC/06_linking.ipynb"),
-        Path("effectomes/c-GC-star/01_connectivity.ipynb"),
-        Path("counterfactuals/c-GC-star/07_attribution_counterfactual.ipynb"),
-        Path("effectomes/partial-correlation/01_connectivity.ipynb"),
-        Path("linking/partial-correlation/06_linking.ipynb"),
-        Path("clustering/c-GC/02_cluster_markov.ipynb"),
-        Path("probabilistic_states/c-GC/03_hmm.ipynb"),
-        Path("communities/c-GC/04_temporal_community.ipynb"),
-        Path("manifolds/c-GC/05_manifold.ipynb"),
-    ]
+    methods = {
+        "cgc",
+        "cgc_star",
+        "correlation_partial",
+        "sparse_var",
+        "windowed_sparse_var",
+        "switching_var",
+        "tvvar_smooth",
+        "tvvar_fused",
+    }
+    expected_by_stage = {
+        "01_effectomes": {f"{method}.ipynb" for method in methods},
+        "02_clustering": {f"{method}.ipynb" for method in methods},
+        "03_probabilistic_states": {f"{method}.ipynb" for method in methods},
+        "04_communities": {f"{method}.ipynb" for method in methods},
+        "05_manifolds": {f"{method}.ipynb" for method in methods},
+        "06_linking": {f"{method}.ipynb" for method in methods},
+        "07_counterfactuals": {
+            f"{method}.ipynb" for method in methods - {"correlation_partial"}
+        },
+    }
     dataset_directories = [
         root / "c_elegans",
         root / "v2a_rsns" / "220119_F2_run11",
         root / "v2a_rsns" / "220127_F4_run2",
     ]
     for directory in dataset_directories:
-        assert (directory / "preprocessing" / "00_preprocess.ipynb").is_file()
-        for relative_path in expected_analysis:
-            assert (directory / relative_path).is_file(), (
-                f"{directory.relative_to(root)}/{relative_path}"
-            )
+        assert (directory / "00_preprocessing" / "preprocess.ipynb").is_file()
+        assert (directory / "08_evaluation" / "primary_m0_m1.ipynb").is_file()
+        for stage, expected_names in expected_by_stage.items():
+            stage_directory = directory / stage
+            assert {path.name for path in stage_directory.glob("*.ipynb")} == expected_names
+            assert not any(path.is_dir() for path in stage_directory.iterdir())
 
 
 def test_all_notebooks_bootstrap_repository_imports():
@@ -118,8 +128,8 @@ def test_all_notebooks_print_resume_header():
 def test_notebook_setup_imports_from_nested_directories():
     root = Path(__file__).resolve().parents[1]
     paths = [
-        root / "notebooks" / "c_elegans" / "preprocessing" / "00_preprocess.ipynb",
-        root / "notebooks" / "c_elegans" / "effectomes" / "c-GC" / "01_connectivity.ipynb",
+        root / "notebooks" / "c_elegans" / "00_preprocessing" / "preprocess.ipynb",
+        root / "notebooks" / "c_elegans" / "01_effectomes" / "cgc.ipynb",
     ]
 
     for path in paths:
@@ -142,17 +152,17 @@ def test_notebook_setup_imports_from_nested_directories():
 def test_preprocess_notebooks_use_configured_output_ids():
     root = Path(__file__).resolve().parents[1] / "notebooks"
     expectations = {
-        root / "c_elegans" / "preprocessing" / "00_preprocess.ipynb": (
+        root / "c_elegans" / "00_preprocessing" / "preprocess.ipynb": (
             'DATASET_OUTPUT_ID = "bundle-net-c-elegans"',
             'RECORDING_ID = "bundle-net-worm-0"',
             'EXPECTED_BEHAVIOR_KEYS = ["motif"]',
         ),
-        root / "v2a_rsns" / "220119_F2_run11" / "preprocessing" / "00_preprocess.ipynb": (
+        root / "v2a_rsns" / "220119_F2_run11" / "00_preprocessing" / "preprocess.ipynb": (
             'DATASET_OUTPUT_ID = "v2a-rsns"',
             'RECORDING_ID = "220119_F2_run11"',
             'EXPECTED_BEHAVIOR_KEYS = ["continuous"]',
         ),
-        root / "v2a_rsns" / "220127_F4_run2" / "preprocessing" / "00_preprocess.ipynb": (
+        root / "v2a_rsns" / "220127_F4_run2" / "00_preprocessing" / "preprocess.ipynb": (
             'DATASET_OUTPUT_ID = "v2a-rsns"',
             'RECORDING_ID = "220127_F4_run2"',
             'EXPECTED_BEHAVIOR_KEYS = ["continuous"]',
@@ -175,7 +185,7 @@ def test_preprocess_notebooks_use_configured_output_ids():
     c_elegans_text = "\n".join(
         "".join(cell.get("source", []))
         for cell in json.loads(
-            (root / "c_elegans" / "preprocessing" / "00_preprocess.ipynb").read_text(
+            (root / "c_elegans" / "00_preprocessing" / "preprocess.ipynb").read_text(
                 encoding="utf-8"
             )
         )["cells"]
@@ -194,13 +204,8 @@ def test_preprocess_notebooks_use_configured_output_ids():
 
 def test_c_elegans_counterfactual_targets_manifold_not_motif_codes():
     root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans"
-    for method_directory in ("c-GC", "c-GC-star"):
-        path = (
-            root
-            / "counterfactuals"
-            / method_directory
-            / "07_attribution_counterfactual.ipynb"
-        )
+    for method in ("cgc", "cgc_star"):
+        path = root / "07_counterfactuals" / f"{method}.ipynb"
         payload = json.loads(path.read_text(encoding="utf-8"))
         text = "\n".join(
             "".join(cell.get("source", []))
@@ -213,7 +218,7 @@ def test_c_elegans_counterfactual_targets_manifold_not_motif_codes():
 
 def test_counterfactual_notebooks_label_feature_sensitivity_claim_boundary():
     root = Path(__file__).resolve().parents[1] / "notebooks"
-    paths = sorted(root.rglob("counterfactuals/*/07_attribution_counterfactual.ipynb"))
+    paths = sorted(root.rglob("07_counterfactuals/*.ipynb"))
     assert paths
 
     for path in paths:
@@ -236,11 +241,9 @@ def test_counterfactual_notebooks_label_feature_sensitivity_claim_boundary():
 
 
 def test_c_elegans_manifold_notebooks_load_supported_pca_profile():
-    root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans" / "manifolds"
-    for method_directory in ("c-GC", "c-GC-star", "partial-correlation"):
-        payload = json.loads(
-            (root / method_directory / "05_manifold.ipynb").read_text(encoding="utf-8")
-        )
+    root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans" / "05_manifolds"
+    for method in ("cgc", "cgc_star", "correlation_partial"):
+        payload = json.loads((root / f"{method}.ipynb").read_text(encoding="utf-8"))
         text = "\n".join(
             "".join(cell.get("source", []))
             for cell in payload["cells"]
@@ -322,16 +325,19 @@ def test_bunddle_notebook_manifold_uses_target_window_indexing(
 
 
 def test_effectome_notebooks_load_canonical_connectivity_profiles():
-    root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans" / "effectomes"
+    root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans" / "01_effectomes"
     expected = {
-        "c-GC": "cgc.yaml",
-        "c-GC-star": "cgc_star.yaml",
-        "partial-correlation": "correlation.yaml",
+        "cgc": "cgc.yaml",
+        "cgc_star": "cgc_star.yaml",
+        "correlation_partial": "correlation.yaml",
+        "sparse_var": "sparse_var.yaml",
+        "windowed_sparse_var": "windowed_sparse_var.yaml",
+        "switching_var": "switching_var.yaml",
+        "tvvar_smooth": "tvvar_smooth.yaml",
+        "tvvar_fused": "tvvar_fused.yaml",
     }
-    for method_directory, config_name in expected.items():
-        payload = json.loads(
-            (root / method_directory / "01_connectivity.ipynb").read_text(encoding="utf-8")
-        )
+    for method, config_name in expected.items():
+        payload = json.loads((root / f"{method}.ipynb").read_text(encoding="utf-8"))
         text = "\n".join(
             "".join(cell.get("source", []))
             for cell in payload["cells"]
@@ -344,29 +350,10 @@ def test_effectome_notebooks_load_canonical_connectivity_profiles():
         )
         assert f'/ "{config_name}"' in text
         assert "ConnectivityConfig(**CONNECTIVITY_YAML)" in text
-        if method_directory in {"c-GC", "c-GC-star"}:
+        if method in {"cgc", "cgc_star"}:
             assert "CHECKPOINT_CHUNK_SIZE = 16" in text
             assert "chunk_size=CHECKPOINT_CHUNK_SIZE" in text
             assert "one model is fit per window" in markdown
-
-
-def test_full_analysis_notebook_uses_revised_cgc_backend():
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "notebooks"
-        / "effectomes"
-        / "c-GC"
-        / "c-GC-effectome-sweep.ipynb"
-    )
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    text = "\n".join(
-        "".join(cell.get("source", [])) for cell in payload["cells"] if cell.get("cell_type") == "code"
-    )
-
-    assert "CONNECTIVITY_NAME = 'cgc'" in text
-    assert "CONNECTIVITY_NAME = 'granger'" not in text
-    assert "'n_runs': 5" in text
-    assert "'mode': 'prospective'" in text
 
 
 def test_attribution_helper_uses_window_aligned_behavior(monkeypatch, tmp_path):
@@ -426,7 +413,7 @@ def test_attribution_helper_uses_window_aligned_behavior(monkeypatch, tmp_path):
 
 def test_method_notebooks_reference_shared_artifacts_under_dataset_output_root():
     root = Path(__file__).resolve().parents[1] / "notebooks"
-    notebook = root / "c_elegans" / "effectomes" / "c-GC" / "01_connectivity.ipynb"
+    notebook = root / "c_elegans" / "01_effectomes" / "cgc.ipynb"
     payload = json.loads(notebook.read_text(encoding="utf-8"))
     text = "\n".join(
         "".join(cell.get("source", [])) for cell in payload["cells"] if cell.get("cell_type") == "code"

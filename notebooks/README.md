@@ -5,25 +5,30 @@ The executable notebooks are grouped by independently analysed recording:
 ```text
 notebooks/
 ├── c_elegans/
-│   ├── preprocessing/
-│   ├── effectomes/{c-GC,c-GC-star,partial-correlation}/
-│   ├── clustering/{c-GC,c-GC-star,partial-correlation}/
-│   ├── probabilistic_states/{c-GC,c-GC-star,partial-correlation}/
-│   ├── communities/{c-GC,c-GC-star,partial-correlation}/
-│   ├── manifolds/{c-GC,c-GC-star,partial-correlation}/
-│   ├── linking/{c-GC,c-GC-star,partial-correlation}/
-│   └── counterfactuals/{c-GC,c-GC-star}/
+│   ├── 00_preprocessing/preprocess.ipynb
+│   ├── 01_effectomes/<method>.ipynb
+│   ├── 02_clustering/<method>.ipynb
+│   ├── 03_probabilistic_states/<method>.ipynb
+│   ├── 04_communities/<method>.ipynb
+│   ├── 05_manifolds/<method>.ipynb
+│   ├── 06_linking/<method>.ipynb
+│   ├── 07_counterfactuals/<directed-method>.ipynb
+│   └── 08_evaluation/primary_m0_m1.ipynb
 └── v2a_rsns/
     ├── 220119_F2_run11/
     └── 220127_F4_run2/
 ```
 
-Every recording repeats the same analysis-oriented structure shown under
-`c_elegans`. The method directories make c-GC, c-GC*, and partial correlation
-independently runnable, while the parent directories group notebooks by their
-scientific purpose. V2a-RSN datasets 03 and 04 are intentionally not generated
-yet; add their source recording names to `_build_notebooks.py` after their paths
-and schemas have been confirmed.
+Every recording repeats the numbered stage structure shown under `c_elegans`.
+Method identity lives in the notebook filename, not another directory level.
+The generated surface retains all eight implemented notebook lanes: fastC-GC,
+fastC-GC*, partial correlation, constant and windowed sparse VAR, switching VAR,
+and smooth/fused TVVAR. The numbered stage directory supplies the run order; the
+method filename supplies the estimator identity. PCMCI+ and JPCMCI+ remain
+registry-backed causal-structure-learning configurations, with JPCMCI+ reserved
+for explicitly scoped pooled/context-aware workflows. V2a-RSN datasets 03 and 04
+are intentionally not generated yet; add their source recording names to
+`_build_notebooks.py` after their paths and schemas have been confirmed.
 
 ## Output layout
 
@@ -49,7 +54,7 @@ load pickle artifacts created by this trusted local project.
 
 ### Interactive 3D manifold trajectories
 
-The tracked [`visualization/11_manifold_trajectory_3d.ipynb`](visualization/11_manifold_trajectory_3d.ipynb)
+The tracked [`11_visualization/manifold_trajectory_3d.ipynb`](11_visualization/manifold_trajectory_3d.ipynb)
 and `scripts/plot_manifold_trajectory.py` helper turn a completed three-dimensional
 manifold checkpoint into a draggable Matplotlib view, a static PNG, and a rotating
 GIF. The notebook provides start-step, segment-count, and active-effectome sliders
@@ -142,19 +147,20 @@ remain labeled sensitivities.
 
 ## Order and parallelism for each dataset
 
-1. Run `preprocessing/00_preprocess.ipynb`. This is the only writer to the shared
+1. Run `00_preprocessing/preprocess.ipynb`. This is the only writer to the shared
    recording and raw-window checkpoints.
-2. Run `evaluation/08_primary_m0_m1.ipynb` for the outer-owned primary comparison.
+2. Run `08_evaluation/primary_m0_m1.ipynb` for the outer-owned primary comparison.
    The historical descriptive stages below are optional and their stitched
    outputs do not establish prospective validation.
-3. Run the three `effectomes/*/01_connectivity.ipynb` notebooks in parallel. They write to
-   separate `cgc`, `cgc_star`, and `correlation_partial` method namespaces.
-4. After a method's connectivity completes, run its notebooks under `clustering/`,
-   `probabilistic_states/`, `communities/`, and `manifolds/` in parallel.
-5. Run `linking/<method>/06_linking.ipynb` after that method's clustering,
+3. Run the wanted method notebooks in `01_effectomes/` in parallel. Each writes
+   to its own method namespace.
+4. After a method's effectome completes, run its same-named notebooks under
+   `02_clustering/`, `03_probabilistic_states/`, `04_communities/`, and
+   `05_manifolds/` in parallel.
+5. Run `06_linking/<method>.ipynb` after that method's clustering,
    community, and manifold notebooks. The HMM is a descriptive optional comparison and is not a computational
    dependency of linking.
-6. Run `counterfactuals/<method>/07_attribution_counterfactual.ipynb` directly
+6. Run `07_counterfactuals/<method>.ipynb` directly
    after preprocessing for a strict development sensitivity analysis. It builds
    a separate `outer_owned_features` checkpoint from raw windows, using a trailing
    evaluation block with full raw-history purging. Scaling, PCA and role centroids
@@ -170,7 +176,7 @@ remain labeled sensitivities.
    Partial correlation stops at `06` because an undirected baseline cannot support
    directional candidate-driver claims.
 
-The three recording-level `preprocessing/00_preprocess.ipynb` notebooks are independent and may
+The three recording-level `00_preprocessing/preprocess.ipynb` notebooks are independent and may
 also run in parallel. Afterward, any ready stage in one recording is independent
 of stages writing to another recording because each notebook writes under its own
 `outputs/analysis/<dataset_id>/<recording_id>/...` namespace.
@@ -227,7 +233,7 @@ of stages writing to another recording because each notebook writes under its ow
 
 ## Installed backend environment — 31 October 2026
 
-All 173 notebooks and the generator now use Python 3.14 kernel metadata and a
+All 173 notebooks and the generator use Python 3.14 kernel metadata and a
 shared setup check for fastcgc, Tigramite, scikit-learn, kmedoids, igraph, and
 leidenalg. From the package root, run:
 
@@ -242,7 +248,9 @@ is needed. Internal project path discovery remains for opening notebooks from
 their nested dataset directories.
 
 PCMCI+ and JPCMCI+ are available through the installed Tigramite adapters and
-`pcmci`/`jpcmci` configuration keys. The existing notebook lane layout is retained.
+`pcmci`/`jpcmci` configuration keys. They are not substituted for the existing
+eight notebook lanes; JPCMCI+ remains reserved for explicitly scoped
+pooled/context-aware analyses.
 Leiden uses igraph/leidenalg, K-means and spectral clustering use scikit-learn,
 and the optional distance-based k-medoids path uses the installed kmedoids solver.
 Temporal role inference remains a distinct project-specific model.

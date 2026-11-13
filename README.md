@@ -1,9 +1,10 @@
 # effectome
 
-**From dynamic effectomes to behavior.** Infer time-varying signed, directed, weighted effective
-interactions from C. elegans and larval-zebrafish calcium imaging, model recurrent whole-effectome
-states, detect evolving neural communities, and test whether their reconfiguration precedes and
-predicts later manifold or behavioral change. The implemented perturbation-stage output is
+**From dynamic effectomes to behavior: a causal structure learning framework.** Infer
+time-varying signed, directed neural structures from C. elegans and larval-zebrafish calcium
+imaging, then test whether those structures improve prediction of later manifold or behavioral
+change. The causal interpretation is conditional on the observation, lag, sufficiency, and
+faithfulness assumptions of each estimator. The implemented perturbation-stage output remains
 predictor-feature sensitivity, not a biological intervention or a generative counterfactual.
 
 The revised implementation contract is [Appendix C of the review](../report.md), with current
@@ -20,9 +21,11 @@ notebook. Neither path requires graph states, communities, or a manifold.
 The historical stitched workflow remains available under the explicit `legacy_descriptive`
 evaluation profile and must not be interpreted as confirmatory prospective evidence.
 
-Connectivity notebook lanes cover fastC-GC, fastC-GC* (configuration names `cgc`, `cgc_star`), partial correlation, constant and windowed sparse
-VAR, switching VAR, and smooth/fused TVVAR. Notebook stages are checkpointed; sequence estimators
-checkpoint the complete sequence, while the primary evaluator resumes at outer-fold boundaries.
+Per-recording notebook lanes retain fastC-GC, fastC-GC* (configuration names
+`cgc`, `cgc_star`), partial correlation, constant and windowed sparse VAR,
+switching VAR, and smooth/fused TVVAR. The numbered stage directories contain
+flat method-named notebooks. Notebook stages are checkpointed, while the primary
+evaluator resumes at outer-fold boundaries.
 
 ## Pipeline
 
@@ -61,7 +64,7 @@ positive thresholds below `1/(retained lag-design rows)` are rejected. Low-level
 in fast mode; explicit legacy modes retain their original threshold defaults.
 Explicit `support_test: analytic` and `support_test: circular_shift` retain the
 legacy implementation for sensitivity comparisons. Existing `cgc` / `cgc_star`
-configuration keys and notebook directories remain supported. Outputs identify
+configuration keys and checkpoint namespaces remain supported. Outputs identify
 the actual backend and installed version; previous checkpoints are invalidated
 by the source and lock fingerprints.
 
@@ -79,9 +82,9 @@ requires nonnegative weights (the default uses absolute weights). K-means,
 spectral clustering and PCA use scikit-learn. Distance-based k-medoids uses the
 published `kmedoids` alternating solver with seeded initial medoids.
 
-All 173 notebooks identify Python 3.14 and check the installed packages. Their
-configuration keys and directory names remain compatible; displayed method names
-identify fastC-GC/fastC-GC*. Existing stored outputs were preserved and need a new
+All 173 notebooks identify Python 3.14 and check the installed packages. Numbered
+stage directories contain method-named notebooks for every retained estimator.
+Existing stored outputs were preserved and need a new
 run to reflect the upgraded backend. See [the backend audit](BACKEND_PACKAGE_AUDIT.md)
 and [notebook readiness](NOTEBOOK_READINESS.md) for the PCA default and the
 supplied V2a recordings' insufficient-data state results.
