@@ -1,0 +1,38 @@
+# Scheduled-origin protocol v2; frozen after development seeds10/11.
+# Gates unchanged; confirmation seeds300-319/400-459 are fresh.
+profile: development
+positive_seeds:
+- 10
+- 11
+- 12
+- 13
+- 14
+null_seeds:
+- 10
+- 11
+- 12
+- 13
+- 14
+scenarios:
+- single_driver
+- redundant_group
+- correlated_bystander
+- 'null'
+- hidden_confounder
+generator:
+  n_trials: 128
+  trial_length: 512
+  cue_start: 288
+  cue_stop: 480
+  n_neurons: 8
+  observation_noise: 0.0
+  calcium_decay: 0.0
+history_length: 256
+target_length: 8
+stride: 32
+positive_lag: 1
+intervention_rollouts: 64
+estimator_profile: csl_sanity
+evaluation_fraction: 0.5
+manifold_dims: 1
+trial_origin_offset: 303

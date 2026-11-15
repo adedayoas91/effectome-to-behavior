@@ -1,0 +1,11 @@
+[project]
+name = "effectome-conventional-cgc-runtime"
+version = "0.1.0"
+description = "Isolated runtime for the published conventional c-GC estimators."
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "causalized-gc @ git+https://github.com/adedayoas91/GC-extension.git@d9442b86d7b95d822b047efc29790442693ddff0",
+]
+
+[tool.uv]
+package = false

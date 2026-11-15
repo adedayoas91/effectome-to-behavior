@@ -9,7 +9,7 @@ import pytest
 from fastCGC import FastGcStar
 
 from effectome.connectivity import ConnectivityConfig
-from effectome.connectivity.causalised_gc import fit_causalised_gc_model
+from effectome.connectivity.gc_predictive_readout import fit_causalised_gc_model
 from effectome.core import CausalisedGC
 
 
@@ -139,7 +139,7 @@ def test_cgc_direct_fit_rejects_unresolved_duration_lags():
 
 def test_explicit_legacy_modes_preserve_default_thresholds():
     from effectome.connectivity import ConnectivityConfig
-    from effectome.connectivity.causalised_gc import fit_causalised_gc_model
+    from effectome.connectivity.gc_predictive_readout import fit_causalised_gc_model
 
     data = np.random.default_rng(1).normal(size=(400, 8))
     direct = CausalisedGC(support_test="analytic").fit(data.T)

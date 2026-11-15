@@ -1,0 +1,13 @@
+# Fixed exploratory defaults; no outer-test tuning or confirmation is implied.
+comparison:
+  n_dims: 3
+  n_manifold_states: 3
+  positive_lag: 1
+  native_states: 3
+  evaluation_fraction: 0.25
+  decoder_c: 1.0
+  seed: 42
+connectivity_overrides:
+  switching_var:
+    # Existing manuscript iteration ceiling; retain nonconvergence as unavailable.
+    extra: {max_iter: 500}

@@ -1,0 +1,8 @@
+{
+  "applied": true,
+  "scope": "collection identity only; estimator and scoring algorithms unchanged",
+  "experiment_implementation_fingerprint": "89f294d95909dacdb072e48a4a5bfb1890d2e3262b69b5d359f9722d0b133c2b",
+  "updated_implementation_fingerprint": "96203d562784f51d88371d7e01cb645429733f80f411a5b15c53940025f0b3a0",
+  "updated_file_sha256": "55ece7e8864bd7292fe6b5f79a4ceb3c3c915f5c842650b66421efb2f2993347",
+  "verification_log": "post-study-verification.log"
+}

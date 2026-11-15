@@ -1,0 +1,15 @@
+# Four-CSL revision supersedes the historical eight-method, 64-sample pilot.
+# Longer histories make beta=0.005 attainable; this is a new protocol fingerprint.
+profile: smoke
+seeds: [0, 1, 2]
+scenarios: [one_to_one, matched_marginals, fixed_circuit, stationary]
+history_lengths: [256]
+dwell_lengths: [512]
+neuron_counts: [4]
+positive_lags: [1]
+observation_noise: [0.0]
+calcium_decays: [0.0]
+n_samples: 4096
+stride: 16
+target_length: 8
+estimator_profile: csl_sanity

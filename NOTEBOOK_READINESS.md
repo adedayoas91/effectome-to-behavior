@@ -1,10 +1,19 @@
 # Notebook run readiness
 
-All 173 notebooks pass bootstrap and configuration-cell execution from their
-own directories in the locked Python 3.14 environment. Each check used fresh
-globals and temporary checkpoint directories. All 543 code cells parse, and
-the obsolete stored error traceback has been removed. Scientific outputs
-retained in notebooks may predate the backend migration and must be rerun.
+The 173 pre-existing notebooks passed bootstrap and configuration-cell execution
+from their own directories during the backend migration. The current collection
+has 176 recording/diagnostic notebooks after adding one canonical shared-transition
+entrypoint per recording. All code cells parse in the locked Python 3.14
+environment. This revision preserves all previous code, local metadata and stored
+outputs, including user-generated errors. Stored outputs may predate the current
+analysis and must be rerun before interpretation.
+
+Run the five notebooks under [synthetic/](synthetic/README.md) first. They execute
+their default code cells in regression checks; the repeated-study notebook
+defaults to inventorying its matrix. Full validation execution is explicit.
+Then follow raw preprocessing with `09_cross_method/shared_transitions.ipynb`.
+All 173 earlier notebooks contain scope notices; independent method/manifold
+analyses remain complementary to the canonical shared comparison.
 
 ## Changes needed for execution
 
@@ -38,8 +47,10 @@ owned feature sensitivity do not require the graph-state analysis.
 
 ## Scope of verification
 
-The full suite passes all **392 collected tests**. Regression
-tests exercise synthetic analysis stages, installed backends,
+The complete regression suite passes **519 tests with one optional skip** after
+the final provenance/ownership refinements. The verification record is in
+[the delivery audit](docs/framework_validation_audit.md). Regression tests
+exercise synthetic analysis stages, installed backends,
 checkpoint reuse, and insufficient-data handling. Ruff, mypy, compilation,
 locked environment synchronization and installed-package compatibility checks
 pass. Full biological experiments across all notebooks were not rerun during

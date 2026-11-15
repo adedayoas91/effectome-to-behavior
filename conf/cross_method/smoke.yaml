@@ -1,0 +1,33 @@
+# Bounded engineering exercise. These thresholds are not production calibration.
+comparison:
+  n_dims: 2
+  n_manifold_states: 3
+  positive_lag: 1
+  native_states: 3
+  evaluation_fraction: 0.25
+  decoder_c: 1.0
+  seed: 42
+connectivity_overrides:
+  cgc:
+    max_lag: 1
+    max_lag_seconds: null
+    extra: {beta: 0.05, seed: 42}
+  cgc_star:
+    max_lag: 1
+    max_lag_seconds: null
+    extra: {beta: 0.05, seed: 42}
+  sparse_var:
+    max_lag: 1
+    extra: {n_lags: 1, standardize: false}
+  windowed_sparse_var:
+    max_lag: 1
+    extra: {n_lags: 1, standardize: false}
+  switching_var:
+    max_lag: 1
+    extra: {n_lags: 1, n_states: 1, max_iter: 100, tol: 0.001}
+  tvvar_smooth:
+    max_lag: 1
+    extra: {n_lags: 1, max_iter: 2000}
+  tvvar_fused:
+    max_lag: 1
+    extra: {n_lags: 1, max_iter: 2000}

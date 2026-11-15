@@ -1,0 +1,16 @@
+{
+  "scenario": "redundant_group",
+  "seed": 307,
+  "cell_id": "6be0aa8eda2146bc7898",
+  "source_payload_fingerprints": {
+    "conventional_cgc": "a32f49289edf0054680d8664372abdb483e14ed3f965acb11ef39e6325cce175",
+    "conventional_cgc_star": "2b57d17c29401808ab74b73f3ff1899b85a802f2a117d73e5ba589cdd10d1fa6",
+    "fast_cgc": "c7e744bcd02fdbeae72f70c2ac0110d2c640e60e15e4e53575db2077703c32d0",
+    "fast_cgc_star": "484b6b29136e6ea36ebd3c4b6d496e74a85446588eb3c302edad9b7c8e3867b1"
+  },
+  "reference_event_fingerprint": "f5061b31309f0fd0ed9890b3df8f2a795a7be2b07eb32bb36279e7cb868cb897",
+  "maximum_replayed_score_difference": 0.0,
+  "absolute_tolerance": 1e-10,
+  "native_estimator_refit": false,
+  "original_scores_changed": false
+}

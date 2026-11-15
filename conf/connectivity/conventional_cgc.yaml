@@ -1,0 +1,9 @@
+# Thin adapter to the pinned upstream causalized_gc.GcStar CPU implementation.
+name: conventional_cgc
+max_lag: 1
+max_lag_seconds: null
+alpha: 0.01
+partial: false
+absolute: false
+threshold: 0.0
+extra: {n_perm: 1000, beta: 0.005, seed: 42}

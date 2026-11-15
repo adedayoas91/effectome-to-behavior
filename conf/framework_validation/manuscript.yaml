@@ -1,0 +1,14 @@
+# Proposed finite study; freeze before running, and report its full denominator.
+profile: manuscript
+seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+scenarios: [one_to_one, matched_marginals, fixed_circuit, stationary]
+history_lengths: [384, 768]
+dwell_lengths: [512, 1536]
+neuron_counts: [6, 12]
+positive_lags: [1, 2, 4]
+observation_noise: [0.0, 0.3]
+calcium_decays: [0.0, 0.8]
+n_samples: 12000
+stride: 64
+target_length: 32
+estimator_profile: csl_sanity

@@ -1,0 +1,3 @@
+# Recovery analysis
+
+Independent units are raw-process simulation seeds; directions are averaged within seed. Percentile bootstrap 95% intervals require all planned eligible seeds and at least three seeds; incomplete sets receive no interval. Top-k uses intervention-defined gold-set size, not an operational nomination threshold. Null nomination uses the fixed 0.01-nat cutoff and any false candidate within method/seed; its exact one-sided 95% bound is per method, without simultaneous coverage. No paired superiority p-values or independent-method confirmation is claimed. All four methods belong to one family. Empty nomination Jaccard is undefined.

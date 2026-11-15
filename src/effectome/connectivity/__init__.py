@@ -4,8 +4,9 @@ Importing this package registers all shipped estimators in the registry.
 """
 
 # Import side-effect: register estimators.
-from . import causalised_gc as _causalised_gc  # noqa: E402,F401
 from . import correlation as _correlation  # noqa: E402,F401
+from . import gc_predictive_readout as _gc_predictive_readout  # noqa: E402,F401
+from . import native_gc as _native_gc  # noqa: E402,F401
 from . import pcmci as _pcmci  # noqa: E402,F401
 from . import sparse_var as _sparse_var  # noqa: E402,F401
 from . import switching_var as _switching_var  # noqa: E402,F401

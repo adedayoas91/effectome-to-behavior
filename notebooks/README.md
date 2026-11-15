@@ -1,5 +1,13 @@
 # Dataset-grouped resumable analysis notebooks
 
+The canonical adopted path is now `00_preprocessing/preprocess.ipynb` followed by
+`09_cross_method/shared_transitions.ipynb` for each recording. It rebuilds raw
+identity windows, fits one shared training-owned manifold, and compares all eight
+methods on the same held-out events. Start with
+[framework validation](../synthetic/README.md) before interpreting real recordings.
+The existing method notebooks carry scope notices and remain optional individual
+method analyses; they are not silently converted into shared-reference results.
+
 The executable notebooks are grouped by independently analysed recording:
 
 ```text
@@ -231,9 +239,9 @@ of stages writing to another recording because each notebook writes under its ow
   from the current anchor to the next valid anchor; its magnitude is invariant
   to fold-chart rotation/reflection. The exact BunDLe reference is descriptive.
 
-## Installed backend environment — 31 October 2026
+## Installed backend environment — updated 14 November 2026
 
-All 173 notebooks and the generator use Python 3.14 kernel metadata and a
+All 176 notebooks and the generator use Python 3.14 kernel metadata and a
 shared setup check for fastcgc, Tigramite, scikit-learn, kmedoids, igraph, and
 leidenalg. From the package root, run:
 

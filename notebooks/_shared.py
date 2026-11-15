@@ -79,6 +79,7 @@ from effectome.workflows import (
     run_evaluation_profile,
     run_primary_evaluation,
 )
+from effectome.workflows.cross_method import CrossMethodConfig, run_cross_method_comparison
 from effectome.workflows.feature_ownership import (
     OwnedFeatureArtifacts,
     chronological_feature_split,
@@ -1318,6 +1319,56 @@ def run_linking(
             "graph_states": states_path,
             "community": community_path,
             "manifold": manifold_path,
+        },
+        force=force,
+    )
+
+
+def run_shared_transition_comparison(
+    run: ResumableRun,
+    *,
+    raw_recording_path: str | Path,
+    window_cfg: WindowConfig,
+    comparison_cfg: CrossMethodConfig,
+    method_configs: Mapping[str, ConnectivityConfig],
+    groups: Mapping[str, list[str]] | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Canonical shared comparison rebuilt from an untransformed raw checkpoint."""
+    recording = _checkpoint_input(run, stage="raw_recording_input", path=raw_recording_path, force=force)
+    if not isinstance(recording, NeuralRecording):
+        raise TypeError("shared transitions require a raw NeuralRecording checkpoint")
+    # The raw checkpoint is saved before user-selected descriptive preprocessing.
+    # Rebuild the prospective identity path instead of reusing standardized windows.
+    windows = _execute_stage(
+        run,
+        "cross_method_windows",
+        lambda: make_windows(
+            preprocess(recording, PreprocessConfig()), replace(window_cfg, standardize_per_window=False)
+        ),
+        config=asdict(replace(window_cfg, standardize_per_window=False)),
+        dependencies={"raw_recording": Path(raw_recording_path).resolve()},
+        force=force,
+    )
+    return _execute_stage(
+        run,
+        "cross_method_comparison",
+        lambda: run_cross_method_comparison(
+            windows,
+            comparison_cfg,
+            method_configs=method_configs,
+            neuron_ids=[str(value) for value in recording.neuron_ids],
+            groups=groups,
+        ),
+        config={
+            "comparison": asdict(comparison_cfg),
+            "methods": {name: asdict(cfg) for name, cfg in method_configs.items()},
+            "groups": dict(groups or {}),
+            "windows": asdict(window_cfg),
+        },
+        dependencies={
+            "raw_recording": Path(raw_recording_path).resolve(),
+            "windows": stage_artifact_path(run, "cross_method_windows"),
         },
         force=force,
     )

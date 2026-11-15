@@ -10,6 +10,66 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
+SHARED_TRANSITION_NOTICE_MARKER = "<!-- shared-transition-workflow -->"
+_SHARED_TRANSITION_STAGES = {
+    "00_preprocessing": "This shared preprocessing stage is the prerequisite for the canonical comparison.",
+    "01_effectomes": "This is an optional individual-estimator inspection lane; the canonical comparison fits all requested estimators together.",
+    "02_clustering": "These method-specific graph codes are optional descriptive summaries, distinct from shared manifold states.",
+    "03_probabilistic_states": "This optional descriptive HMM lane is not a prerequisite for the canonical shared-transition comparison.",
+    "04_communities": "This optional method-specific role/community analysis is not a prerequisite for the canonical comparison.",
+    "05_manifolds": "This is an optional method-specific visualization/descriptive chart; it is not the shared reference used to compare estimators.",
+    "06_linking": "This is the legacy stitched per-method linking analysis; use the canonical comparison for paired manifold-transition predictions and attribution.",
+    "07_counterfactuals": "This separate predictor-feature sensitivity analysis is not the transition-specific neuron/group omission analysis or a biological intervention.",
+    "08_evaluation": "This retains the complementary behavior-endpoint M0/M1 comparison; it does not perform the eight-method shared manifold-transition analysis.",
+}
+
+
+def shared_transition_notice(path: Path) -> str | None:
+    """Return a recording-relative scope notice without changing notebook code."""
+    if path.parent.name in {"10_validation", "11_visualization"}:
+        return (
+            f"{SHARED_TRANSITION_NOTICE_MARKER}\n"
+            "## Scope under the shared-transition decisions\n\n"
+            "This remains a complementary graph-state calibration or individual-method visualization tool. "
+            "Use [synthetic framework validation](../../synthetic/03_framework_validation.ipynb) "
+            "and each recording's `09_cross_method/shared_transitions.ipynb` for the canonical shared reference. "
+            "Existing stored outputs retain their original scope.\n"
+        )
+    scope = _SHARED_TRANSITION_STAGES.get(path.parent.name)
+    if scope is None:
+        return None
+    return (
+        f"{SHARED_TRANSITION_NOTICE_MARKER}\n"
+        "## Shared-transition research workflow — 14 November 2026\n\n"
+        "The canonical adopted analysis is "
+        "[09_cross_method/shared_transitions.ipynb](../09_cross_method/shared_transitions.ipynb). "
+        "It rebuilds identity-preprocessed raw windows, fits one training-owned manifold, "
+        "and compares all eight estimators on the same held-out transition events. "
+        f"{scope} Historical stored outputs require rerunning and retain their original scope.\n"
+    )
+
+
+def _append_shared_transition_notice(payload: dict, path: Path) -> bool:
+    notice = shared_transition_notice(path)
+    if notice is None:
+        return False
+    first_markdown = next((cell for cell in payload["cells"] if cell["cell_type"] == "markdown"), None)
+    if first_markdown is None or SHARED_TRANSITION_NOTICE_MARKER in "".join(first_markdown["source"]):
+        return False
+    first_markdown["source"].extend(["\n", *notice.splitlines(keepends=True)])
+    return True
+
+
+def migrate_shared_transition_notices(root: Path = ROOT) -> list[Path]:
+    """Mechanically annotate existing notebooks while preserving code, outputs and metadata."""
+    updated = []
+    for path in sorted(root.rglob("*.ipynb")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if _append_shared_transition_notice(payload, path):
+            path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            updated.append(path)
+    return updated
+
 ENVIRONMENT_NOTE = (
     "Environment: select the project Python 3.14 `.venv` kernel. Install the locked packages "
     "with `uv sync --python 3.14 --locked --extra dev --extra csl --extra community --extra notebooks` "
@@ -130,6 +190,21 @@ def write_notebook(path: Path, cells: list[dict]) -> None:
         "nbformat": 4,
         "nbformat_minor": 5,
     }
+    _append_shared_transition_notice(payload, path)
+    if path.is_file():
+        previous = json.loads(path.read_text(encoding="utf-8"))
+        # Preserve local kernel metadata and results only when their exact code
+        # source is unchanged. Regeneration must not erase historical outputs.
+        payload["metadata"] = previous.get("metadata", payload["metadata"])
+        old_code = {
+            tuple(cell["source"]): cell for cell in previous["cells"] if cell["cell_type"] == "code"
+        }
+        for cell in payload["cells"]:
+            if cell["cell_type"] == "code" and tuple(cell["source"]) in old_code:
+                old = old_code[tuple(cell["source"])]
+                for field in ("metadata", "execution_count", "outputs"):
+                    if field in old:
+                        cell[field] = old[field]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
@@ -381,6 +456,98 @@ print(paired_log_loss_delta(
 print_stage_status(run)
 '''
         ),
+    ]
+
+
+def notebook_shared_transitions(dataset: DatasetSpec) -> list[dict]:
+    """One canonical training-owned reference for every estimator in a recording."""
+    return [
+        markdown_cell(
+            f"# {dataset.label}: Shared Manifold-Transition Comparison",
+            "",
+            "Canonical adopted analysis: one raw training-owned manifold and one held-out event table serve every estimator. Run the synthetic framework validation before interpreting biological results.",
+            "Prerequisite: this recording's `00_preprocessing/preprocess.ipynb` raw_recording checkpoint. Individual graph-state, community, manifold and linking notebooks are optional.",
+            "The helper rebuilds identity-preprocessed windows from raw_recording and disables per-window standardization; it never reuses descriptive manifolds or globally standardized windows.",
+            "All eight retained estimators are requested by default. Fixed settings are development choices; unavailable fits and insufficient raw support remain explicit.",
+            PROGRESS_NOTE,
+        ),
+        code_cell(f'''
+from dataclasses import replace
+
+from omegaconf import OmegaConf
+
+from effectome.data_module import WindowConfig
+from effectome.workflows.cross_method import load_cross_method_profile, write_cross_method_report
+from notebooks._shared import (
+    PROJECT_ROOT,
+    make_run,
+    print_notebook_header,
+    print_stage_status,
+    run_shared_transition_comparison,
+    stage_artifact_path,
+)
+
+DATASET_OUTPUT_ID = "{dataset.dataset_id}"
+RECORDING_ID = "{dataset.recording_id}"
+OUTPUT_ROOT = PROJECT_ROOT / "outputs" / "analysis" / DATASET_OUTPUT_ID / RECORDING_ID
+RUN_ID = "shared-transitions"
+METHOD = "cross-method"
+FORCE = False
+
+shared_run = make_run(OUTPUT_ROOT, "reference", "shared")
+RAW_RECORDING_PATH = stage_artifact_path(shared_run, "raw_recording")
+WINDOW_CONFIG_PATH = PROJECT_ROOT / "conf" / "windowing" / "primary_physical.yaml"
+window_data = OmegaConf.to_container(OmegaConf.load(WINDOW_CONFIG_PATH), resolve=True)
+if not isinstance(window_data, dict):
+    raise TypeError(f"Expected a mapping in {{WINDOW_CONFIG_PATH}}")
+WINDOW_CFG = replace(WindowConfig(**window_data), standardize_per_window=False)
+COMPARISON_CFG, METHOD_CONFIGS = load_cross_method_profile("development")
+GROUPS = {{}}  # Optional anatomy/training-established groups: {{"name": ["neuron_id", ...]}}
+
+run = make_run(OUTPUT_ROOT, RUN_ID, METHOD)
+print_notebook_header(
+    run,
+    title="{dataset.label} shared manifold-transition comparison",
+    expected_stages=["raw_recording_input", "cross_method_windows", "cross_method_comparison"],
+    force=FORCE,
+)
+'''),
+        code_cell('''
+report = run_shared_transition_comparison(
+    run,
+    raw_recording_path=RAW_RECORDING_PATH,
+    window_cfg=WINDOW_CFG,
+    comparison_cfg=COMPARISON_CFG,
+    method_configs=METHOD_CONFIGS,
+    groups=GROUPS,
+    force=FORCE,
+)
+print("Shared fitted reference:", report["fit_scope_id"])
+print("Training/evaluation events:",
+      len(report["events"]["train_rows"]), len(report["events"]["evaluation_rows"]))
+for method, result in report["methods"].items():
+    if result["status"] == "available":
+        print(method, "held-out graph gain:", result["prediction"]["log_loss_gain"])
+        print("  Native graph states:", result["native_graph_states"]["status"])
+    else:
+        print(method, "unavailable:", result["reason"])
+print("Neuronal identity source:", report["neuron_id_source"])
+print_stage_status(run)
+'''),
+        markdown_cell(
+            "## Paired reports and candidate interpretation",
+            "",
+            "The empirical manifold transition matrix is shared. Each method contributes predicted conditional transitions and, where available, its own graph-state correspondence. Positive omission scores are transition-specific predictive evidence, not biological necessity. Inspect stays, competing destinations, unavailable fits, and synthetic recovery before selecting biological candidates.",
+        ),
+        code_cell('''
+REPORT_DIRECTORY = run.run_dir / "reports"
+paths = write_cross_method_report(report, REPORT_DIRECTORY)
+print("Comparison, candidate table, event table and summary:")
+for path in paths:
+    print(path)
+print("Family-aware candidate summaries:", len(report["family_rank_synthesis"]))
+print("Claim boundaries:", report["scientific_claims"])
+'''),
     ]
 
 
@@ -1200,6 +1367,9 @@ def main() -> None:
             notebook_primary_evaluation(dataset),
         )
         print(f"Wrote {dataset.relative_directory / evaluation_path}")
+        shared_transition_path = Path("09_cross_method") / "shared_transitions.ipynb"
+        write_notebook(dataset_root / shared_transition_path, notebook_shared_transitions(dataset))
+        print(f"Wrote {dataset.relative_directory / shared_transition_path}")
         for method, label, directed, connectivity_config_name, supports_feature_sensitivity in lanes:
             notebooks = {
                 Path("01_effectomes") / f"{method}.ipynb": notebook_connectivity(

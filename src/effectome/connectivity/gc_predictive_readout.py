@@ -1,4 +1,9 @@
-"""Registered c-GC and c-GC* connectivity estimators."""
+"""Optional historical GC-selected VAR readouts for neural forecasting.
+
+This module preserves the legacy ``cgc``/``cgc_star`` predictive interfaces. Its
+signed VAR readouts are separate from the imported native binary CSL methods in
+``native_gc`` and are excluded from the four-method synthetic sanity comparison.
+"""
 
 from __future__ import annotations
 

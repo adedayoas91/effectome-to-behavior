@@ -1,0 +1,12 @@
+# Four related upstream CSL methods; agreement is one-family consistency evidence.
+# Histories must support the beta=0.005 complete-shift resolution (use >=256 samples).
+comparison:
+  n_dims: 2
+  n_manifold_states: 3
+  positive_lag: 1
+  native_states: 3
+  evaluation_fraction: 0.25
+  decoder_c: 1.0
+  seed: 42
+methods: [conventional_cgc, conventional_cgc_star, fast_cgc, fast_cgc_star]
+connectivity_overrides: {}

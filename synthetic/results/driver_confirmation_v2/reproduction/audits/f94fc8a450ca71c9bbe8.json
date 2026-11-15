@@ -1,0 +1,16 @@
+{
+  "scenario": "correlated_bystander",
+  "seed": 319,
+  "cell_id": "f94fc8a450ca71c9bbe8",
+  "source_payload_fingerprints": {
+    "conventional_cgc": "859a2cdf5b59f3df30f5f1b9614fcd5dd21d77ad5015c5fef16ea4dc1d3b3c04",
+    "conventional_cgc_star": "572e649ac82f0c118efd8c3805d6225927ec9923c0d681a1410a66fa4f99befd",
+    "fast_cgc": "76db5f36fb0f828c3f1bcdbe94393e5d9c7fce4c0c8652bbc4c4421d11c8f978",
+    "fast_cgc_star": "ab19c41dfdecc52b58783cf5973f2b076e906a627b94703212d3e49fef0f3d7e"
+  },
+  "reference_event_fingerprint": "2e1aa84c7b4ac1d8ba212cdc28b5b82f39346564f2c634af4e8cfe842b043e54",
+  "maximum_replayed_score_difference": 2.498001805406602e-16,
+  "absolute_tolerance": 1e-10,
+  "native_estimator_refit": false,
+  "original_scores_changed": false
+}

@@ -13,7 +13,7 @@ from effectome.connectivity import (
     ConnectivityEstimator,
     ConnectivityFactory,
 )
-from effectome.connectivity.causalised_gc import fit_causalised_gc_model
+from effectome.connectivity.gc_predictive_readout import fit_causalised_gc_model
 from effectome.core import CausalisedGC
 from effectome.data_module.schema import TemporalAnchor, Window, WindowedSegments
 from effectome.experiments import analyze_with_cgc, analyze_with_cgc_star

@@ -1,0 +1,16 @@
+{
+  "scenario": "single_driver",
+  "seed": 307,
+  "cell_id": "05cb928fe5e6b7a0a182",
+  "source_payload_fingerprints": {
+    "conventional_cgc": "cf3ff7cc121404b8510757299aae0f6f8ba4efd870d59b095ad3df6316fc6595",
+    "conventional_cgc_star": "d4c1daa9fd3d9c480e5f50997fd601d44b6bf88fb307d50dad01eb2edc17f471",
+    "fast_cgc": "50678ebf5638a99ae2c694298d52a667a499656e1d6d956d6fc56b2ed14c8889",
+    "fast_cgc_star": "eb1f275d1f30ac1bce6508a90d238f8cd7af5e9283cb323d249921aefa0e019c"
+  },
+  "reference_event_fingerprint": "aade4a40ba877d0d3018ead3614c53ce074c45d9fd108fcfa54ed0da42c3a85e",
+  "maximum_replayed_score_difference": 0.0,
+  "absolute_tolerance": 1e-10,
+  "native_estimator_refit": false,
+  "original_scores_changed": false
+}

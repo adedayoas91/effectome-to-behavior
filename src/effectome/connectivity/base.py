@@ -25,6 +25,14 @@ logger = logging.getLogger(__name__)
 _INTERNAL_EXTRA_KEYS = frozenset({"lag_contract"})
 _METHOD_EXTRA_KEYS: dict[str, frozenset[str]] = {
     "correlation": frozenset(),
+    "fast_cgc": frozenset({"n_perm", "beta", "seed", "verbose"}),
+    "fast_cgc_star": frozenset({"n_perm", "beta", "seed", "verbose"}),
+    "conventional_cgc": frozenset(
+        {"n_perm", "beta", "seed", "runtime_python", "upstream_module", "verbose"}
+    ),
+    "conventional_cgc_star": frozenset(
+        {"n_perm", "beta", "seed", "runtime_python", "upstream_module", "verbose"}
+    ),
     "cgc": frozenset(
         {
             "alpha",

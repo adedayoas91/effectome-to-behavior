@@ -1,11 +1,25 @@
 # effectome
 
+Start with [synthetic framework validation](synthetic/README.md), beginning with
+the four-method planted-graph check in `synthetic/05_four_csl_sanity.ipynb`.
+The current simulation panel uses conventional c-GC, c-GC*, fastC-GC and
+fastC-GC*, imported from pinned upstream packages. It compares native lag support
+without a local VAR readout. Designed controls, independent seeds, observation/history
+sensitivities, statistics, figures and manuscript exports support the larger
+validation workflow. Then use each recording's canonical
+`09_cross_method/shared_transitions.ipynb` after raw preprocessing. The previous
+method notebooks remain explicitly optional. See [execution order](exec_order.md)
+and [the delivery audit](docs/framework_validation_audit.md).
+
 **From dynamic effectomes to behavior: a causal structure learning framework.** Infer
-time-varying signed, directed neural structures from C. elegans and larval-zebrafish calcium
+time-varying directed neural structures from C. elegans and larval-zebrafish calcium
 imaging, then test whether those structures improve prediction of later manifold or behavioral
 change. The causal interpretation is conditional on the observation, lag, sufficiency, and
 faithfulness assumptions of each estimator. The implemented perturbation-stage output remains
 predictor-feature sensitivity, not a biological intervention or a generative counterfactual.
+Native CSL support is unsigned; historical signed coefficient readouts remain a
+separate optional analysis. Agreement among the four related CSL variants is
+consistency within one method family, not independent causal confirmation.
 
 The revised implementation contract is [Appendix C of the review](../report.md), with current
 scientific status in [revision notes](../manuscript-260926/REVISION_NOTES.md). The parent
@@ -56,9 +70,26 @@ in `uv.lock`; no repository clone, editable upstream checkout, or `sys.path`
 injection is used. Upstream currently has no published release or PyPI package,
 so this is a reproducible source pin, not a stable-release designation.
 
-The default linear backend uses standardized ridge residuals and complete
+Conventional c-GC/c-GC* use the author's unchanged `causalized_gc.GcStar` CPU
+implementation, pinned at `d9442b86d7b95d822b047efc29790442693ddff0`. Its NumPy/Numba
+requirements need an isolated Python 3.13 environment alongside the main Python
+3.14 kernel:
+
+```bash
+UV_CACHE_DIR=/tmp/effectome-cgc-uv-cache uv sync \
+  --project tools/conventional-cgc --python 3.13.5 --locked
+```
+
+See [the conventional runtime guide](tools/conventional-cgc/README.md) for public
+imports, source provenance and the upstream CPU permutation-seeding limitation.
+The four native adapters use `alpha=0.01`, `beta=0.005`, and one positive lag.
+Current synthetic histories contain at least 256 samples so the fast test can
+attain that threshold; upstream support scores do not become signed coefficients.
+
+The fast linear backend uses standardized ridge residuals and complete
 FFT circular-shift enumeration. `support_ridge: 1e-6` is separate from the
-signed VAR readout ridge. Production configs use `alpha: 0.05`, `beta: 0.005`;
+historical signed VAR readout ridge. Historical `cgc` / `cgc_star` readout configs
+use `alpha: 0.05`, `beta: 0.005`;
 positive thresholds below `1/(retained lag-design rows)` are rejected. Low-level
 `ConnectivityConfig` calls without `extra.beta` use `alpha` for both thresholds
 in fast mode; explicit legacy modes retain their original threshold defaults.
@@ -82,7 +113,7 @@ requires nonnegative weights (the default uses absolute weights). K-means,
 spectral clustering and PCA use scikit-learn. Distance-based k-medoids uses the
 published `kmedoids` alternating solver with seeded initial medoids.
 
-All 173 notebooks identify Python 3.14 and check the installed packages. Numbered
+All 176 recording/diagnostic notebooks identify Python 3.14 and check the installed packages. Numbered
 stage directories contain method-named notebooks for every retained estimator.
 Existing stored outputs were preserved and need a new
 run to reflect the upgraded backend. See [the backend audit](BACKEND_PACKAGE_AUDIT.md)

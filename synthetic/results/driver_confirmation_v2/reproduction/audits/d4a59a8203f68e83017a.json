@@ -1,0 +1,16 @@
+{
+  "scenario": "hidden_confounder",
+  "seed": 312,
+  "cell_id": "d4a59a8203f68e83017a",
+  "source_payload_fingerprints": {
+    "conventional_cgc": "60faccd61825e8402879a57b86fbe1c437b635a2d70b92dfbde4cc70e8486cc7",
+    "conventional_cgc_star": "b8ccf5a187df8def8ea1a2892b90c2fc9883bd22dc06b0bcda541d7bfe4c6890",
+    "fast_cgc": "79faa4845cf9a3cdb37301bb1001ec165fd64b87a104e61a50011a1950a12357",
+    "fast_cgc_star": "b16eb688a2eb689c551ae721a2457cb5d4646e9cd4624e5e9a32a0078a6a0404"
+  },
+  "reference_event_fingerprint": "59f288fa09fbf621c069d7b83c8f46ad85180267c665aff709f578481e7e2ffb",
+  "maximum_replayed_score_difference": 0.0,
+  "absolute_tolerance": 1e-10,
+  "native_estimator_refit": false,
+  "original_scores_changed": false
+}

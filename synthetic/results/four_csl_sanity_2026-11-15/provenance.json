@@ -1,0 +1,15 @@
+{
+  "date": "2026-11-15",
+  "source": "outputs/csl-sanity/smoke",
+  "source_sha256": "2819ec6f532e86d56fe441129f5071569c18db7538de1e86f74ab0bdbe240744",
+  "command": ".venv/bin/python pipeline/14_csl_sanity.py --run",
+  "claim_scope": "descriptive_native_graph_recovery_sanity_only",
+  "note": "Fits completed before a macOS GUI plotting abort. Figures rendered from the saved JSON with the corrected noninteractive renderer; no discovery fit was repeated for this export.",
+  "presentation_note": "Figure export uses the noninteractive Agg canvas with tight bounding boxes to preserve axis labels. Presentation regenerated from unchanged numerical JSON; no discovery fits repeated.",
+  "figure_sha256": {
+    "figure-01-native-support.png": "69e822452e666dbc5be8068a5a5f50f689e23534e17071d43f6569cc1bbfe2f1",
+    "figure-01-native-support.pdf": "a6c2dec85713b161022725ac7cc4d4e16d13fe82cdb5ec808e13fdd679fc28d1",
+    "figure-02-seed-recovery.pdf": "32a52439ad1b8967dae8475c86cacb7151c046e8b98624125ceeb1e8b0ddea49",
+    "figure-02-seed-recovery.png": "9b8a85cec4decf42e239326f61db8074f6af7557e659d901b08981f10487d0bd"
+  }
+}

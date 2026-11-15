@@ -1,0 +1,9 @@
+# Native fastC-GC support from the pinned fastCGC package; no VAR readout.
+name: fast_cgc
+max_lag: 1
+max_lag_seconds: null
+alpha: 0.01
+partial: false
+absolute: false
+threshold: 0.0
+extra: {n_perm: 0, beta: 0.005, seed: 42}

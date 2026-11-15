@@ -1,0 +1,21 @@
+.............................................s.......................... [ 13%]
+........................................................................ [ 26%]
+........................................................................ [ 39%]
+........................................................................ [ 52%]
+........................................................................ [ 65%]
+........................................................................ [ 78%]
+........................................................................ [ 91%]
+...............................................                          [100%]
+=============================== warnings summary ===============================
+tests/test_installed_backends.py::test_jpcmci_rejects_incomplete_context_classification
+  /Users/sadiqadedayo/Documents/projects/effectome-to-behavior/effectome-to-behavior/.venv/lib/python3.14/site-packages/tigramite/data_processing.py:312: UserWarning: In analysis mode 'multiple'. There is just a single dataset, is this as intended?'
+    warnings.warn("In analysis mode 'multiple'. There is just a "\
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+550 passed, 1 skipped, 1 warning in 203.47s (0:03:23)
+All checks passed!
+src/effectome/manifold/bundle_net.py:213: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/effectome/manifold/bundle_net.py:214: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/effectome/manifold/bundle_net.py:215: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/effectome/manifold/bundle_net.py:216: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+Success: no issues found in 84 source files

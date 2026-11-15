@@ -1,0 +1,3 @@
+# Frozen driver-study reproduction
+
+The source ZIP preserves the implementation used for discovery/scoring. Method archives retain original NPZ native graphs/evidence and per-recording JSON. Extract all method parts into one study directory; archive paths retain methods/.../cells/. Restore the source snapshot and its pinned main/conventional locks to replay scores with the included verification script. Discovery need not be rerun: upstream CPU permutation randomness is not fully controlled. Original numerical scores are retained; audits document machine-precision baseline differences and exact sample ownership. Parts are below41MiB to avoid oversized repository blobs.

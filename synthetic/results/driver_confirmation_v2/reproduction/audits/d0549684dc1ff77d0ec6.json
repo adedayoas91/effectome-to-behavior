@@ -1,0 +1,16 @@
+{
+  "scenario": "null",
+  "seed": 411,
+  "cell_id": "d0549684dc1ff77d0ec6",
+  "source_payload_fingerprints": {
+    "conventional_cgc": "c101b9c4c533f7cd9278c1b9eaf4b07adb93da49e829268ee664671ce7de83b5",
+    "conventional_cgc_star": "02a295f36946c846cc1be7d65c8d3698ac11cf4e7421f63b2c2ea7f622f6b099",
+    "fast_cgc": "f582b067ab278a39fbc2b9302aad7a5576294defb204b600e376e044eaf4598e",
+    "fast_cgc_star": "8e03504a9138d9942ce57b7481c5fd4be9f1ce31506f4e2a2eba5e76ecaacadd"
+  },
+  "reference_event_fingerprint": "ec1581516328374dd9e47f0895c76e113b9a7e426dd77a2444d2b24960d02015",
+  "maximum_replayed_score_difference": 0.0,
+  "absolute_tolerance": 1e-10,
+  "native_estimator_refit": false,
+  "original_scores_changed": false
+}
