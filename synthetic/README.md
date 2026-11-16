@@ -77,17 +77,26 @@ resume unchanged code/settings; choose a new label after a code/protocol change.
 The paired history comparison is independent of the regular `PROFILE` and
 `ORACLE_ONLY` switches. Both native runs can be expensive; the oracle-only run
 checks the revised readout before native discovery. The shipped run label is
-`faster-machine-02`; reuse it only to resume identical code/settings.
+`faster-machine-03`; reuse it only to resume identical code/settings.
+
+This run label follows the notebook-backend fix. Restart existing kernels to
+load the corrected conventional adapter. It gives the isolated worker a
+headless plotting backend while preserving notebook displays. Earlier
+unavailable conventional rows caused by that import failure contain missing
+metrics, rather than a measured failure to recover graph edges. Notebook 01
+also normalizes tuple/list configuration fields before checking saved settings.
+Null precision/recall and empty-graph Jaccard remain undefined when their
+denominators are zero, even for an available and correct null fit.
 
 ### Output directories for the enabled notebook run
 
 | Notebook | New output directory relative to the repository |
 |---|---|
-| 01 | `outputs/csl-sanity/reruns/faster-machine-02/` |
-| 02 and its 03 inspection | `outputs/synthetic-transition-examples/matched_marginals/seed-42/four-csl-sanity/faster-machine-02/` |
-| 04 | `outputs/framework-validation/csl_sanity/smoke/reruns/faster-machine-02/` |
-| 05 | `outputs/driver-validation/csl_sanity/scheduled-v2/confirmatory/reruns/faster-machine-02/` |
-| 06 | `outputs/driver-mechanism-validation/reruns/faster-machine-02/` |
+| 01 | `outputs/csl-sanity/reruns/faster-machine-03/` |
+| 02 and its 03 inspection | `outputs/synthetic-transition-examples/matched_marginals/seed-42/four-csl-sanity/faster-machine-03/` |
+| 04 | `outputs/framework-validation/csl_sanity/smoke/reruns/faster-machine-03/` |
+| 05 | `outputs/driver-validation/csl_sanity/scheduled-v2/confirmatory/reruns/faster-machine-03/` |
+| 06 | `outputs/driver-mechanism-validation/reruns/faster-machine-03/` |
 
 Notebook 06 includes both the regular mechanism panel and the `history-comparison/`
 subdirectory. Transfer its JSON reports, `cells/` evidence and `run.log` when

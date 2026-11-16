@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -137,13 +138,19 @@ def test_fast_rejects_unattainable_complete_shift_threshold_before_fitting(upstr
     assert not upstream_fast
 
 
-def test_conventional_sequence_uses_one_subprocess_and_preserves_evidence(tmp_path, monkeypatch, windows):
+@pytest.mark.parametrize("persistent", [False, True])
+def test_conventional_sequence_uses_one_subprocess_and_preserves_evidence(
+    tmp_path, monkeypatch, windows, persistent,
+):
     runtime = tmp_path / "python"
     runtime.touch()
     calls = []
+    inline_backend = "module://matplotlib_inline.backend_inline"
+    monkeypatch.setenv("MPLBACKEND", inline_backend)
 
     def run(command, **kwargs):
         calls.append(command)
+        assert kwargs["env"]["MPLBACKEND"] == "Agg"
         assert kwargs["env"]["MPLCONFIGDIR"].startswith(str(Path(command[2]).parent))
         with np.load(command[2], allow_pickle=False) as payload:
             segments = payload["segments"]
@@ -160,11 +167,18 @@ def test_conventional_sequence_uses_one_subprocess_and_preserves_evidence(tmp_pa
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(native_gc.subprocess, "run", run)
+    if persistent:
+        class Runtime:
+            def run(self, executable, script, source, output, metadata_path, environment):
+                run([str(p) for p in (executable, script, source, output, metadata_path)], env=environment)
+
+        monkeypatch.setattr(native_gc, "current_conventional_runtime", lambda: Runtime())
     estimator = ConnectivityFactory(ConnectivityConfig(
         name="conventional_cgc_star", extra={"runtime_python": str(runtime), "n_perm": 100},
     ))
     series = estimator.run(windows)
     assert len(calls) == 1
+    assert os.environ["MPLBACKEND"] == inline_backend
     assert series.diagnostics["lag_resolved"][0]["native_evidence"]["pVal_corr_"] == [[0.01]]
     assert series.diagnostics["upstream_provenance"]["module"] == "causalized_gc"
     assert np.all(series.matrices[:, 0, 1] == 1)

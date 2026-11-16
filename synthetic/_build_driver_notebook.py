@@ -37,7 +37,7 @@ from notebooks._shared import PROJECT_ROOT, require_conventional_runtime
 PROFILE = "confirmatory"  # smoke | development | confirmatory
 WORKERS = 4
 RUN_DRIVER_VALIDATION = True  # Run All executes the full declared 560-method-run profile.
-RUN_LABEL = "faster-machine-02"  # Reuse unchanged settings to resume; change after protocol/code edits.
+RUN_LABEL = "faster-machine-03"  # Reuse unchanged settings to resume; change after protocol/code edits.
 RENDER_REPORT = False  # Recreate presentation artifacts from an existing report.
 MAX_CELLS = None  # A cap records a partial run; it cannot satisfy confirmation.
 validation_config = load_driver_validation_profile(PROFILE)

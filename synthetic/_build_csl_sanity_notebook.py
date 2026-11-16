@@ -37,7 +37,7 @@ from effectome.workflows.cross_method import load_cross_method_profile
 from notebooks._shared import PROJECT_ROOT, require_conventional_runtime
 
 RUN_SANITY = True  # Run All fits the complete native sanity panel.
-RUN_LABEL = "faster-machine-02"  # Reuse unchanged settings to resume; change after protocol/code edits.
+RUN_LABEL = "faster-machine-03"  # Reuse unchanged settings to resume; change after protocol/code edits.
 config = CSLSanityConfig(seeds=(0, 1, 2), n_samples=1024)
 _, methods = load_cross_method_profile("csl_sanity")
 OUTPUT_DIRECTORY = PROJECT_ROOT / "outputs" / "csl-sanity" / "reruns" / RUN_LABEL
@@ -72,7 +72,9 @@ elif (FROZEN_DIRECTORY / "sanity.json").is_file():
 
 if report is not None:
     print("Saved configuration:", report["config"])
-    if report["config"] != json.loads(json.dumps(asdict(config))):
+    saved_config = json.loads(json.dumps(report["config"]))
+    requested_config = json.loads(json.dumps(asdict(config)))
+    if saved_config != requested_config:
         print("Saved results use a different configuration; enable RUN_SANITY to fit the requested one.")
     print("Evidence:", evidence_directory)
     print("Available / attempted:", report["available_runs"], "/", report["attempted_runs"])

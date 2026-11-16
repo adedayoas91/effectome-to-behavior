@@ -35,7 +35,7 @@ RUN = True
 ORACLE_ONLY = False  # True tests learned readout without native graph discovery.
 METHODS = None  # None = all four; e.g. ["fast_cgc"] is explicitly a subset.
 RUN_HISTORY_COMPARISON = True  # Paired 256/1024 histories; independent of RUN/PROFILE.
-RUN_LABEL = "faster-machine-02"  # Change for a new protocol/code version; same label resumes.
+RUN_LABEL = "faster-machine-03"  # Change for a new protocol/code version; same label resumes.
 
 if not RUN_LABEL or Path(RUN_LABEL).name != RUN_LABEL or RUN_LABEL in {".", ".."}:
     raise ValueError("RUN_LABEL must be one nonempty directory name")

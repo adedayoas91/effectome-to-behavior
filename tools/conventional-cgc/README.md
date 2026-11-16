@@ -32,6 +32,13 @@ The locked environment was also checked successfully with `uv sync --locked
 `XDG_CACHE_HOME` to writable cache directories; the upstream CPU import loads
 Matplotlib even when no figures are requested.
 
+The project's subprocess bridge forces `MPLBACKEND=Agg` inside the isolated
+worker. Notebook kernels can export an inline backend that is unavailable in
+this Python 3.13 environment; inheriting it would crash the upstream plotting
+import before any conventional estimator fit. The parent notebook keeps its
+own display backend. The bridge sets the worker's writable plotting/cache
+directories separately, for both standalone and reused worker processes.
+
 Direct use within this runtime:
 
 ```python

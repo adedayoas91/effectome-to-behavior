@@ -1,5 +1,9 @@
 """Sanity metrics must distinguish successful recovery from empty consensus."""
 
+import json
+from dataclasses import asdict
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -47,3 +51,33 @@ def test_off_diagonal_metric_counts_and_orientation():
 def test_bad_sanity_design_is_rejected(changes):
     with pytest.raises(ValueError):
         CSLSanityConfig(**changes)
+
+
+@pytest.mark.parametrize("fitting", [False, True])
+@pytest.mark.parametrize("changed_config", [False, True])
+def test_notebook_configuration_warning_matches_fresh_and_saved_reports(
+    tmp_path, capsys, fitting, changed_config,
+):
+    import pandas as pd
+
+    config = CSLSanityConfig()
+    report = {"config": asdict(config), "available_runs": 24, "attempted_runs": 24,
+              "seed_rows": [], "pairwise_rows": []}
+    if changed_config:
+        report["config"]["n_samples"] *= 2
+    (tmp_path / "sanity.json").write_text(json.dumps(report))
+    notebook = json.loads((Path(__file__).resolve().parents[1]
+                           / "synthetic/01_four_csl_sanity.ipynb").read_text())
+    source = next("".join(cell["source"]) for cell in notebook["cells"]
+                  if cell["cell_type"] == "code" and "report = None" in "".join(cell["source"]))
+    namespace = {
+        "OUTPUT_DIRECTORY": tmp_path, "FROZEN_DIRECTORY": tmp_path / "missing",
+        "RUN_SANITY": fitting, "config": config, "methods": {}, "json": json,
+        "asdict": asdict, "pd": pd, "display": lambda value: None,
+        "require_conventional_runtime": lambda methods: None,
+        "run_csl_sanity": lambda *args, **kwargs: report,
+        "render_csl_sanity_report": lambda *args: None,
+    }
+    exec(compile(source, "sanity-notebook-readout", "exec"), namespace)
+    warning = "Saved results use a different configuration"
+    assert (warning in capsys.readouterr().out) == changed_config

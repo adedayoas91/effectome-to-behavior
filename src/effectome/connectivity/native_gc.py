@@ -190,6 +190,10 @@ class _NativeGCConnectivity(ConnectivityEstimator):
             np.savez(input_path, segments=segments, options=np.asarray(json.dumps(options)))
             environment = {
                 **os.environ,
+                # Notebook inline backends belong to the parent environment.
+                # The isolated CPU worker imports upstream plotting code only
+                # as an implementation dependency and never displays figures.
+                "MPLBACKEND": "Agg",
                 "MPLCONFIGDIR": str(root / "matplotlib"),
                 "XDG_CACHE_HOME": str(root / "cache"),
             }

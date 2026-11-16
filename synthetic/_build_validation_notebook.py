@@ -33,7 +33,7 @@ from notebooks._shared import PROJECT_ROOT, require_conventional_runtime
 
 PROFILE = "smoke"  # smoke | development | manuscript
 RUN_VALIDATION = True  # Run All fits the declared profile.
-RUN_LABEL = "faster-machine-02"  # Reuse unchanged settings to resume; change after protocol/code edits.
+RUN_LABEL = "faster-machine-03"  # Reuse unchanged settings to resume; change after protocol/code edits.
 RENDER_VISUALS = False  # Explicitly regenerate the manuscript visual bundle.
 MAX_CELLS = None  # A cap produces a partial report and cannot complete the publication suite.
 validation_config = load_framework_validation_profile(PROFILE)
