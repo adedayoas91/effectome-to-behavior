@@ -95,7 +95,8 @@ def test_invalid_example_design_is_rejected(kwargs):
 def test_synthetic_notebooks_are_output_free_and_every_code_cell_parses():
     root = Path(__file__).resolve().parents[1] / "synthetic"
     paths = sorted(root.glob("*.ipynb"))
-    assert len(paths) == 6
+    assert len(paths) == 7
+    assert (root / "06_mechanism_driver_validation.ipynb") in paths
     for path in paths:
         notebook = json.loads(path.read_text())
         assert notebook["metadata"]["language_info"]["version"].startswith("3.14")
@@ -127,12 +128,12 @@ def test_default_synthetic_notebooks_inventory_protocols_and_execute_truth_contr
                 # Root discovery/imports remain real; reports go to the test's
                 # directory so the three notebooks can share their saved run.
                 namespace["ROOT"] = tmp_path
-            if path.name == "03_framework_validation.ipynb" and "OUTPUT_DIRECTORY" in namespace:
+            if path.name == "04_framework_validation.ipynb" and "OUTPUT_DIRECTORY" in namespace:
                 namespace["OUTPUT_DIRECTORY"] = tmp_path / "framework-validation"
-            if path.name == "04_driver_recovery.ipynb" and "OUTPUT_DIRECTORY" in namespace:
+            if path.name == "05_driver_recovery.ipynb" and "OUTPUT_DIRECTORY" in namespace:
                 namespace["OUTPUT_DIRECTORY"] = tmp_path / "driver-validation"
                 namespace["ANALYSIS_DIRECTORY"] = tmp_path / "driver-validation" / "analysis"
-        if path.name == "01_shared_transition_comparison.ipynb":
+        if path.name == "02_shared_transition_comparison.ipynb":
             comparison_inventory = namespace
         plt.close("all")
     assert comparison_inventory is not None
@@ -143,3 +144,38 @@ def test_default_synthetic_notebooks_inventory_protocols_and_execute_truth_contr
     }
     assert comparison_inventory["windows"].segments.shape[1] >= 256
     assert not comparison_inventory["report_path"].is_file()
+
+
+def test_synthetic_notebook_prefixes_follow_documented_execution_order():
+    root = Path(__file__).resolve().parents[1] / "synthetic"
+    assert [path.name for path in sorted(root.glob("*.ipynb"))] == [
+        "00_ground_truth.ipynb", "01_four_csl_sanity.ipynb",
+        "02_shared_transition_comparison.ipynb", "03_correspondence_and_controls.ipynb",
+        "04_framework_validation.ipynb", "05_driver_recovery.ipynb",
+        "06_mechanism_driver_validation.ipynb",
+    ]
+
+
+def test_mechanism_notebook_runs_oracle_panel_from_nested_working_directory(tmp_path, monkeypatch):
+    root = Path(__file__).resolve().parents[1]
+    monkeypatch.chdir(root / "synthetic" / "results")
+    notebook = json.loads((root / "synthetic/06_mechanism_driver_validation.ipynb").read_text())
+    namespace = {"__name__": "__main__"}
+    output = tmp_path / "oracle-only"
+    for index, cell in enumerate(notebook["cells"]):
+        if cell["cell_type"] != "code":
+            continue
+        source = "".join(cell["source"])
+        if 'PROFILE = "smoke"' in source:
+            source = source.replace("RUN = False", "RUN = True")
+            source = source.replace("ORACLE_ONLY = False", "ORACLE_ONLY = True")
+        exec(compile(source, f"mechanism-notebook:cell-{index}", "exec"), namespace)
+        if 'PROFILE = "smoke"' in source:
+            namespace["OUTPUT"] = output
+            namespace["HISTORY_OUTPUT"] = tmp_path / "history"
+    report = json.loads((output / "mechanism-validation.json").read_text())
+    assert report["execution_complete"]
+    assert report["available_method_runs"] == report["attempted_method_runs"] == 4
+    assert report["planned_methods"] == ["known_support", "empty_support"]
+    assert (output / "run.log").is_file()
+    assert not report["scientific_validation_passed"]

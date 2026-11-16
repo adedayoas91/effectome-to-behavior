@@ -1,0 +1,62 @@
+{
+  "created_at": "2026-11-15T19:38:57.198764+00:00",
+  "implementation_fingerprint": "0355ce8c96430101b47cea903dc9d11644290636d854635d663abcdaf08853c0",
+  "source_checkpoint_before_revision": "ed543c139cfba89f65a337964802ca86c8323f28",
+  "scope": "development_only_model_matched_fully_observed_control",
+  "independent_native_history_comparison_seeds": [
+    20
+  ],
+  "known_support_development_seeds": [
+    20,
+    21,
+    22
+  ],
+  "nomination_calibrated": false,
+  "confirmation_executed": false,
+  "original_failed_study_sha256": "0c27b4e6c22efe55c964f8422fa12d7042420309e133128d2cb17d4ee5ade21b",
+  "files": {
+    "history-comparison.json": "eaa6d1739583f9e5f5892c0a3094d2745a10f3b9f6386c6ffa8c3c0a7ef5c2b4",
+    "smoke-execution.txt": "b602b118e330b8c4603ac9869ea49674194492a50a5fe1dcadc11b862b933bf3",
+    "implementation-source.zip": "c9abf666b3c1f90791491b980c995411ed08db352f6993daf34ae776b421ab52",
+    "README.md": "3f5fc418044c68003e28a57b637ab77882efee5b72dbf29931011283fdb6b0e1",
+    "manuscript-source-and-pdf.zip": "c5be880b073e6aa8f356468018da9e1674e4dfeda72bf2968866d0818a290524",
+    "verification-tests.txt": "3ace80dfcaebba0772b7d5c9f71fa6aacf938f407abdbeec3346e5ebc099b87f",
+    "manuscript-build.txt": "2fd03add399b3efb8f8fcc51096be73b400d43bb7ea309acaab0bcd860f5912f",
+    "known-support-execution.txt": "f9f94f408a8899ae345d3d8d2d878029177ba17e8352a938a9d85003a3f56656",
+    "environment.json": "d0f11de4eaf80cd5ed540ce597ca5ea9e40de189dbc276cbc5f7eff061cb6df2",
+    "history-execution.txt": "493f71329ed10752d5d218cad020b5cddcb0d9e7a175959a35f29fad470409a4",
+    "smoke/native-evidence-and-cells.zip": "3d27caa0fd7f503fc0ccad241ff49eb6870e145aa09cfd62f2070e3026b3b535",
+    "smoke/development-protocol.json": "e7bd29e8ef5bc14285dc39ab1fa049032044236469b70f2fba76f3e6c5f90874",
+    "smoke/mechanism-validation.json": "e2271258c088e7d7427d9da6e961a7f2ce57b20f8da5b4e01076d5992829c1c0",
+    "known-support-three-seed/native-evidence-and-cells.zip": "7ccb793ed84e86227333e7124bbc748f9d2226f5e6e5d5c910a8eeaac1a0bab2",
+    "known-support-three-seed/development-protocol.json": "f9ee83469f84280aafaa66d1b3cdf770d79cfbd4b8349d886785a8dd7d2951c3",
+    "known-support-three-seed/mechanism-validation.json": "358f4fed47ebe1c546858ea17bfcef0525e9d98cde4e107bf57894d808bd63cf",
+    "history-1024/native-evidence-and-cells.zip": "6f640f61cdc813a12c6632a8d9b31ce0681812456c2c6a50f44dbf9ce8deeaa2",
+    "history-1024/development-protocol.json": "84e60d5c007fa8f3dd0fa212c896bb5e2e60d2de646b02dd11257d12edc933eb",
+    "history-1024/mechanism-validation.json": "b9f5b54efc987df901ab558c3a568df80318cf5a387dc0bc9c5107abaae465f5",
+    "history-256/native-evidence-and-cells.zip": "454aa989980457557b6acce82fdff5a85a329baedde570c4d300d6b49c2cb27b",
+    "history-256/development-protocol.json": "3b7602006eff5b31275fdb6c9b627244645777794c49c1506bac72c66eb30d4f",
+    "history-256/mechanism-validation.json": "46594408411c3def326d513205882e09e19fd44ecb75aebe2c5530254bd28ad3",
+    "history-256/analysis/analysis-report.md": "121e12707eb1de4ccb7e0b2f5816c4baffa15e8bb6f444952504e66916ca70fc",
+    "history-256/analysis/numeric-summary.csv": "8d392e1bb4865da4319b0be6c9b3c76d78bbdc71ff4343a937f92f4bfddbbd88",
+    "history-1024/analysis/analysis-report.md": "660ef5db450c318dcc5de65801bfbc858074980128cbba5f6b71f93e949ac55f",
+    "history-1024/analysis/numeric-summary.csv": "07372dfbb54c4cf96e740be19e077072ca284bdc0b7694eae0e2e0ce9870691f",
+    "known-support-three-seed/analysis/analysis-report.md": "277b682ee2e8226e152bf9a34b9c7600081fb9aea7ceff90c87b62df48dbe1ae",
+    "known-support-three-seed/analysis/numeric-summary.csv": "c0bcb4a268924703133201f525e6bc7f05240f6479322b8c35ec490372fa95a7",
+    "smoke/analysis/analysis-report.md": "ee2a640e3db4e6d393f4f46e3d4808352866b3a1b334b20f02ea09f400b3333c",
+    "smoke/analysis/numeric-summary.csv": "295a794d1fe7adfb6aaa4df9ea5341fbf0b9d3e1362a57f74aafaa840caaae02"
+  },
+  "finalized_at": "2026-11-15T21:40:15.959874+00:00",
+  "verification": {
+    "pytest_passed": 581,
+    "pytest_skipped": 1,
+    "notebook_integration_checks_passed": 2,
+    "ruff_passed": true,
+    "mypy_source_files": 90,
+    "mypy_passed": true,
+    "manuscript_pages": 43,
+    "new_verified_references": 6,
+    "unresolved_citations_or_references": false,
+    "bibtex_warnings": false
+  }
+}

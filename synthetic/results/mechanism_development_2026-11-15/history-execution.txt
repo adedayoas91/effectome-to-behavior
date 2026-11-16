@@ -1,0 +1,9 @@
+INFO Histories=(256, 1024); fixed trial length=1152; burn-in=128; native lanes=['conventional_cgc', 'conventional_cgc_star', 'fast_cgc', 'fast_cgc_star']; development seed=(20,)
+INFO Global seed set to 20
+INFO Mechanism development: scenario=driver seed=20 lane=known_support
+INFO Mechanism development: scenario=driver seed=20 lane=empty_support
+INFO Mechanism development: scenario=driver seed=20 lane=conventional_cgc
+INFO Estimated 9 conventional_cgc matrices (6 neurons)
+INFO Mechanism development: scenario=driver seed=20 lane=conventional_cgc_star
+INFO Estimated 9 conventional_cgc_star matrices (6 neurons)
+INFO Mechanism development: scenario=driver seed=20 lane=fast_cgc

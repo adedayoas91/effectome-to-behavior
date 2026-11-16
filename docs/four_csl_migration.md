@@ -28,9 +28,11 @@ permutation randomness is imperfectly seeded; the frozen realization is the
 authoritative record of this pilot.
 
 The current entrypoint is
-[`synthetic/05_four_csl_sanity.ipynb`](../synthetic/05_four_csl_sanity.ipynb),
-before notebooks 01, 03 and 04. It compares the four native implementations on
-identical planted-chain and independent-null recordings. CLI execution is
+[`synthetic/01_four_csl_sanity.ipynb`](../synthetic/01_four_csl_sanity.ipynb),
+after notebook 00 and before notebooks 02–06. The numeric prefixes now match
+the recommended execution order; historical evidence archives retain old paths.
+It compares the four native implementations on identical planted-chain and
+independent-null recordings. CLI execution is
 `python pipeline/14_csl_sanity.py --run`, with artifacts under
 `outputs/csl-sanity/smoke/`. The online packages supply the estimators; project
 adapters transport their outputs and provenance.

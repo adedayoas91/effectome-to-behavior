@@ -1,0 +1,111 @@
+{
+  "config": {
+    "profile": "smoke",
+    "seeds": [
+      20
+    ],
+    "generator": {
+      "scenario": "driver",
+      "seed": 20,
+      "n_trials": 24,
+      "trial_length": 1152,
+      "n_neurons": 6,
+      "fps": 10.0,
+      "driver_ar": 0.85,
+      "neutral_ar": 0.55,
+      "endpoint_ar": 0.75,
+      "coupling": 0.8,
+      "bystander_coupling": 0.5,
+      "noise_std": 0.1,
+      "initial_endpoint": 1.0,
+      "pulse_amplitude": 1.0,
+      "pulse_probability": 0.6
+    },
+    "fit": {
+      "ridge_alphas": [
+        0.01,
+        0.1,
+        1.0,
+        10.0
+      ],
+      "validation_fraction": 0.25,
+      "noise_floor": 1e-06
+    },
+    "rollout": {
+      "horizon": 8,
+      "target_length": 4,
+      "n_rollouts": 256,
+      "seed": 42
+    },
+    "evaluation_fraction": 0.5,
+    "discovery_history_length": 1024,
+    "discovery_burn_in": 128,
+    "support_selection_fraction": 0.5,
+    "effect_threshold": 0.1,
+    "nomination_threshold": 0.1
+  },
+  "methods": {
+    "conventional_cgc": {
+      "name": "conventional_cgc",
+      "max_lag": 1,
+      "max_lag_seconds": null,
+      "alpha": 0.01,
+      "partial": false,
+      "ridge": 1.0,
+      "absolute": false,
+      "threshold": 0.0,
+      "extra": {
+        "n_perm": 1000,
+        "beta": 0.005,
+        "seed": 42
+      }
+    },
+    "conventional_cgc_star": {
+      "name": "conventional_cgc_star",
+      "max_lag": 1,
+      "max_lag_seconds": null,
+      "alpha": 0.01,
+      "partial": false,
+      "ridge": 1.0,
+      "absolute": false,
+      "threshold": 0.0,
+      "extra": {
+        "n_perm": 1000,
+        "beta": 0.005,
+        "seed": 42
+      }
+    },
+    "fast_cgc": {
+      "name": "fast_cgc",
+      "max_lag": 1,
+      "max_lag_seconds": null,
+      "alpha": 0.01,
+      "partial": false,
+      "ridge": 1.0,
+      "absolute": false,
+      "threshold": 0.0,
+      "extra": {
+        "n_perm": 0,
+        "beta": 0.005,
+        "seed": 42
+      }
+    },
+    "fast_cgc_star": {
+      "name": "fast_cgc_star",
+      "max_lag": 1,
+      "max_lag_seconds": null,
+      "alpha": 0.01,
+      "partial": false,
+      "ridge": 1.0,
+      "absolute": false,
+      "threshold": 0.0,
+      "extra": {
+        "n_perm": 0,
+        "beta": 0.005,
+        "seed": 42
+      }
+    }
+  },
+  "implementation_fingerprint": "0355ce8c96430101b47cea903dc9d11644290636d854635d663abcdaf08853c0",
+  "oracle_only": false
+}

@@ -1,0 +1,21 @@
+INFO Global seed set to 20
+INFO Mechanism study inventory: {"profile": "development", "planned_cells": 6, "planned_method_runs": 12, "lanes": ["known_support", "empty_support"], "training_trials_per_recording": 64, "training_one_step_pairs_per_recording": 20416, "heldout_trials_per_recording": 64, "support_discovery_inner_training_trials": 48, "native_window_fits": 0, "scope": "model_matched_fully_observed_development_only"}
+INFO Global seed set to 20
+INFO Mechanism development: scenario=driver seed=20 lane=known_support
+INFO Mechanism development: scenario=driver seed=20 lane=empty_support
+INFO Global seed set to 20
+INFO Mechanism development: scenario=null seed=20 lane=known_support
+INFO Mechanism development: scenario=null seed=20 lane=empty_support
+INFO Global seed set to 21
+INFO Mechanism development: scenario=driver seed=21 lane=known_support
+INFO Mechanism development: scenario=driver seed=21 lane=empty_support
+INFO Global seed set to 21
+INFO Mechanism development: scenario=null seed=21 lane=known_support
+INFO Mechanism development: scenario=null seed=21 lane=empty_support
+INFO Global seed set to 22
+INFO Mechanism development: scenario=driver seed=22 lane=known_support
+INFO Mechanism development: scenario=driver seed=22 lane=empty_support
+INFO Global seed set to 22
+INFO Mechanism development: scenario=null seed=22 lane=known_support
+INFO Mechanism development: scenario=null seed=22 lane=empty_support
+INFO Available runs: 12/12; descriptive report: outputs/driver-mechanism-validation/development-oracle/analysis/analysis-report.md

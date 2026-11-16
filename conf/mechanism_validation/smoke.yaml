@@ -1,0 +1,22 @@
+# Engineering/development check only; not independent confirmation.
+profile: smoke
+seeds: [20]
+generator:
+  n_trials: 24
+  trial_length: 320
+  n_neurons: 6
+fit:
+  ridge_alphas: [0.01, 0.1, 1.0, 10.0]
+  validation_fraction: 0.25
+  noise_floor: 0.000001
+rollout:
+  horizon: 8
+  target_length: 4
+  n_rollouts: 256
+  seed: 42
+evaluation_fraction: 0.5
+discovery_history_length: 256
+discovery_burn_in: 64
+support_selection_fraction: 0.5
+effect_threshold: 0.1
+nomination_threshold: 0.1

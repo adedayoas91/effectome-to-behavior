@@ -31,7 +31,7 @@ def shared_transition_notice(path: Path) -> str | None:
             f"{SHARED_TRANSITION_NOTICE_MARKER}\n"
             "## Scope under the shared-transition decisions\n\n"
             "This remains a complementary graph-state calibration or individual-method visualization tool. "
-            "Use [synthetic framework validation](../../synthetic/03_framework_validation.ipynb) "
+            "Use [synthetic framework validation](../../synthetic/04_framework_validation.ipynb) "
             "and each recording's `09_cross_method/shared_transitions.ipynb` for the canonical shared reference. "
             "Existing stored outputs retain their original scope.\n"
         )

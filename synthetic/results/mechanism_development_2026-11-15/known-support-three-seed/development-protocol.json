@@ -1,0 +1,52 @@
+{
+  "config": {
+    "profile": "development",
+    "seeds": [
+      20,
+      21,
+      22
+    ],
+    "generator": {
+      "scenario": "driver",
+      "seed": 20,
+      "n_trials": 128,
+      "trial_length": 320,
+      "n_neurons": 8,
+      "fps": 10.0,
+      "driver_ar": 0.85,
+      "neutral_ar": 0.55,
+      "endpoint_ar": 0.75,
+      "coupling": 0.8,
+      "bystander_coupling": 0.5,
+      "noise_std": 0.1,
+      "initial_endpoint": 1.0,
+      "pulse_amplitude": 1.0,
+      "pulse_probability": 0.6
+    },
+    "fit": {
+      "ridge_alphas": [
+        0.01,
+        0.1,
+        1.0,
+        10.0
+      ],
+      "validation_fraction": 0.25,
+      "noise_floor": 1e-06
+    },
+    "rollout": {
+      "horizon": 8,
+      "target_length": 4,
+      "n_rollouts": 512,
+      "seed": 42
+    },
+    "evaluation_fraction": 0.5,
+    "discovery_history_length": 256,
+    "discovery_burn_in": 64,
+    "support_selection_fraction": 0.5,
+    "effect_threshold": 0.1,
+    "nomination_threshold": 0.1
+  },
+  "methods": {},
+  "implementation_fingerprint": "0355ce8c96430101b47cea903dc9d11644290636d854635d663abcdaf08853c0",
+  "oracle_only": true
+}

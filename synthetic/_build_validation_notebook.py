@@ -12,7 +12,7 @@ def main() -> None:
         markdown_cell(
             "# Framework validation: protocol, independent repeats and manuscript exports",
             "",
-            "This is the canonical synthetic validation entrypoint. The first three notebooks inspect individual generating controls; this notebook executes a frozen experiment matrix with independent seeds and explicit failure denominators.",
+            "This is the canonical synthetic validation entrypoint. The preceding notebooks inspect generating controls and native discovery; this notebook executes a frozen experiment matrix with independent seeds and explicit failure denominators.",
             "Smoke checks software. Development uses a larger sensitivity matrix with engineering estimator settings. The manuscript profile proposes the larger production-configuration study; completing a profile does not automatically validate a scientific claim.",
             "The current protocol uses conventional c-GC/c-GC* and fastC-GC/fastC-GC* as four related CSL methods. Native lag support has no VAR coefficient readout. Histories are at least 256 samples so the fast complete-shift test can attain beta=0.005. This revised protocol supersedes the earlier eight-method pilot and writes to its own output directory.",
         ),
@@ -127,7 +127,7 @@ else:
     print("No visual bundle exists. After validation, set RENDER_VISUALS=True and run this cell.")
 '''),
     ]
-    write_notebook(Path(__file__).resolve().parent / "03_framework_validation.ipynb", cells)
+    write_notebook(Path(__file__).resolve().parent / "04_framework_validation.ipynb", cells)
 
 
 if __name__ == "__main__":

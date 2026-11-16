@@ -1,6 +1,6 @@
 # Experiment execution order — shared-transition framework
 
-Updated 15 November 2026. Run from the application repository on `dev` with
+Updated 16 November 2026. Run from the application repository on `dev` with
 the project Python 3.14 kernel and the pinned Python 3.13 conventional c-GC runtime.
 The canonical scientific path is four-CSL planted-graph sanity check → synthetic
 framework validation → shared raw preprocessing → one shared cross-method
@@ -17,6 +17,7 @@ UV_CACHE_DIR=/tmp/effectome-cgc-uv-cache uv sync \
 .venv/bin/python pipeline/12_framework_validation.py --profile manuscript
 .venv/bin/python pipeline/13_driver_validation.py --profile smoke
 .venv/bin/python pipeline/13_driver_validation.py --profile confirmatory
+.venv/bin/python pipeline/15_mechanism_validation.py --profile smoke
 ```
 
 Without `--run`, these commands only print the declared workload. The manuscript
@@ -27,14 +28,25 @@ cells and 30,720 method fits. The driver confirmation contains 140 cells and 560
 method fits. The larger framework matrix remains unexecuted; the driver-study
 execution status is recorded below and in its live artifact.
 
-The scheduled-origin driver confirmation has now started at
+The scheduled-origin driver confirmation completed at
 `outputs/driver-validation/csl_sanity/scheduled-v2/confirmatory/`.
 It uses fresh seeds300–319/400–459 and one fixed origin per trial: sample303
 to335, history256,target8,N8,PCA1 and half-trial holdout. The560 method/recording
 entries contain71,680 native history fits. Check `driver-validation.json` for
-actual completion and acceptance; the larger framework sensitivity matrix
-remains separate. The detached finalizer snapshots the complete numerical
-evidence and updates manuscript figures/tables only after verified execution.
+actual completion and acceptance: all560 runs are numerically available and all
+four methods failed the frozen gates. The finalizer archived complete evidence
+under `synthetic/results/driver_confirmation_v2/` and compiled the manuscript.
+The larger framework sensitivity matrix remains separate.
+
+The subsequent development path is `pipeline/15_mechanism_validation.py` and
+`synthetic/06_mechanism_driver_validation.ipynb`; see the
+[cited rationale](docs/driver_methodology_revision.md). Its fully observed,
+model-matched control compares known support with imported native CSL support
+through learned nonlinear mechanisms and paired outgoing disconnections. It uses
+`outputs/driver-mechanism-validation/`, new development seeds and separate
+probability-effect metrics. It is not revised independent confirmation or a
+replacement for the completed failure. Start with the smoke inventory above,
+then add `--run` for all lanes or `--oracle-only --run` for the readout diagnostic.
 
 ## 2. Synthetic framework validation before biological interpretation
 
@@ -42,15 +54,21 @@ Read [the validation guide](synthetic/README.md). Begin with the planted control
 and native graph sanity check before fitting the larger manifold comparison:
 
 1. `synthetic/00_ground_truth.ipynb`: designed circuit and observation controls.
-2. `synthetic/05_four_csl_sanity.ipynb`: conventional c-GC/c-GC* and
+2. `synthetic/01_four_csl_sanity.ipynb`: conventional c-GC/c-GC* and
    fastC-GC/fastC-GC* on identical planted-chain and independent-null recordings;
    inspect edge recovery, false links and nonempty-graph agreement.
-3. `synthetic/01_shared_transition_comparison.ipynb`: inspect one shared comparison.
-4. `synthetic/02_correspondence_and_controls.ipynb`: inspect graph/manifold relationships.
-5. `synthetic/03_framework_validation.ipynb`: repeated-seed experiment matrix,
+3. `synthetic/02_shared_transition_comparison.ipynb`: inspect one shared comparison.
+4. `synthetic/03_correspondence_and_controls.ipynb`: inspect graph/manifold relationships.
+5. `synthetic/04_framework_validation.ipynb`: repeated-seed experiment matrix,
    uncertainty, failure denominators, figures and manuscript exports.
-6. `synthetic/04_driver_recovery.ipynb`: intervention-defined driver truth,
+6. `synthetic/05_driver_recovery.ipynb`: intervention-defined driver truth,
    transition-specific candidate recovery and proposed acceptance criteria.
+7. `synthetic/06_mechanism_driver_validation.ipynb`: inspect or rerun the separate
+   mechanism revision, three-seed oracle control and paired 256/1024 histories.
+
+The filenames follow this order. Notebook 06 runs independently; follow the
+[fresh-machine setup and run switches](synthetic/README.md#evaluate-the-latest-changes-on-the-faster-machine)
+to evaluate the latest revision without repeating the old confirmation.
 
 Run the small native graph check first, then the current four-method repeated
 framework check when its workload and interpretation are appropriate:

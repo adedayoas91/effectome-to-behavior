@@ -90,10 +90,10 @@ if report is not None:
         print(method, result["status"])
         if result["status"] != "available":
             print(result["reason"])
-print("Next: 01/03 shared transitions; 04 intervention-defined driver recovery.")
+print("Next: 02 shared transitions; 04 framework validation; 05 driver recovery; 06 mechanism revision.")
 '''),
     ]
-    write_notebook(Path(__file__).resolve().parent / "05_four_csl_sanity.ipynb", cells)
+    write_notebook(Path(__file__).resolve().parent / "01_four_csl_sanity.ipynb", cells)
 
 
 if __name__ == "__main__":

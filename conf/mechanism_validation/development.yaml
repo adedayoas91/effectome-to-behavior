@@ -1,0 +1,22 @@
+# New development seeds only; freeze a separate protocol before confirmation.
+profile: development
+seeds: [20, 21, 22]
+generator:
+  n_trials: 128
+  trial_length: 320
+  n_neurons: 8
+fit:
+  ridge_alphas: [0.01, 0.1, 1.0, 10.0]
+  validation_fraction: 0.25
+  noise_floor: 0.000001
+rollout:
+  horizon: 8
+  target_length: 4
+  n_rollouts: 512
+  seed: 42
+evaluation_fraction: 0.5
+discovery_history_length: 256
+discovery_burn_in: 64
+support_selection_fraction: 0.5
+effect_threshold: 0.1
+nomination_threshold: 0.1

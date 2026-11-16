@@ -1,7 +1,12 @@
 # Transition-driver ground-truth validation
 
 Decision: 14 November 2026; four-CSL revision: 15 November 2026.
-Protocol status: **proposed benchmark criteria**.
+Historical protocol: **proposed benchmark criteria at the original decision**.
+The later scheduled-origin revision completed 560/560 method runs and all four
+methods failed its frozen gates; see `driver_confirmation_revision.md` and
+`../synthetic/results/driver_confirmation_v2/`. The separate current mechanism
+revision is documented in `driver_methodology_revision.md`. Seed/timing proposals
+below retain their original historical scope; the frozen manifest is authoritative.
 This protocol adds an intervention-defined recovery target to the existing
 circuit/activity controls. It is not a preregistration or a report that the
 framework has passed scientific validation.
@@ -11,7 +16,7 @@ from pinned upstream packages. It excludes VAR estimators and uses native
 unsigned lag support without a VAR coefficient readout. The four variants share
 one discovery family; their agreement supplies consistency evidence rather than
 independent causal replication. Begin with
-[`synthetic/05_four_csl_sanity.ipynb`](../synthetic/05_four_csl_sanity.ipynb)
+[`synthetic/01_four_csl_sanity.ipynb`](../synthetic/01_four_csl_sanity.ipynb)
 and the [runtime guide](../tools/conventional-cgc/README.md).
 
 ## Question and scope
@@ -168,7 +173,7 @@ pilot only after inspecting its scope:
 
 `--max-cells` records a partial run, and `--method` can declare a subset. A subset
 cannot establish validation across the declared four-method panel.
-`synthetic/04_driver_recovery.ipynb`
+`synthetic/05_driver_recovery.ipynb`
 defaults to inventory and inspection of saved results, with fitting disabled.
 
 Use the pilot to inspect dynamics, transition counts, runtime, recovery

@@ -1,0 +1,16 @@
+.............................................s.......................... [ 12%]
+........................................................................ [ 24%]
+........................................................................ [ 37%]
+........................................................................ [ 49%]
+........................................................................ [ 61%]
+........................................................................ [ 74%]
+........................................................................ [ 86%]
+........................................................................ [ 98%]
+......                                                                   [100%]
+=============================== warnings summary ===============================
+tests/test_installed_backends.py::test_jpcmci_rejects_incomplete_context_classification
+  /Users/sadiqadedayo/Documents/projects/effectome-to-behavior/effectome-to-behavior/.venv/lib/python3.14/site-packages/tigramite/data_processing.py:312: UserWarning: In analysis mode 'multiple'. There is just a single dataset, is this as intended?'
+    warnings.warn("In analysis mode 'multiple'. There is just a "\
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+581 passed, 1 skipped, 1 warning in 169.49s (0:02:49)

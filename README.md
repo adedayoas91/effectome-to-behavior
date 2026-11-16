@@ -1,7 +1,7 @@
 # effectome
 
 Start with [synthetic framework validation](synthetic/README.md), beginning with
-the four-method planted-graph check in `synthetic/05_four_csl_sanity.ipynb`.
+the four-method planted-graph check in `synthetic/01_four_csl_sanity.ipynb`.
 The current simulation panel uses conventional c-GC, c-GC*, fastC-GC and
 fastC-GC*, imported from pinned upstream packages. It compares native lag support
 without a local VAR readout. Designed controls, independent seeds, observation/history
@@ -158,7 +158,8 @@ from identity-preprocessed raw windows. They purge overlapping training historie
 PCA and role parameters on training data, and freeze candidate/control selection under one
 `fit_scope_id`. No passing candidate yields an explicit unavailable result. Their outputs
 remain development feature sensitivity. The optional coupling-aware generative intervention
-model is not implemented.
+model for biological recordings is not implemented. A separate fully observed
+mechanism-control prototype is now available as a development diagnostic.
 
 Primary evaluation supports development folds and a frozen-development confirmatory cohort
 with independent evaluation animals, explicitly aligned neuron panels, registered sign-flip
@@ -256,3 +257,27 @@ use the new purged tuning boundaries in this sensitivity.
 
 See [RECOMMENDATIONS_IMPLEMENTATION.md](RECOMMENDATIONS_IMPLEMENTATION.md) for
 implementation scope, verification, and remaining scientific requirements.
+
+## Driver-mechanism development diagnostic
+
+The completed four-CSL driver study produced 560/560 usable method/recording
+runs, but all four methods failed its frozen recovery gates. Its versioned
+negative result remains in `synthetic/results/driver_confirmation_v2/`.
+
+The [cited methodology revision](docs/driver_methodology_revision.md) adds a
+separate known-support versus imported-CSL-support comparison. A nonlinear
+structural transition readout learns functions and noise from training trials,
+then simulates paired outgoing disconnections under a common observed endpoint.
+An empty-support control cannot supply outgoing effects. The initial simulator
+is fully observed and deliberately model-matched; it does not validate the old
+latent-bistable benchmark or biological intervention effects.
+
+```bash
+.venv/bin/python pipeline/15_mechanism_validation.py --profile smoke
+.venv/bin/python pipeline/15_mechanism_validation.py --profile smoke --run
+```
+
+See `synthetic/06_mechanism_driver_validation.ipynb` for saved-evidence inspection,
+and [the citation audit](docs/driver_methodology_citation_audit.md) for references
+and the limits of their methodological support. Fresh confirmation and nomination
+calibration remain future work.

@@ -14,6 +14,7 @@ def main() -> None:
             "",
             "The earlier circuit/activity controls show that the framework can make its intended comparisons. This notebook asks the additional question: do its transition-specific neuron/group scores recover contributors verified by interventions in the generating process?",
             "The five conditions are single driver, redundant group, correlated bystander, no-driver null, and hidden-confounder challenge. Truth and replay states stay in recording metadata; inference receives observed traces. The hidden-confounder challenge is diagnostic and cannot certify causal identification.",
+            "The frozen confirmation is complete: all 560 runs were available and all four methods failed the recovery gates. A fresh checkout displays versioned evidence; notebook 06 evaluates the separate mechanism revision.",
             "Default execution inventories the protocol and reads saved artifacts. It never starts the larger confirmatory study automatically. Read `../docs/driver_ground_truth_protocol.md` before changing settings.",
             "The current protocol uses four imported CSL methods and one fixed origin per trial. A 256-sample history ends at303 and a strictly future target ends at335 (3.2seconds). The training-owned one-dimensional chart and held-out semantic audit were developed on seeds10/11. Confirmation uses fresh seeds300–319/400–459. Thresholds are unchanged; the hidden-confounder condition is diagnostic.",
         ),
@@ -63,17 +64,24 @@ display(pd.DataFrame(validation_cells).head(15))
         code_cell('''
 driver_report = None
 report_path = OUTPUT_DIRECTORY / "driver-validation.json"
+evidence_directory = OUTPUT_DIRECTORY
+frozen_directory = PROJECT_ROOT / "synthetic/results/driver_confirmation_v2"
 if RUN_DRIVER_VALIDATION:
     driver_report = run_driver_study(
         validation_config, OUTPUT_DIRECTORY, workers=WORKERS, max_cells=MAX_CELLS,
     )
 elif report_path.is_file():
     driver_report = json.loads(report_path.read_text())
+elif PROFILE == "confirmatory" and (frozen_directory / "driver-validation.json").is_file():
+    evidence_directory = frozen_directory
+    driver_report = json.loads((frozen_directory / "driver-validation.json").read_text())
+    print("Displaying frozen completed confirmation, not a new run:", evidence_directory)
 else:
     print("No saved driver-recovery run exists. Inspect the protocol, then enable "
           "RUN_DRIVER_VALIDATION for a bounded pilot.")
 
 if driver_report is not None:
+    print("Evidence source:", evidence_directory)
     print("Execution complete:", driver_report["execution_complete"])
     print("Scientific validation passed:", driver_report["scientific_validation_passed"])
     print("Acceptance decisions:")
@@ -97,8 +105,9 @@ from IPython.display import Image
 if driver_report is not None and (RUN_DRIVER_VALIDATION or RENDER_REPORT):
     render_driver_validation_report(driver_report, ANALYSIS_DIRECTORY)
 
+evidence_analysis = evidence_directory / "analysis"
 for filename in ("analysis-report.md", "numeric-summary.md", "recovery-summary.md", "stats-appendix.md"):
-    path = ANALYSIS_DIRECTORY / filename
+    path = evidence_analysis / filename
     if path.is_file():
         display(Markdown(path.read_text()))
 
@@ -106,11 +115,11 @@ for filename in (
     "figure-01-intervention-truth.png", "figure-02-predictive-omissions.png",
     "figure-03-recovery-and-null.png",
 ):
-    path = ANALYSIS_DIRECTORY / filename
+    path = evidence_analysis / filename
     if path.is_file():
         display(Image(filename=str(path)))
 
-acceptance_path = ANALYSIS_DIRECTORY / "acceptance.json"
+acceptance_path = evidence_analysis / "acceptance.json"
 if acceptance_path.is_file():
     print("Saved acceptance artifact:", acceptance_path)
 print("Protocol:", PROJECT_ROOT / "docs" / "driver_ground_truth_protocol.md")
@@ -119,7 +128,7 @@ if visual_notes.is_file():
     display(Markdown(visual_notes.read_text()))
 '''),
     ]
-    write_notebook(Path(__file__).resolve().parent / "04_driver_recovery.ipynb", cells)
+    write_notebook(Path(__file__).resolve().parent / "05_driver_recovery.ipynb", cells)
 
 
 if __name__ == "__main__":
