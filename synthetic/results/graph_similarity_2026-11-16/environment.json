@@ -1,0 +1,13 @@
+{
+  "python": "3.14.7",
+  "platform": "macOS-15.8.3-x86_64-i386-64bit-Mach-O",
+  "packages": {
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "scikit-learn": "1.9.0",
+    "networkx": "3.6.1",
+    "kmedoids": "0.5.5",
+    "fastcgc": "0.1.0",
+    "effectome": "0.1.0"
+  }
+}

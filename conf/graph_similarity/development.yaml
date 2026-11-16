@@ -1,0 +1,10 @@
+# Independent graph-sampling repeats; these are not biological/CSL replicates.
+profile: development
+seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+train_repeats: 12
+evaluation_repeats: 12
+rewiring_probabilities: [0.0, 0.25, 0.5]
+candidate_counts: [2, 3, 4]
+metrics: [edge_jaccard, directed_wl]
+wl_iterations: 2
+physical_lags: [0.1, 0.2]

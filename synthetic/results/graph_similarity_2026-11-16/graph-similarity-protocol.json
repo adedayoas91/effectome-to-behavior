@@ -1,0 +1,37 @@
+{
+  "config": {
+    "profile": "smoke",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "train_repeats": 6,
+    "evaluation_repeats": 6,
+    "rewiring_probabilities": [
+      0.0,
+      0.25
+    ],
+    "candidate_counts": [
+      2,
+      3,
+      4
+    ],
+    "metrics": [
+      "edge_jaccard",
+      "directed_wl"
+    ],
+    "wl_iterations": 2,
+    "physical_lags": [
+      0.1,
+      0.2
+    ]
+  },
+  "implementation_fingerprint": "e97af5f14b7671cc8dc16ab98c0b01038204284e23dfd9c168a1b24c8a35094a",
+  "identity_target": "four_generating_neuron_specific_archetypes",
+  "topology_target": "three_lag_preserving_isomorphism_classes_before_corruption",
+  "labels_enter_fitting": false,
+  "codebook_selection": "fixed_K_no_heldout_selection",
+  "density_control": "six_nodes_two_cross_edges_per_graph_all_panels",
+  "noise": "one_edge_replaced_at_same_lag_with_declared_probability"
+}

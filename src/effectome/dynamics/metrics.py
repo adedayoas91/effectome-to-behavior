@@ -205,7 +205,8 @@ def pairwise_distances(matrices: np.ndarray, metric: str, **kwargs) -> np.ndarra
 
 
 def kmedoids(
-    distance: np.ndarray, k: int, seed: int = 42, max_iter: int = 300
+    distance: np.ndarray, k: int, seed: int = 42, max_iter: int = 300,
+    *, initial_medoids: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Cluster from a precomputed distance matrix; return (labels, medoid_indices).
 
@@ -221,6 +222,13 @@ def kmedoids(
         raise ValueError("distance must be finite and nonnegative")
     if not 1 <= k <= len(distance):
         raise ValueError("k must lie between one and the number of observations")
-    initial_medoids = np.random.default_rng(seed).choice(len(distance), size=k, replace=False)
+    if initial_medoids is None:
+        initial_medoids = np.random.default_rng(seed).choice(len(distance), size=k, replace=False)
+    else:
+        initial_medoids = np.asarray(initial_medoids)
+        if (initial_medoids.shape != (k,) or not np.issubdtype(initial_medoids.dtype, np.integer)
+                or len(np.unique(initial_medoids)) != k or np.any(initial_medoids < 0)
+                or np.any(initial_medoids >= len(distance))):
+            raise ValueError("initial_medoids must contain k distinct in-bounds integer indices")
     result = alternating(distance, initial_medoids, max_iter=max_iter)
     return np.asarray(result.labels, dtype=np.int64), np.asarray(result.medoids, dtype=np.int64)

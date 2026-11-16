@@ -1,0 +1,6 @@
+probe,exact_lag_preserving_isomorphic,first_edges,second_edges,both_empty,edge_jaccard_distance,directed_wl_distance
+same_topology_different_neurons,True,2,2,False,1.0,0.0
+outward_versus_inward_star,False,2,2,False,1.0,0.5590169943749475
+same_edges_different_physical_lag,False,2,2,False,1.0,0.44721359549995787
+six_cycle_versus_two_triangles_WL_collision,False,6,6,False,0.5,0.0
+both_empty_no_positive_recovery_evidence,True,0,0,True,0.0,0.0

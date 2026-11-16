@@ -1,0 +1,15 @@
+{
+  "pytest_passed": 653,
+  "pytest_skipped": 1,
+  "pytest_warnings": 2,
+  "ruff_passed": true,
+  "mypy_passed": true,
+  "mypy_source_files": 93,
+  "full_suite_contains_review_fixes": true,
+  "new_dependencies": false,
+  "native_CSL_refitted": false,
+  "scientific_validation_passed": false,
+  "e_means_implemented_or_evaluated": false,
+  "saved_evidence_notebook_test_passed": true,
+  "verified_bibliographic_entries": 8
+}

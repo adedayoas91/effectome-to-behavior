@@ -1,0 +1,11 @@
+# Optional candidates; the default scientific pipeline is unchanged.
+# Similarity candidates need binary supports plus registered recording-local
+# node_ids, physical_lags and representation_units on ConnectivitySeries.
+defaults:
+  - default
+  - _self_
+
+selection:
+  assignments: [kmeans, gaussian_mixture, edge_jaccard, directed_wl]
+graph_states:
+  wl_iterations: 2

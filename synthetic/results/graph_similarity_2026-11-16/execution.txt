@@ -1,0 +1,44 @@
+2026-11-16 15:18:54,963 INFO Graph similarity inventory: {"profile": "smoke", "graph_sampling_seeds": [0, 1, 2], "panels": 6, "graphs_per_panel": 48, "training_graphs_per_panel": 24, "heldout_graphs_per_panel": 24, "planned_quantizer_fits": 36, "metrics": ["edge_jaccard", "directed_wl"], "fixed_state_counts": [2, 3, 4], "neural_connectivity_fits": 0, "scope": "planted_graph_structure_diagnostic_not_driver_or_biological_validation"}
+2026-11-16 15:18:55,028 INFO Graph similarity: seed=0 rewiring=0.0 metric=edge_jaccard K=2
+2026-11-16 15:18:55,064 INFO Graph similarity: seed=0 rewiring=0.0 metric=edge_jaccard K=3
+2026-11-16 15:18:55,072 INFO Graph similarity: seed=0 rewiring=0.0 metric=edge_jaccard K=4
+2026-11-16 15:18:55,080 INFO Graph similarity: seed=0 rewiring=0.0 metric=directed_wl K=2
+2026-11-16 15:18:55,114 INFO Graph similarity: seed=0 rewiring=0.0 metric=directed_wl K=3
+2026-11-16 15:18:55,148 INFO Graph similarity: seed=0 rewiring=0.0 metric=directed_wl K=4
+2026-11-16 15:18:55,159 INFO Graph similarity: seed=0 rewiring=0.25 metric=edge_jaccard K=2
+2026-11-16 15:18:55,166 INFO Graph similarity: seed=0 rewiring=0.25 metric=edge_jaccard K=3
+2026-11-16 15:18:55,173 INFO Graph similarity: seed=0 rewiring=0.25 metric=edge_jaccard K=4
+2026-11-16 15:18:55,181 INFO Graph similarity: seed=0 rewiring=0.25 metric=directed_wl K=2
+2026-11-16 15:18:55,212 INFO Graph similarity: seed=0 rewiring=0.25 metric=directed_wl K=3
+2026-11-16 15:18:55,243 INFO Graph similarity: seed=0 rewiring=0.25 metric=directed_wl K=4
+2026-11-16 15:18:55,280 INFO Graph similarity: seed=1 rewiring=0.0 metric=edge_jaccard K=2
+2026-11-16 15:18:55,289 INFO Graph similarity: seed=1 rewiring=0.0 metric=edge_jaccard K=3
+2026-11-16 15:18:55,297 INFO Graph similarity: seed=1 rewiring=0.0 metric=edge_jaccard K=4
+2026-11-16 15:18:55,305 INFO Graph similarity: seed=1 rewiring=0.0 metric=directed_wl K=2
+2026-11-16 15:18:55,337 INFO Graph similarity: seed=1 rewiring=0.0 metric=directed_wl K=3
+2026-11-16 15:18:55,371 INFO Graph similarity: seed=1 rewiring=0.0 metric=directed_wl K=4
+2026-11-16 15:18:55,383 INFO Graph similarity: seed=1 rewiring=0.25 metric=edge_jaccard K=2
+2026-11-16 15:18:55,390 INFO Graph similarity: seed=1 rewiring=0.25 metric=edge_jaccard K=3
+2026-11-16 15:18:55,398 INFO Graph similarity: seed=1 rewiring=0.25 metric=edge_jaccard K=4
+2026-11-16 15:18:55,408 INFO Graph similarity: seed=1 rewiring=0.25 metric=directed_wl K=2
+2026-11-16 15:18:55,440 INFO Graph similarity: seed=1 rewiring=0.25 metric=directed_wl K=3
+2026-11-16 15:18:55,472 INFO Graph similarity: seed=1 rewiring=0.25 metric=directed_wl K=4
+2026-11-16 15:18:55,510 INFO Graph similarity: seed=2 rewiring=0.0 metric=edge_jaccard K=2
+2026-11-16 15:18:55,519 INFO Graph similarity: seed=2 rewiring=0.0 metric=edge_jaccard K=3
+2026-11-16 15:18:55,528 INFO Graph similarity: seed=2 rewiring=0.0 metric=edge_jaccard K=4
+2026-11-16 15:18:55,536 INFO Graph similarity: seed=2 rewiring=0.0 metric=directed_wl K=2
+2026-11-16 15:18:55,567 INFO Graph similarity: seed=2 rewiring=0.0 metric=directed_wl K=3
+2026-11-16 15:18:55,600 INFO Graph similarity: seed=2 rewiring=0.0 metric=directed_wl K=4
+2026-11-16 15:18:55,614 INFO Graph similarity: seed=2 rewiring=0.25 metric=edge_jaccard K=2
+2026-11-16 15:18:55,623 INFO Graph similarity: seed=2 rewiring=0.25 metric=edge_jaccard K=3
+2026-11-16 15:18:55,631 INFO Graph similarity: seed=2 rewiring=0.25 metric=edge_jaccard K=4
+2026-11-16 15:18:55,639 INFO Graph similarity: seed=2 rewiring=0.25 metric=directed_wl K=2
+2026-11-16 15:18:55,674 INFO Graph similarity: seed=2 rewiring=0.25 metric=directed_wl K=3
+2026-11-16 15:18:55,706 INFO Graph similarity: seed=2 rewiring=0.25 metric=directed_wl K=4
+2026-11-16 15:19:00,898 WARNING Matplotlib is building the font cache; this may take a moment.
+2026-11-16 15:19:11,362 INFO Failed to extract font properties from /System/Library/Fonts/LastResort.otf: tuple indices must be integers or slices, not str
+2026-11-16 15:19:11,367 INFO Failed to extract font properties from /System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc: FT_Open_Face (ft2font.cpp line 200) failed with error 0x02: unknown file format
+2026-11-16 15:19:11,385 INFO Failed to extract font properties from /System/Library/Fonts/Supplemental/NISC18030.ttf: Non-scalable fonts are not supported
+2026-11-16 15:19:11,386 INFO Failed to extract font properties from /System/Library/Fonts/Apple Color Emoji.ttc: Non-scalable fonts are not supported
+2026-11-16 15:19:11,660 INFO generated new fontManager
+2026-11-16 15:19:13,584 INFO Available fits: 33/36; descriptive report: outputs/graph-similarity/final-2026-11-16/analysis/analysis-report.md

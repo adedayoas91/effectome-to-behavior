@@ -281,3 +281,25 @@ See `synthetic/06_mechanism_driver_validation.ipynb` for saved-evidence inspecti
 and [the citation audit](docs/driver_methodology_citation_audit.md) for references
 and the limits of their methodological support. Fresh confirmation and nomination
 calibration remain future work.
+
+## Identity and topology of effectome graphs
+
+Optional graph grouping now compares directed, lag-resolved binary supports in
+two separately named views: neuron-identity Jaccard and a directed WL topology
+kernel. Both fit graph medoids on training windows and freeze held-out
+assignment. Exact attributed isomorphism, degree, reciprocity and directed triad
+counts provide diagnostics. Missing recording/neuron registration stays explicit;
+native adapters preserve verified recording-local ROI order and physical lag.
+
+```bash
+.venv/bin/python pipeline/16_graph_similarity.py --profile smoke
+.venv/bin/python pipeline/16_graph_similarity.py --profile smoke --run
+```
+
+[Notebook 07](synthetic/07_graph_similarity.ipynb) inspects or runs equal-density
+planted-graph controls and edge-rewiring stresses. These test structural grouping,
+without refitting native CSL or establishing intervention-driver recovery.
+`states=graph_similarity` adds the two metrics to nested predictive-compression
+selection against the existing vector models and constant/continuous baselines.
+See the [methodology and e-means assessment](docs/graph_similarity_methodology.md)
+and [verified citation audit](docs/graph_similarity_citation_audit.md).

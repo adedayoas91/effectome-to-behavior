@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,6 +19,8 @@ from effectome.connectivity import (
     native_gc,
 )
 from effectome.connectivity import _native_gc_worker as worker
+from effectome.data_module.schema import RecordingIdentity
+from effectome.dynamics.graph_states import graph_schema
 from effectome.linking.transition_synthesis import graph_transition_features
 
 
@@ -87,6 +91,35 @@ def test_fast_delegates_and_exports_only_native_positive_lag_support(name, metho
     assert series.weight_semantics == "binary_upstream_causal_support"
     assert series.diagnostics["lag_resolved"][0]["native_evidence"]["conditional_pvalue_"][0][0] == 0.03
     assert series.diagnostics["upstream_provenance"]["module"] == "fastCGC"
+
+
+def test_native_graph_schema_preserves_roi_order_and_recording_locality(windows, upstream_fast):
+    assert len(windows.metadata["node_ids"]) == windows.n_neurons
+    registered = deepcopy(windows)
+    registered.provenance = replace(registered.provenance, identity=RecordingIdentity(
+        dataset_id="dataset", recording_id="recording", animal_id="animal",
+        session_id="session", segment_id="segment",
+    ))
+    estimator = ConnectivityFactory(ConnectivityConfig(name="fast_cgc", alpha=0.1, extra={"beta": 0.05}))
+    first = estimator.run(registered)
+    schema = graph_schema(first, strict=True)
+    assert first.diagnostics["recording_local_neuron_ids"] == windows.metadata["node_ids"]
+    assert schema[1] == (1 / windows.fps,)
+    assert schema[2] == "binary_upstream_causal_support"
+    assert [json.loads(label)[-1] for label in schema[0]] == [str(x) for x in windows.metadata["node_ids"]]
+    for field in ("dataset_id", "recording_id", "animal_id", "session_id", "segment_id"):
+        other = deepcopy(registered)
+        other.provenance = replace(other.provenance, identity=replace(
+            other.provenance.identity, **{field: "different"}
+        ))
+        assert graph_schema(estimator.run(other), strict=True) != schema
+    other = deepcopy(registered)
+    other.metadata.pop("node_ids")
+    # Older/manual windows without a registration remain unregistered.
+    assert graph_schema(estimator.run(other)) is None
+    other = deepcopy(registered)
+    other.provenance = replace(other.provenance, identity=RecordingIdentity())
+    assert graph_schema(estimator.run(other)) is None
 
 
 def test_native_support_has_no_neural_forecast_or_projected_drive(windows, upstream_fast):

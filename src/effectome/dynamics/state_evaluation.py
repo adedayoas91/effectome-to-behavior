@@ -15,6 +15,7 @@ from sklearn.linear_model import Ridge
 
 from effectome.data_module.schema import ConnectivitySeries
 
+from .graph_similarity import GRAPH_SIMILARITY_METRICS
 from .graph_states import GraphStateConfig, GraphStateModel, boundary_indices_for_series, fit_graph_states
 
 
@@ -45,8 +46,10 @@ class StateEvaluationConfig:
             raise ValueError("state selection needs min_train_pairs>=2 and a one-state candidate")
         if min(self.candidate_counts) < 1 or not self.assignments:
             raise ValueError("invalid state selection candidates")
-        if not set(self.assignments) <= {"kmeans", "gaussian_mixture"}:
-            raise ValueError("state selection supports kmeans and gaussian_mixture")
+        if not set(self.assignments) <= {"kmeans", "gaussian_mixture", *GRAPH_SIMILARITY_METRICS}:
+            raise ValueError(
+                "state selection supports kmeans, gaussian_mixture, edge_jaccard and directed_wl"
+            )
         if not self.ridge_penalties or any(not np.isfinite(x) or x <= 0 for x in self.ridge_penalties):
             raise ValueError("ridge penalties must be finite and positive")
         if not np.isfinite(self.minimum_relative_gain) or not 0 <= self.minimum_relative_gain < 1:
@@ -66,6 +69,7 @@ class StateEvaluationResult:
     evaluation_indices: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=int))
     metrics: dict[str, float] = field(default_factory=dict)
     diagnostics: dict[str, Any] = field(default_factory=dict)
+    response_model: GraphStateModel | None = None
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -146,9 +150,16 @@ def _fit_state(
     assignment: str,
     count: int,
 ) -> GraphStateModel:
-    graph = replace(
-        cfg.graph, n_states=count, select_k=False, assignment=assignment, analysis_scope="prospective"
-    )
+    if assignment in GRAPH_SIMILARITY_METRICS:
+        graph = replace(
+            cfg.graph, n_states=count, select_k=False, metric=assignment,
+            assignment="kmedoids", feature_representation="binary_lag_offdiag",
+            standardize=False, pca_components=None, analysis_scope="prospective",
+        )
+    else:
+        graph = replace(
+            cfg.graph, n_states=count, select_k=False, assignment=assignment, analysis_scope="prospective"
+        )
     return fit_graph_states(series, graph, fit_indices=indices)
 
 
@@ -182,6 +193,9 @@ def evaluate_state_models(
         "target_support": "entire_target_history_begins_after_predictor_history_ends",
         "upstream_provenance": "graph_and_preprocessing_ownership_must_be_verified_separately",
         "configuration": asdict(cfg),
+        "response_coordinates_shared_across_candidates": True,
+        "similarity_views": {"edge_jaccard": "neuron_identity_preserving",
+                             "directed_wl": "topology_under_neuron_relabelling"},
     }
     try:
         pairs = future_graph_pairs(series)
@@ -245,11 +259,17 @@ def evaluate_state_models(
                 )
 
     fit_indices = np.unique(outer_train)
-    clustered = selected_algorithm in {"kmeans", "gaussian_mixture"}
+    clustered = selected_algorithm in {"kmeans", "gaussian_mixture", *GRAPH_SIMILARITY_METRICS}
     model = _fit_state(
         series, cfg, fit_indices, selected_algorithm if clustered else "kmeans", selected_count
     )
-    features = model.transform_features(series)
+    # Changing the graph-grouping method must not change the prediction response.
+    # Medoid models expose graph assignments rather than Euclidean coordinates.
+    response_model = (
+        _fit_state(series, cfg, fit_indices, "kmeans", 1)
+        if selected_algorithm in GRAPH_SIMILARITY_METRICS else model
+    )
+    features = response_model.transform_features(series)
     x, y = features[outer_train[:, 0]], features[outer_train[:, 1]]
     tx, ty = features[outer_test[:, 0]], features[outer_test[:, 1]]
     constant_mse = _loss(np.broadcast_to(y.mean(axis=0), ty.shape), ty)
@@ -299,6 +319,7 @@ def evaluate_state_models(
             "forecast_pair_count": float(len(outer_test)),
         },
         diagnostics=diagnostics,
+        response_model=response_model,
     )
 
 

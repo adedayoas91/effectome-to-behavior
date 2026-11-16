@@ -95,7 +95,7 @@ def test_invalid_example_design_is_rejected(kwargs):
 def test_synthetic_notebooks_are_output_free_and_every_code_cell_parses():
     root = Path(__file__).resolve().parents[1] / "synthetic"
     paths = sorted(root.glob("*.ipynb"))
-    assert len(paths) == 7
+    assert len(paths) == 8
     assert (root / "06_mechanism_driver_validation.ipynb") in paths
     for path in paths:
         notebook = json.loads(path.read_text())
@@ -152,7 +152,7 @@ def test_synthetic_notebook_prefixes_follow_documented_execution_order():
         "00_ground_truth.ipynb", "01_four_csl_sanity.ipynb",
         "02_shared_transition_comparison.ipynb", "03_correspondence_and_controls.ipynb",
         "04_framework_validation.ipynb", "05_driver_recovery.ipynb",
-        "06_mechanism_driver_validation.ipynb",
+        "06_mechanism_driver_validation.ipynb", "07_graph_similarity.ipynb",
     ]
 
 

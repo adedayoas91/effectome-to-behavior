@@ -42,6 +42,9 @@ methodology revision without rerunning the completed old confirmation.
    recovery study, acceptance decisions, seed uncertainty and null calibration.
 7. [06_mechanism_driver_validation.ipynb](06_mechanism_driver_validation.ipynb):
    new development-only known-support/estimated-support mechanism diagnostic.
+8. [07_graph_similarity.ipynb](07_graph_similarity.ipynb): training-owned grouping
+   of planted graphs by neuron identity and recurring topology, with fixed-density
+   rewiring controls and an explicit WL collision.
 
 Notebooks inspect saved evidence by default. Execution switches explicitly
 start fits; a partial run cannot satisfy full-study acceptance.
@@ -190,3 +193,36 @@ The four-method framework visual exporter requires the original saved detailed
 comparison. It never reruns stochastic methods to recreate a favorable panel.
 Missing worked-case evidence is explicitly unavailable; historical VAR panels
 cannot be silently exported through this workflow.
+
+
+## Graph similarity grouping diagnostic
+
+Notebook **07_graph_similarity.ipynb** and `pipeline/16_graph_similarity.py`
+compare directed, lag-aware edge overlap with a direction/lag-aware WL kernel.
+The first retains neuron identity; the second recognises recurring circuit
+architecture under neuron relabelling. Medoids use training graphs only, and
+held-out identity-archetype and topology-class scores remain separate. Six nodes
+and two edges in every main-panel graph control density; one-edge replacements
+retain that count. Exact-isomorphism, lag-change, empty-graph and WL-collision
+probes expose limits of each comparison.
+
+```bash
+.venv/bin/python pipeline/16_graph_similarity.py --profile smoke
+.venv/bin/python pipeline/16_graph_similarity.py --profile smoke --run
+```
+
+The default inventories 36 quantizer fits and no native CSL fits. The notebook
+also defaults to inventory/saved-evidence mode; set `RUN=True` explicitly and use
+a new `RUN_LABEL` after a protocol/code change. Reports, seed rows, unavailable
+partitions and PDF/PNG figures go under
+`outputs/graph-similarity/<PROFILE>/<RUN_LABEL>/` in the notebook. Local saved
+configuration must exactly match the requested settings before inspection;
+versioned historical evidence is labelled separately. The fixed
+K=2/3/4 contrasts do not select a metric or K on held-out labels. A requested K
+larger than the training metric can distinguish remains unavailable.
+
+These repeats are graph-sampling seeds, not neural-process or biological
+replicates. This is a structural implementation diagnostic; it does not rerun
+native discovery or validate behavioral/driver recovery. Read the
+[cited methodology](../docs/graph_similarity_methodology.md) for assumptions and
+how these graph geometries complement the separate intervention validation.

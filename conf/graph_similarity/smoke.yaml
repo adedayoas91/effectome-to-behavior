@@ -1,0 +1,10 @@
+# Structural implementation diagnostic, not neural-driver confirmation.
+profile: smoke
+seeds: [0, 1, 2]
+train_repeats: 6
+evaluation_repeats: 6
+rewiring_probabilities: [0.0, 0.25]
+candidate_counts: [2, 3, 4]
+metrics: [edge_jaccard, directed_wl]
+wl_iterations: 2
+physical_lags: [0.1, 0.2]

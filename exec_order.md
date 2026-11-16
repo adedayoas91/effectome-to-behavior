@@ -65,10 +65,16 @@ and native graph sanity check before fitting the larger manifold comparison:
    transition-specific candidate recovery and proposed acceptance criteria.
 7. `synthetic/06_mechanism_driver_validation.ipynb`: inspect or rerun the separate
    mechanism revision, three-seed oracle control and paired 256/1024 histories.
+8. `synthetic/07_graph_similarity.ipynb`: optional identity/topology grouping
+   controls, frozen training medoids and edge-count-preserving rewiring stresses.
 
 The filenames follow this order. Notebook 06 runs independently; follow the
 [fresh-machine setup and run switches](synthetic/README.md#evaluate-the-latest-changes-on-the-faster-machine)
 to evaluate the latest revision without repeating the old confirmation.
+Notebook 07 runs independently and tests planted graph structure, without native
+CSL refitting. Its inventory/run entrypoint is `pipeline/16_graph_similarity.py`;
+the [methodology](docs/graph_similarity_methodology.md) distinguishes structural
+grouping from driver recovery and assesses the proposed e-means baseline.
 
 Run the small native graph check first, then the current four-method repeated
 framework check when its workload and interpretation are appropriate:

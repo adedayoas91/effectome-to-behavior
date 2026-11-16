@@ -1,5 +1,12 @@
 """Dynamics of the effectome (Stage 3): state clustering + Markov transitions."""
 
+from .graph_similarity import (
+    GRAPH_SIMILARITY_METRICS,
+    directed_graph_characteristics,
+    exact_isomorphic,
+    graph_similarity_distances,
+    lagged_edge_jaccard,
+)
 from .graph_states import (
     DISTANCE_METRICS,
     FEATURE_METRICS,
@@ -56,6 +63,11 @@ __all__ = [
     "FEATURE_METRICS",
     "KERNEL_METRICS",
     "DISTANCE_METRICS",
+    "GRAPH_SIMILARITY_METRICS",
+    "graph_similarity_distances",
+    "lagged_edge_jaccard",
+    "exact_isomorphic",
+    "directed_graph_characteristics",
     "ProbabilisticStateConfig",
     "ProbabilisticStateModel",
     "ProbabilisticStateProjection",

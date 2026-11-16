@@ -236,6 +236,21 @@ class _NativeGCConnectivity(ConnectivityEstimator):
             "lag_resolved": self._window_diagnostics,
             "evidence_axis_convention": "rows=lag_block*neurons+source; columns=target",
         })
+        identity = segments.provenance.identity
+        if ("node_ids" in segments.metadata
+                and identity.dataset_id not in {"", "unknown"}
+                and identity.recording_id not in {"", "unknown"}):
+            identifiers = list(segments.metadata["node_ids"])
+            diagnostics.update({
+                "node_ids": [json.dumps([
+                    identity.dataset_id, identity.recording_id, identity.animal_id,
+                    identity.session_id, identity.segment_id, str(identifier),
+                ], separators=(",", ":")) for identifier in identifiers],
+                "recording_local_neuron_ids": identifiers,
+                "node_registration_scope": "recording_local_ROIs_not_cross_animal_anatomical_alignment",
+                "physical_lags": [1.0 / segments.fps],  # Native adapter exports tau=1 only.
+                "representation_units": self.weight_semantics,
+            })
         return diagnostics
 
     def run(self, segments):

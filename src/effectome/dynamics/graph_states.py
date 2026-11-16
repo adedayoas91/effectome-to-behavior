@@ -25,6 +25,8 @@ from sklearn.mixture import GaussianMixture
 
 from effectome.data_module.schema import ConnectivitySeries, TemporalAnchor
 
+from .graph_similarity import GRAPH_SIMILARITY_METRICS
+from .graph_similarity_states import assign_similarity_states, fit_similarity_states
 from .metrics import expm_sym, kmedoids, log_euclidean_features, logm_spd, pairwise_distances, vectorize
 
 logger = logging.getLogger(__name__)
@@ -45,8 +47,8 @@ class GraphStateConfig:
         k_min: Minimum K when selecting.
         k_max: Maximum K when selecting.
         standardize: Z-score features before clustering (fit subset only).
-        metric: Legacy graph-space geometry. Signed-lag models use fitted feature coordinates
-            and record their actual assignment distance separately.
+        metric: Graph-space geometry. Binary-support similarities use frozen graph medoids;
+            signed-lag models use fitted feature coordinates and record the actual distance.
         eps: Eigenvalue floor for SPD projection (log_euclidean / affine_invariant).
         gw_epsilon: Entropic regularization for Gromov-Wasserstein.
         gw_max_iter: Outer iterations for Gromov-Wasserstein.
@@ -75,10 +77,13 @@ class GraphStateConfig:
     mixture_n_init: int = 5
     mixture_max_iter: int = 200
     analysis_scope: str = "descriptive"
+    wl_iterations: int = 2
 
     def __post_init__(self) -> None:
-        if self.assignment not in {"legacy", "kmeans", "gaussian_mixture"}:
-            raise ValueError("assignment must be 'legacy', 'kmeans' or 'gaussian_mixture'")
+        if self.assignment not in {"legacy", "kmeans", "gaussian_mixture", "kmedoids"}:
+            raise ValueError("assignment must be 'legacy', 'kmeans', 'gaussian_mixture' or 'kmedoids'")
+        if type(self.wl_iterations) is not int or self.wl_iterations < 0:
+            raise ValueError("wl_iterations must be a nonnegative integer")
         if not np.isfinite(self.mixture_reg_covar) or self.mixture_reg_covar <= 0:
             raise ValueError("mixture_reg_covar must be finite and positive")
         if self.mixture_n_init < 1 or self.mixture_max_iter < 1:
@@ -141,9 +146,14 @@ class GraphStateModel:
     requested_metric: str | None = None
     analysis_scope: str = "descriptive"
     inductive_assignment_valid: bool = True
+    lagged_medoid_matrices: np.ndarray | None = None
+    medoid_indices: np.ndarray | None = None
+    wl_iterations: int = 2
 
     def transform_features(self, series: ConnectivitySeries | np.ndarray) -> np.ndarray:
         """Apply only the fitted feature vocabulary, scaling, weights and PCA."""
+        if self.metric in GRAPH_SIMILARITY_METRICS:
+            raise ValueError("support-similarity models expose graph assignments, not Euclidean coordinates")
         if self.feature_representation == "signed_lag_offdiag":
             if self.graph_schema != graph_schema(series):
                 raise ValueError("registered graph schema mismatch")
@@ -193,7 +203,7 @@ class GraphStateModel:
         window_starts: np.ndarray | None = None,
     ) -> np.ndarray:
         """Assign labels to new matrices without refitting the state model."""
-        if self.feature_representation == "signed_lag_offdiag":
+        if self.feature_representation == "signed_lag_offdiag" or self.metric in GRAPH_SIMILARITY_METRICS:
             return assign_graph_states(self, series)
         matrices = series.matrices if isinstance(series, ConnectivitySeries) else np.asarray(series)
         # `window_starts` is accepted for backward compatibility, but held-out assignment must
@@ -581,6 +591,8 @@ def assign_graph_states(model: GraphStateModel, matrices: ConnectivitySeries | n
     """Assign matrices to the nearest learned state without refitting."""
     if model.analysis_scope == "prospective" and not model.inductive_assignment_valid:
         raise ValueError("legacy spectral assignment has no validated inductive extension")
+    if model.metric in GRAPH_SIMILARITY_METRICS:
+        return assign_similarity_states(model, matrices)
     if model.feature_representation == "signed_lag_offdiag":
         feats = model.transform_features(matrices)
         if model.mixture is not None:
@@ -645,6 +657,14 @@ def fit_graph_states(
     train_matrices = matrices[train_idx]
 
     boundary_indices = boundary_indices_for_series(series, gap_factor=cfg.boundary_gap_factor)
+
+    if cfg.metric in GRAPH_SIMILARITY_METRICS:
+        return fit_similarity_states(
+            series, cfg, train_idx, boundary_indices,
+            predictive_losses=predictive_losses, feature_weights=feature_weights,
+        )
+    if cfg.feature_representation == "binary_lag_offdiag" or cfg.assignment == "kmedoids":
+        raise ValueError("binary_lag_offdiag/kmedoids require an explicit support-similarity metric")
 
     feature_centroids = None
     feature_mean = None

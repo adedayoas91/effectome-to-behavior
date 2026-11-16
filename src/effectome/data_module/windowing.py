@@ -661,5 +661,9 @@ def make_windows(recording: NeuralRecording, cfg: WindowConfig) -> WindowedSegme
     """Produce windowed segments and per-window behavior summaries."""
     recording.validate()
     if cfg.mode == "temporal":
-        return _make_temporal_windows(recording, cfg)
-    return _make_legacy_windows(recording, cfg)
+        windows = _make_temporal_windows(recording, cfg)
+    else:
+        windows = _make_legacy_windows(recording, cfg)
+    # Preserve actual ROI order; graph callers must not invent neuron alignment.
+    windows.metadata["node_ids"] = recording.neuron_ids.tolist()
+    return windows
