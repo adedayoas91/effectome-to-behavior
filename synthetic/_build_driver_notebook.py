@@ -1,4 +1,4 @@
-"""Build the intervention-defined driver-recovery notebook without running fits."""
+"""Build the run-enabled intervention-defined driver-recovery notebook."""
 
 # ruff: noqa: E501 -- Markdown paragraphs remain intact in notebook templates.
 
@@ -14,9 +14,9 @@ def main() -> None:
             "",
             "The earlier circuit/activity controls show that the framework can make its intended comparisons. This notebook asks the additional question: do its transition-specific neuron/group scores recover contributors verified by interventions in the generating process?",
             "The five conditions are single driver, redundant group, correlated bystander, no-driver null, and hidden-confounder challenge. Truth and replay states stay in recording metadata; inference receives observed traces. The hidden-confounder challenge is diagnostic and cannot certify causal identification.",
-            "The frozen confirmation is complete: all 560 runs were available and all four methods failed the recovery gates. A fresh checkout displays versioned evidence; notebook 06 evaluates the separate mechanism revision.",
-            "Default execution inventories the protocol and reads saved artifacts. It never starts the larger confirmatory study automatically. Read `../docs/driver_ground_truth_protocol.md` before changing settings.",
-            "The current protocol uses four imported CSL methods and one fixed origin per trial. A 256-sample history ends at303 and a strictly future target ends at335 (3.2seconds). The training-owned one-dimensional chart and held-out semantic audit were developed on seeds10/11. Confirmation uses fresh seeds300–319/400–459. Thresholds are unchanged; the hidden-confounder condition is diagnostic.",
+            "The frozen confirmation is complete: all 560 runs were available and all four methods failed the recovery gates. Its versioned evidence remains preserved; notebook 06 evaluates the separate mechanism revision.",
+            "Run All executes the full 560-method-run confirmatory-profile reproduction by default, using four workers and a separate resumable run-label directory. This reruns the existing seeds and is not fresh independent confirmation. Set `RUN_DRIVER_VALIDATION=False` for saved-evidence inspection. Read `../docs/driver_ground_truth_protocol.md` before changing settings.",
+            "The current protocol uses four imported CSL methods and one fixed origin per trial. A 256-sample history ends at303 and a strictly future target ends at335 (3.2seconds). The training-owned one-dimensional chart and held-out semantic audit were developed on seeds10/11. The frozen confirmation used seeds300–319/400–459. Thresholds are unchanged; the hidden-confounder condition is diagnostic.",
         ),
         code_cell('''
 import json
@@ -32,11 +32,12 @@ from effectome.experiments.driver_validation import (
 )
 from effectome.experiments.driver_validation_reporting import render_driver_validation_report
 from effectome.workflows.cross_method import load_cross_method_profile
-from notebooks._shared import PROJECT_ROOT
+from notebooks._shared import PROJECT_ROOT, require_conventional_runtime
 
 PROFILE = "confirmatory"  # smoke | development | confirmatory
 WORKERS = 4
-RUN_DRIVER_VALIDATION = False  # Enable only after inspecting the complete workload.
+RUN_DRIVER_VALIDATION = True  # Run All executes the full declared 560-method-run profile.
+RUN_LABEL = "faster-machine-02"  # Reuse unchanged settings to resume; change after protocol/code edits.
 RENDER_REPORT = False  # Recreate presentation artifacts from an existing report.
 MAX_CELLS = None  # A cap records a partial run; it cannot satisfy confirmation.
 validation_config = load_driver_validation_profile(PROFILE)
@@ -44,7 +45,7 @@ validation_cells = driver_validation_cells(validation_config)
 _, validation_methods = load_cross_method_profile(validation_config.estimator_profile)
 OUTPUT_DIRECTORY = (
     PROJECT_ROOT / "outputs" / "driver-validation"
-    / validation_config.estimator_profile / "scheduled-v2" / PROFILE
+    / validation_config.estimator_profile / "scheduled-v2" / PROFILE / "reruns" / RUN_LABEL
 )
 ANALYSIS_DIRECTORY = OUTPUT_DIRECTORY / "analysis"
 print("Resolved validation configuration:")
@@ -52,6 +53,7 @@ print(json.dumps(asdict(validation_config), indent=2, default=str))
 print("Planned simulation cells:", len(validation_cells))
 print("Planned method runs:", len(validation_methods) * len(validation_cells))
 print("Methods:", tuple(validation_methods))
+print("Fitting enabled:", RUN_DRIVER_VALIDATION, "| workers:", WORKERS)
 print("Outputs:", OUTPUT_DIRECTORY)
 display(pd.DataFrame(validation_cells).head(15))
 '''),
@@ -67,6 +69,7 @@ report_path = OUTPUT_DIRECTORY / "driver-validation.json"
 evidence_directory = OUTPUT_DIRECTORY
 frozen_directory = PROJECT_ROOT / "synthetic/results/driver_confirmation_v2"
 if RUN_DRIVER_VALIDATION:
+    require_conventional_runtime(validation_methods)
     driver_report = run_driver_study(
         validation_config, OUTPUT_DIRECTORY, workers=WORKERS, max_cells=MAX_CELLS,
     )

@@ -97,6 +97,7 @@ def test_synthetic_notebooks_are_output_free_and_every_code_cell_parses():
     paths = sorted(root.glob("*.ipynb"))
     assert len(paths) == 7
     assert (root / "06_mechanism_driver_validation.ipynb") in paths
+    enabled = {}
     for path in paths:
         notebook = json.loads(path.read_text())
         assert notebook["metadata"]["language_info"]["version"].startswith("3.14")
@@ -104,10 +105,31 @@ def test_synthetic_notebooks_are_output_free_and_every_code_cell_parses():
             if cell["cell_type"] == "code":
                 assert cell["execution_count"] is None
                 assert cell["outputs"] == []
-                ast.parse("".join(cell["source"]), filename=f"{path}:cell-{index}")
+                tree = ast.parse("".join(cell["source"]), filename=f"{path}:cell-{index}")
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
+                        for target in node.targets:
+                            if isinstance(target, ast.Name) and target.id.startswith("RUN"):
+                                if isinstance(node.value.value, bool):
+                                    enabled[target.id] = node.value.value
+    assert enabled == {
+        "RUN_SANITY": True, "RUN_COMPARISON": True, "RUN_VALIDATION": True,
+        "RUN_DRIVER_VALIDATION": True, "RUN": True, "RUN_HISTORY_COMPARISON": True,
+    }
 
 
-def test_default_synthetic_notebooks_inventory_protocols_and_execute_truth_controls(tmp_path, monkeypatch):
+def _notebook_switches(source: str, switches: dict[str, bool]) -> ast.Module:
+    """Test explicit inspection mode without launching the user's fitting workload."""
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            if isinstance(target, ast.Name) and target.id in switches:
+                node.value = ast.copy_location(ast.Constant(switches[target.id]), node.value)
+    return ast.fix_missing_locations(tree)
+
+
+def test_synthetic_notebooks_inspect_protocols_when_fitting_is_explicitly_disabled(tmp_path, monkeypatch):
     import matplotlib
 
     matplotlib.use("Agg", force=True)
@@ -123,7 +145,11 @@ def test_default_synthetic_notebooks_inventory_protocols_and_execute_truth_contr
         for index, cell in enumerate(notebook["cells"]):
             if cell["cell_type"] != "code":
                 continue
-            exec(compile("".join(cell["source"]), f"{path}:cell-{index}", "exec"), namespace)
+            tree = _notebook_switches("".join(cell["source"]), {
+                "RUN_SANITY": False, "RUN_COMPARISON": False, "RUN_VALIDATION": False,
+                "RUN_DRIVER_VALIDATION": False, "RUN": False, "RUN_HISTORY_COMPARISON": False,
+            })
+            exec(compile(tree, f"{path}:cell-{index}", "exec"), namespace)
             if cell.get("id") == "project_imports":
                 # Root discovery/imports remain real; reports go to the test's
                 # directory so the three notebooks can share their saved run.
@@ -166,10 +192,10 @@ def test_mechanism_notebook_runs_oracle_panel_from_nested_working_directory(tmp_
         if cell["cell_type"] != "code":
             continue
         source = "".join(cell["source"])
-        if 'PROFILE = "smoke"' in source:
-            source = source.replace("RUN = False", "RUN = True")
-            source = source.replace("ORACLE_ONLY = False", "ORACLE_ONLY = True")
-        exec(compile(source, f"mechanism-notebook:cell-{index}", "exec"), namespace)
+        tree = _notebook_switches(source, {
+            "RUN": True, "ORACLE_ONLY": True, "RUN_HISTORY_COMPARISON": False,
+        })
+        exec(compile(tree, f"mechanism-notebook:cell-{index}", "exec"), namespace)
         if 'PROFILE = "smoke"' in source:
             namespace["OUTPUT"] = output
             namespace["HISTORY_OUTPUT"] = tmp_path / "history"
@@ -179,3 +205,13 @@ def test_mechanism_notebook_runs_oracle_panel_from_nested_working_directory(tmp_
     assert report["planned_methods"] == ["known_support", "empty_support"]
     assert (output / "run.log").is_file()
     assert not report["scientific_validation_passed"]
+
+
+def test_native_notebook_fitting_stops_when_conventional_runtime_is_missing(tmp_path):
+    from effectome.workflows.cross_method import load_cross_method_profile
+    from notebooks._shared import require_conventional_runtime
+
+    _, methods = load_cross_method_profile("csl_sanity")
+    with pytest.raises(RuntimeError, match="uv sync --project tools/conventional-cgc"):
+        require_conventional_runtime(methods, project_root=tmp_path)
+    require_conventional_runtime({"fast_cgc": methods["fast_cgc"]}, project_root=tmp_path)

@@ -90,6 +90,23 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 T = TypeVar("T")
 
 
+def require_conventional_runtime(
+    methods: Mapping[str, ConnectivityConfig], *, project_root: Path = PROJECT_ROOT,
+) -> None:
+    """Stop a native fitting panel before missing CPU runtimes become failed fits."""
+    for name, config in methods.items():
+        if name not in {"conventional_cgc", "conventional_cgc_star"}:
+            continue
+        runtime = Path(config.extra.get(
+            "runtime_python", project_root / "tools/conventional-cgc/.venv/bin/python"
+        ))
+        if not runtime.is_file():
+            raise RuntimeError(
+                f"Conventional c-GC runtime missing: {runtime}. From the repository root run: "
+                "uv sync --project tools/conventional-cgc --python 3.13.5 --locked"
+            )
+
+
 class _ProgressReporter:
     """Create a notebook-friendly progress bar only when work is actually performed."""
 

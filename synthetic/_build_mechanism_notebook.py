@@ -1,4 +1,4 @@
-"""Build the fresh-checkout mechanism comparison without starting simulation fits."""
+"""Build the mechanism notebook with smoke and paired-history fitting enabled."""
 
 # ruff: noqa: E501 -- notebook prose and embedded cells are kept readable.
 
@@ -13,7 +13,7 @@ def main() -> None:
             "# Mechanism-based driver recovery: rerun and compare",
             "",
             "The completed four-CSL latent-bistable study produced 560/560 available runs and failed all frozen recovery gates. This notebook evaluates the separate fully observed, model-matched mechanism revision. It does not replace the old benchmark or establish biological necessity.",
-            "Run this notebook independently in the project Python 3.14 kernel. **Run All is inspection-only by default.** Change the parameters below to execute: (1) `PROFILE='smoke', ORACLE_ONLY=False, RUN=True` for all four native methods plus two controls; (2) `PROFILE='development', ORACLE_ONLY=True, RUN=True` for the three-seed mechanism-readout control; (3) `RUN=False, RUN_HISTORY_COMPARISON=True` for the paired 256/1024-history comparison with all four native methods. Keep `METHODS=None` for the complete panel.",
+            "Run this notebook independently in the project Python 3.14 kernel. **Run All fits the smoke panel and the paired 256/1024-history comparison by default**, using all four native methods plus the known/empty-support controls. `PROFILE='development', ORACLE_ONLY=True` selects the three-seed readout diagnostic instead of the regular smoke panel. The paired-history switch is independent; disable it if you only want that oracle diagnostic. Keep `METHODS=None` for complete native panels. Set both run switches to `False` for inspection only.",
             "The cited rationale, assumptions and limits are in [the methodology revision](../docs/driver_methodology_revision.md), [citation audit](../docs/driver_methodology_citation_audit.md), and [measured findings](../docs/mechanism_development_findings.md). These are development experiments; fresh confirmation and nomination calibration remain outstanding.",
         ),
         code_cell('''
@@ -27,15 +27,15 @@ from IPython.display import Markdown, display
 
 from effectome.experiments.mechanism_validation_config import load_mechanism_validation_profile
 from effectome.workflows.cross_method import load_cross_method_profile
-from notebooks._shared import PROJECT_ROOT
+from notebooks._shared import PROJECT_ROOT, require_conventional_runtime
 
 ROOT = PROJECT_ROOT
 PROFILE = "smoke"  # smoke | development
-RUN = False
+RUN = True
 ORACLE_ONLY = False  # True tests learned readout without native graph discovery.
 METHODS = None  # None = all four; e.g. ["fast_cgc"] is explicitly a subset.
-RUN_HISTORY_COMPARISON = False  # Paired 256/1024 histories; independent of RUN/PROFILE.
-RUN_LABEL = "faster-machine-01"  # Change for a new protocol/code version; same label resumes.
+RUN_HISTORY_COMPARISON = True  # Paired 256/1024 histories; independent of RUN/PROFILE.
+RUN_LABEL = "faster-machine-02"  # Change for a new protocol/code version; same label resumes.
 
 if not RUN_LABEL or Path(RUN_LABEL).name != RUN_LABEL or RUN_LABEL in {".", ".."}:
     raise ValueError("RUN_LABEL must be one nonempty directory name")
@@ -62,6 +62,7 @@ print("Native history fits:",
 print("Current-run output:", OUTPUT)
 print("Paired-history output:", HISTORY_OUTPUT)
 print("Versioned historical evidence:", FROZEN)
+print("Fitting enabled:", RUN, "| paired-history fitting enabled:", RUN_HISTORY_COMPARISON)
 print("Resume with unchanged code/settings/label. Use a new label after code/settings change.")
 '''),
         markdown_cell(
@@ -96,16 +97,7 @@ def run_logged(arguments, log_path):
 
 
 def require_native_runtime(names):
-    for name in names:
-        if name.startswith("conventional_"):
-            runtime = Path(native_methods[name].extra.get(
-                "runtime_python", ROOT / "tools/conventional-cgc/.venv/bin/python"
-            ))
-            if not runtime.is_file():
-                raise RuntimeError(
-                    f"Conventional runtime missing: {runtime}. From the repository run: "
-                    "uv sync --project tools/conventional-cgc --python 3.13.5 --locked"
-                )
+    require_conventional_runtime({name: native_methods[name] for name in names}, project_root=ROOT)
 
 
 if RUN:

@@ -1,4 +1,4 @@
-"""Build an inspectable upstream-method sanity study without rerunning discovery."""
+"""Build the run-enabled upstream-method sanity notebook."""
 
 from pathlib import Path
 
@@ -20,6 +20,9 @@ def main() -> None:
             "Successful graph recovery remains separate from transition-driver validation.",
             "Install the official conventional package using `../tools/conventional-cgc/README.md`. "
             "This notebook uses the main project kernel; its adapter invokes the pinned CPU environment.",
+            "Run All fits the complete three-seed, four-method sanity panel by default. "
+            "Results use a separate resumable run-label directory. Set `RUN_SANITY=False` "
+            "only when you intend to inspect saved evidence instead of fitting.",
         ),
         code_cell('''
 import json
@@ -31,16 +34,18 @@ from IPython.display import Image, Markdown, display
 from effectome.experiments.csl_sanity import CSLSanityConfig, run_csl_sanity
 from effectome.experiments.csl_sanity_reporting import render_csl_sanity_report
 from effectome.workflows.cross_method import load_cross_method_profile
-from notebooks._shared import PROJECT_ROOT
+from notebooks._shared import PROJECT_ROOT, require_conventional_runtime
 
-RUN_SANITY = False  # Read the saved realization unless explicitly rerunning.
+RUN_SANITY = True  # Run All fits the complete native sanity panel.
+RUN_LABEL = "faster-machine-02"  # Reuse unchanged settings to resume; change after protocol/code edits.
 config = CSLSanityConfig(seeds=(0, 1, 2), n_samples=1024)
 _, methods = load_cross_method_profile("csl_sanity")
-OUTPUT_DIRECTORY = PROJECT_ROOT / "outputs" / "csl-sanity" / "smoke"
+OUTPUT_DIRECTORY = PROJECT_ROOT / "outputs" / "csl-sanity" / "reruns" / RUN_LABEL
 FROZEN_DIRECTORY = PROJECT_ROOT / "synthetic" / "results" / "four_csl_sanity_2026-11-15"
 print(asdict(config))
 print("Imported method panel:", list(methods))
 print("Planned fits:", 2 * len(config.seeds) * len(methods))
+print("Fitting enabled:", RUN_SANITY, "| outputs:", OUTPUT_DIRECTORY)
 print("Conventional CPU permutation seeds are not fully controlled upstream.")
 '''),
         markdown_cell(
@@ -56,6 +61,7 @@ report = None
 evidence_directory = OUTPUT_DIRECTORY
 path = OUTPUT_DIRECTORY / "sanity.json"
 if RUN_SANITY:
+    require_conventional_runtime(methods)
     report = run_csl_sanity(config, OUTPUT_DIRECTORY, methods=methods)
     render_csl_sanity_report(report, OUTPUT_DIRECTORY / "analysis")
 elif path.is_file():

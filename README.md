@@ -277,7 +277,7 @@ latent-bistable benchmark or biological intervention effects.
 .venv/bin/python pipeline/15_mechanism_validation.py --profile smoke --run
 ```
 
-See `synthetic/06_mechanism_driver_validation.ipynb` for saved-evidence inspection,
+See `synthetic/06_mechanism_driver_validation.ipynb` for enabled fitting and comparison,
 and [the citation audit](docs/driver_methodology_citation_audit.md) for references
 and the limits of their methodological support. Fresh confirmation and nomination
 calibration remain future work.

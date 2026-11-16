@@ -43,8 +43,18 @@ methodology revision without rerunning the completed old confirmation.
 7. [06_mechanism_driver_validation.ipynb](06_mechanism_driver_validation.ipynb):
    new development-only known-support/estimated-support mechanism diagnostic.
 
-Notebooks inspect saved evidence by default. Execution switches explicitly
-start fits; a partial run cannot satisfy full-study acceptance.
+**Run All now starts fitting by default**, as requested for the faster-machine
+rerun. Notebook 01 has sanity enabled; notebooks 02, 04, 05 and 06 have their
+fitting switches enabled. Notebook 06 also runs the paired 256/1024-history
+comparison. Notebooks 00 and 03 compute their generating-process controls
+directly. Notebook 05 retains its full 140-recording/560-method-run profile with
+four workers; rerunning its existing seeds is reproduction, not fresh independent
+confirmation. A partial run cannot satisfy full-study acceptance.
+
+The conventional CPU runtime must be installed before native fitting starts.
+Missing runtimes now stop the notebook with the installation command rather than
+producing a partially available panel. The top cells print the selected workload,
+enabled switches and output directory.
 
 ### Evaluate the latest changes on the faster machine
 
@@ -53,9 +63,10 @@ and use its top parameter cell:
 
 | Purpose | Parameters |
 | --- | --- |
-| Inspect versioned results, including both history lengths | Leave both run switches `False` |
-| Rerun smoke with all four native methods and both support controls | `PROFILE="smoke"`, `ORACLE_ONLY=False`, `RUN=True` |
-| Rerun the three-seed known/empty-support readout diagnostic | `PROFILE="development"`, `ORACLE_ONLY=True`, `RUN=True` |
+| Run smoke and both history lengths with all four native methods | Keep the shipped `RUN=True`, `RUN_HISTORY_COMPARISON=True`, `METHODS=None` |
+| Inspect versioned results without fitting | Explicitly set both run switches `False` |
+| Run only smoke with all four native methods and both support controls | `PROFILE="smoke"`, `ORACLE_ONLY=False`, `RUN=True`, `RUN_HISTORY_COMPARISON=False` |
+| Run only the three-seed known/empty-support readout diagnostic | `PROFILE="development"`, `ORACLE_ONLY=True`, `RUN=True`, `RUN_HISTORY_COMPARISON=False` |
 | Rerun the paired 256/1024-history comparison with all four methods | `RUN=False`, `RUN_HISTORY_COMPARISON=True`, `METHODS=None` |
 
 Keep `METHODS=None` for complete native panels. New results are written under
@@ -65,7 +76,28 @@ support evidence, JSON reports and CSV/Markdown analysis. Reuse the label to
 resume unchanged code/settings; choose a new label after a code/protocol change.
 The paired history comparison is independent of the regular `PROFILE` and
 `ORACLE_ONLY` switches. Both native runs can be expensive; the oracle-only run
-checks the revised readout before native discovery.
+checks the revised readout before native discovery. The shipped run label is
+`faster-machine-02`; reuse it only to resume identical code/settings.
+
+### Output directories for the enabled notebook run
+
+| Notebook | New output directory relative to the repository |
+|---|---|
+| 01 | `outputs/csl-sanity/reruns/faster-machine-02/` |
+| 02 and its 03 inspection | `outputs/synthetic-transition-examples/matched_marginals/seed-42/four-csl-sanity/faster-machine-02/` |
+| 04 | `outputs/framework-validation/csl_sanity/smoke/reruns/faster-machine-02/` |
+| 05 | `outputs/driver-validation/csl_sanity/scheduled-v2/confirmatory/reruns/faster-machine-02/` |
+| 06 | `outputs/driver-mechanism-validation/reruns/faster-machine-02/` |
+
+Notebook 06 includes both the regular mechanism panel and the `history-comparison/`
+subdirectory. Transfer its JSON reports, `cells/` evidence and `run.log` when
+reviewing newly fitted results. Pipeline CLIs still need `--run`; notebook
+fitting defaults and CLI inventory defaults are separate controls.
+
+Graph comparison and notebook 07 remain on their separate feature branch. They
+are not included in this `dev` run. The supplied inspection-only notebook outputs
+were preserved in [`results/notebook_inspection_2026-11-16/`](results/notebook_inspection_2026-11-16/)
+before preparing these output-free, fitting-enabled copies.
 
 The previously measured result is a **limited operating case**: at 256 samples
 the native methods missed endpoint support; at 1024 samples all four recovered
@@ -156,8 +188,9 @@ four imported CSL support lanes. `--oracle-only` omits native discovery;
 `--method fast_cgc` explicitly restricts estimated-support lanes. Use distinct
 `--output-dir` values for different panels or implementation versions. Results,
 per-lane caches, native evidence and descriptive reports are written below
-`outputs/driver-mechanism-validation/`. Default notebook cells inspect saved
-results; the `RUN` switch starts computation.
+`outputs/driver-mechanism-validation/`. Notebook cells inspect saved
+results when the run switches are explicitly disabled; fitting is enabled in the
+shipped notebook.
 
 Regularization and noise estimation use inner whole-trial validation. Discovery
 uses only the preceding inner-training trials; the final mechanisms refit all

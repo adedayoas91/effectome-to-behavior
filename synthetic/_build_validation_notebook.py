@@ -1,4 +1,4 @@
-"""Build the manuscript-oriented validation entrypoint without altering demo outputs."""
+"""Build the run-enabled framework-validation notebook."""
 
 # ruff: noqa: E501 -- Markdown paragraphs are kept intact in notebook templates.
 
@@ -15,6 +15,7 @@ def main() -> None:
             "This is the canonical synthetic validation entrypoint. The preceding notebooks inspect generating controls and native discovery; this notebook executes a frozen experiment matrix with independent seeds and explicit failure denominators.",
             "Smoke checks software. Development uses a larger sensitivity matrix with engineering estimator settings. The manuscript profile proposes the larger production-configuration study; completing a profile does not automatically validate a scientific claim.",
             "The current protocol uses conventional c-GC/c-GC* and fastC-GC/fastC-GC* as four related CSL methods. Native lag support has no VAR coefficient readout. Histories are at least 256 samples so the fast complete-shift test can attain beta=0.005. This revised protocol supersedes the earlier eight-method pilot and writes to its own output directory.",
+            "Run All fits the declared smoke matrix by default. Change `PROFILE` only when you intend to run a different matrix. Results use a separate resumable run-label directory; set `RUN_VALIDATION=False` for saved-evidence inspection.",
         ),
         code_cell('''
 import json
@@ -28,10 +29,11 @@ from effectome.experiments.framework_validation import (
 )
 from effectome.experiments.framework_validation_analysis import analyze_framework_validation
 from effectome.workflows.cross_method import load_cross_method_profile
-from notebooks._shared import PROJECT_ROOT
+from notebooks._shared import PROJECT_ROOT, require_conventional_runtime
 
 PROFILE = "smoke"  # smoke | development | manuscript
-RUN_VALIDATION = False  # Explicitly enable after inspecting the declared matrix.
+RUN_VALIDATION = True  # Run All fits the declared profile.
+RUN_LABEL = "faster-machine-02"  # Reuse unchanged settings to resume; change after protocol/code edits.
 RENDER_VISUALS = False  # Explicitly regenerate the manuscript visual bundle.
 MAX_CELLS = None  # A cap produces a partial report and cannot complete the publication suite.
 validation_config = load_framework_validation_profile(PROFILE)
@@ -39,13 +41,14 @@ validation_cells = framework_validation_cells(validation_config)
 _, validation_methods = load_cross_method_profile(validation_config.estimator_profile)
 OUTPUT_DIRECTORY = (
     PROJECT_ROOT / "outputs" / "framework-validation"
-    / validation_config.estimator_profile / PROFILE
+    / validation_config.estimator_profile / PROFILE / "reruns" / RUN_LABEL
 )
 print("Independent seeds:", validation_config.seeds)
 print("Planned raw-process cells:", len(validation_cells))
 print("Planned method runs:", len(validation_methods) * len(validation_cells))
 print("Methods:", tuple(validation_methods))
 print("Estimation profile:", validation_config.estimator_profile)
+print("Fitting enabled:", RUN_VALIDATION)
 print("Outputs:", OUTPUT_DIRECTORY)
 '''),
         markdown_cell(
@@ -56,6 +59,7 @@ print("Outputs:", OUTPUT_DIRECTORY)
         code_cell('''
 validation_report = None
 if RUN_VALIDATION:
+    require_conventional_runtime(validation_methods)
     validation_report = run_framework_validation(
         validation_config, OUTPUT_DIRECTORY, max_cells=MAX_CELLS,
     )

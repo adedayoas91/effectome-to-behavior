@@ -173,8 +173,9 @@ pilot only after inspecting its scope:
 
 `--max-cells` records a partial run, and `--method` can declare a subset. A subset
 cannot establish validation across the declared four-method panel.
-`synthetic/05_driver_recovery.ipynb`
-defaults to inventory and inspection of saved results, with fitting disabled.
+`synthetic/05_driver_recovery.ipynb` now enables fitting for the requested
+faster-machine rerun (16 November 2026). Its shipped profile repeats the existing
+560-method-run study; disable `RUN_DRIVER_VALIDATION` explicitly for inspection.
 
 Use the pilot to inspect dynamics, transition counts, runtime, recovery
 variability, numerical failures, and measurement stresses. Before confirmation,

@@ -70,6 +70,12 @@ The filenames follow this order. Notebook 06 runs independently; follow the
 [fresh-machine setup and run switches](synthetic/README.md#evaluate-the-latest-changes-on-the-faster-machine)
 to evaluate the latest revision without repeating the old confirmation.
 
+The shipped notebooks now enable sanity and fitting for **Run All** on the
+faster machine, including both mechanism histories in 06. Notebook 05 keeps the
+full 560-method-run profile. Their new `faster-machine-02` output directories are
+listed in `synthetic/README.md`; CLI inventory commands still need `--run`.
+This `dev` run includes 00–06; graph comparison remains on its feature branch.
+
 Run the small native graph check first, then the current four-method repeated
 framework check when its workload and interpretation are appropriate:
 

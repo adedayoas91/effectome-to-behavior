@@ -1,0 +1,50 @@
+{
+  "scope": "received_notebook_inspection_outputs_not_new_fitted_results",
+  "received_on_branch": "dev",
+  "base_commit": "8ce5ec6c86193208e0ad6b0b695d652592ec9d9b",
+  "created_at": "2026-11-16T17:49:35.389827+00:00",
+  "notebooks": {
+    "00_ground_truth.ipynb": {
+      "sha256": "e5351730dca0eca1374deab9071334d6272bcf2eb65b7280ee5036ced62f2f62",
+      "executed_code_cells": 6,
+      "total_code_cells": 6,
+      "source_unchanged_from_base": true
+    },
+    "01_four_csl_sanity.ipynb": {
+      "sha256": "0da5c1950ade9999b1cdd8482fca0c3f90fbd2454314d531aa045c799f5262b8",
+      "executed_code_cells": 4,
+      "total_code_cells": 4,
+      "source_unchanged_from_base": true
+    },
+    "02_shared_transition_comparison.ipynb": {
+      "sha256": "dab9a7fc8c14dbf4ade0d47b5e465e2ba038511620e00adbd64a4681977abba8",
+      "executed_code_cells": 8,
+      "total_code_cells": 8,
+      "source_unchanged_from_base": true
+    },
+    "03_correspondence_and_controls.ipynb": {
+      "sha256": "441a6b23f5945346bc6127de1f946252eb1a0dbbf417ef87ba75346a251c5de8",
+      "executed_code_cells": 7,
+      "total_code_cells": 7,
+      "source_unchanged_from_base": true
+    },
+    "04_framework_validation.ipynb": {
+      "sha256": "1ab9309316683cbdcbe528988cf11fd8b1189caa942a8be2f8a0f63137f0a0c1",
+      "executed_code_cells": 5,
+      "total_code_cells": 5,
+      "source_unchanged_from_base": true
+    },
+    "05_driver_recovery.ipynb": {
+      "sha256": "7a43eda9ada316594067432a42ed0c6061bfdbb0f84adebc8b35dc66debaae27",
+      "executed_code_cells": 4,
+      "total_code_cells": 4,
+      "source_unchanged_from_base": true
+    },
+    "06_mechanism_driver_validation.ipynb": {
+      "sha256": "3a0a406e268911b7a13f743da0f0fc12abe78bbe027403b72c06d0fd28c811b2",
+      "executed_code_cells": 0,
+      "total_code_cells": 5,
+      "source_unchanged_from_base": true
+    }
+  }
+}
