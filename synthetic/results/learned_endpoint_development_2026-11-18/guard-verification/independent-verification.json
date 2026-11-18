@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "completed_cells": 2,
+  "artifact_hashes_verified": 32,
+  "native_window_fits": 72,
+  "endpoint_method_seed_rows_reconstructed": 98,
+  "origin_candidate_comparisons": 9408,
+  "empirical_bound_violations": 0,
+  "tolerance": 1e-12,
+  "source": "independent_numpy_reconstruction_from_binary_event_NPZs",
+  "population_guarantee": false
+}

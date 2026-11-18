@@ -1,0 +1,220 @@
+\section{Methodological Development and Decisions}
+\label{sec:methodologicaldevelopment}
+
+The experiments were developed in stages to separate graph recovery,
+prediction, structural intervention effects and behavioral measurement. We
+report this sequence because a successful check at one stage did not establish
+the claim tested at the next. Trials~1--5 below contain completed evidence;
+Trial~6 adds a completed exploratory compression diagnostic and identifies the
+remaining proposed encoder studies. Changes motivated by inspected development
+data are not counted as independent confirmation, and the original failed
+criteria remain part of the record.
+
+\subsection{Trial 1: graph recovery did not establish useful endpoint prediction}
+
+We first checked that the imported conventional and fast c-GC variants could
+recover simple generating graphs before interpreting downstream failures
+\citep{adedayo2025cgc,adedayo2026fastcgc}. All 24 method/scenario/seed runs in the
+chain and independent-null technical panel recovered the expected support
+(Section~\ref{sec:fourcslsanity}). This established a working native-estimation
+path under those favorable controls; it did not validate a behavioral manifold
+or an intervention readout.
+
+We then tested whether graph features added predictive value in a shared,
+training-owned manifold-transition comparison. The framework pilot completed
+48 method/scenario/seed runs: four methods, four scenarios and three process
+seeds. None of its 16 method/scenario contrasts supplied multiplicity-adjusted
+evidence of improvement; all Holm-adjusted $p$-values were one. With only three
+independent seeds, this pilot had limited inferential resolution. We therefore
+retained the narrow technical success and required a separate simulator-grounded
+test of the claimed driver quantity, rather than treating graph recovery or
+geometric correspondence as evidence of behavioral causation.
+
+\subsection{Trial 2: feature omission failed the structural driver test}
+
+The subsequent driver study completed all 560 planned method/recording runs,
+but none of the four methods met the frozen recovery and null criteria. Its
+candidate score removed outgoing graph-feature blocks and refitted a predictor
+while retaining the remaining activity and manifold-history information. The
+gold standard instead disconnected outgoing influence in the generating neural
+mechanism. Conditional predictive importance and the effect of a structural
+intervention answer different questions
+\citep{williamson2023importance,pearl2010causalinference}.
+
+We consequently revised the intervention readout, not the completed study's
+acceptance rules. The estimand mismatch is a reason to test an explicit neural
+mechanism; these experiments do not establish it as the sole cause of every
+failure in the earlier latent benchmark. Its observation process, endpoint and
+selection problem also differ from the favorable control introduced next. The
+560-run negative result is therefore retained under its original protocol
+(Section~\ref{sec:sharedframeworkvalidation}).
+
+\subsection{Trial 3: an explicit mechanism worked when discovery history was adequate}
+
+We implemented the fully observed additive-tanh mechanism in
+Section~\ref{sec:critical}, retaining target self-history and estimating
+coefficients and innovation scales from training trials. Outgoing disconnection
+changes cross-neuron update terms while preserving the sources' own evolution.
+Known-support and empty-support controls separate mechanism learning from
+support-discovery error. Regularization and residual-noise estimation use inner
+whole-trial validation, followed by refitting on the outer training trials
+\citep{hoerl1970ridge,cawley2010overfitting}.
+
+An initial paired check held the recording, full mechanism-fitting data,
+evaluation origins and rollout noise fixed while changing native discovery
+history from 256 to 1024 samples. At development seed~20, all four native
+methods failed the short-history driver ranking but recovered the generating
+support and ranking with the longer history. Long-history effect MAE was
+0.001831, compared with 0.140055 for empty support
+(Section~\ref{sec:mechanismdevelopment}). This localized an important
+finite-history limitation in this control. It did not justify lengthening
+histories across arbitrary biological regime changes. Because this comparison
+had only one process seed, its favorable result required fresh replication
+and a separate null assessment.
+
+\subsection{Trial 4: fresh replication supported effect estimation but retained an eligibility failure}
+
+The next study separated 19 calibration-null seeds, 20 fresh positive-test
+seeds and 60 untouched null-test seeds. Its primary history was 1024 samples;
+the same positive-test recordings also received a paired 256-sample discovery
+comparison. All 119 cells and 714 method/control runs completed, including
+4284 native window fits. Calibration was completed before test evaluation,
+retaining the minimum probability-effect cutoff of 0.10.
+
+At the primary history, all four native methods attained mean effect MAE
+$0.002087\pm0.000805$ across the 20 positive-test seeds; the uncertainty shown
+here is the sample SD of seed means. Mean MAE was 97.55--98.36\% lower than
+with the paired shorter discovery history. Each method had zero false-event
+seeds among the 60 null tests. The per-method one-sided exact 95\% upper bound
+was 0.048703, meeting the declared 0.05 null gate
+\citep{clopper1934confidence}. This bound concerns one method's whole-seed
+false-nomination event; it is not simultaneous control across the four variants
+or general neuron-level false-discovery control.
+
+The complete frozen acceptance decision nevertheless remained false. Only
+19 of the 20 positive seeds satisfied individual-ranking eligibility. In
+seed~20012, one source condition had no individual neuron above the fixed
+gold-effect threshold, although the predeclared driver-pair intervention had
+effect 0.230469 and was correctly estimated and nominated by all four methods.
+Known support had the same individual-ranking ineligibility. We did not lower
+the gold threshold, exclude that condition or replace the complete-set gate
+with the perfect eligible-subset description. The result supports accurate
+outgoing-disconnection effects in this model-matched control and identifies a
+need to distinguish individual and joint causal units prospectively. It does
+not validate biological silencing or a learned behavioral endpoint.
+
+\subsection{Trial 5: the learned chart changed the behavioral question}
+
+We next replaced the directly observed endpoint with training-frozen learned
+measurements while keeping the structural model in full neural space. This
+separates the measurement question from an additional assumption that projected
+coordinates possess autonomous dynamics. PCA and geometric regions describe
+neural variation; their behavioral meaning must be tested rather than assumed
+\citep{jolliffe2016pca}. The independent reference was the generator's
+prespecified behavioral coordinate and event, not a principal component or a
+cluster selected after evaluation.
+
+Five development seeds (40000--40004) each supplied driver and endpoint-null
+cases. All 10 cases and 70 dynamics runs completed, with 360 native window fits.
+Each neural model and its paired factual/intervened futures were reused across
+the seven endpoint arms. Encoders and geometric regions used inner-training
+trials; behavioral decoder regularization used inner-validation trials. The
+encoder was then frozen while the decoder was refitted on outer training data.
+All comparisons retained the same held-out factual origins and included source
+classification errors in the transition event. Re-executing these five seeds
+reproduced the earlier development errors and did not add independent evidence.
+
+We distinguished three quantities: fitted-versus-simulator effect error through
+the same chart; simulator-chart versus independently specified behavioral
+effect error; and the final fitted-chart versus true-behavior effect error.
+Table~\ref{tab:developmentendpointdiagnosis} shows why the first alone is
+insufficient. All 40 native consensus supports matched known support, and all
+four native methods had the same errors as the known-support fit in this panel.
+The true simulator itself had large PCA semantic error, so more accurate
+mechanism fitting could not remove the measurement discrepancy.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Driver-scenario endpoint diagnosis, five development seeds. Entries
+are means of seed-level absolute probability-effect errors over identical
+origins/candidates; lower is better. Within-chart error compares fitted and
+simulator effects through the frozen chart. Semantic error compares the
+simulator's chart and behavioral effects. Behavioral error compares fitted chart
+effects with true behavioral effects. Known support and all four native methods
+have identical entries here; they are paired conditions, not extra replicates.}
+\label{tab:developmentendpointdiagnosis}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Endpoint & Within chart & Semantic & Behavioral \\
+\midrule
+PCA geometric regions & 0.002018 & 0.130737 & 0.131144 \\
+PCA + behavioral decoder & 0.002181 & 0.138428 & 0.138818 \\
+Full-neural behavioral decoder & 0.002067 & 0.000553 & 0.001969 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The PCA-plus-decoder arm reached approximately 90\% natural future-target
+classification accuracy but only 47\% factual-origin accuracy in the driver
+case. Its final behavioral effect error remained 0.138818. Behavioral
+supervision added after this unsupervised compression therefore did not repair
+the endpoint. Constant and source-proxy charts could have zero within-chart
+effect error while missing true behavioral effects; the constant chart also
+failed occupancy. A neural-nuisance chart could respond to intervention under
+the behavioral null. These controls expose measurement failure that chart
+agreement alone would conceal. No endpoint-calibrated nomination or nonlinear
+manifold claim was established by this five-seed bridge.
+
+\subsection{Trial 6: behavior-prioritized compression as a capacity diagnostic}
+
+We next asked whether the failed PCA endpoint implied that a compact outcome
+measurement was impossible. For the saved affine encoder $q(X)=AX+b$ and frozen
+full-neural linear classifier with weights $w$ and intercept $c$, we formed
+\begin{equation}
+ z(X)=w^{\top}(AX+b)+c,\qquad
+ \widehat B(X)=\mathbf 1\{z(X)\geq0\}.
+\end{equation}
+This scalar supervised coordinate is an algebraic re-expression of the existing
+decoder. Its future target thresholds the mean affine score, not a mean of
+sigmoid probabilities; linearity preserves the previous mean-code classifier
+and the same zero-tie convention. The exploratory probe reused the same five
+inspected development seeds, 10 cases and 70 saved dynamics parameter sets,
+without new native discovery or mechanism fits.
+
+The scalar score changed none of the parent decoder's labels on 276480
+naturally generated neural observations or its 1935360 paired-rollout binary
+events. Its behavioral MAE was 0.001969 in the driver case and 0.000073 in the
+null, matching the full-neural decoder. These counts audit the implementation;
+they do not add independent observations or increase the five-seed sample size.
+Any binary linear classifier admits such a scalar decision score. Its existence
+therefore demonstrates capacity to preserve this particular readout, not an
+independently improved learning algorithm, intrinsic behavioral dimension,
+manifold geometry or closed latent dynamics. Computing the score still requires
+the full observed neural vector, and the structural simulator remains in that
+full space.
+
+We also disclosed the complete one- through five-component PCA-plus-decoder
+sweep. Driver behavioral MAEs were respectively 0.146908, 0.138818, 0.138875,
+0.138818 and 0.018994. Four components retained a mean 90.45\% of standardized
+neural training variance in the driver cases, yet their effect error remained
+large. More retained variance alone did not ensure the relevant measurement;
+the inspected sweep is not a test-selected winning dimension or fresh
+confirmation. The score factorization and dimension sweep are preserved in
+\path{synthetic/results/behavior_prioritized_probe_2026-11-18/}.
+
+The resulting next study remains proposed: learn the encoder using a
+prespecified, distributed behavioral readout. We considered a supervised linear
+or partial-least-squares baseline; preferential subspace identification for
+behaviorally relevant temporal dynamics \citep{sani2021psid}; CEBRA's
+behavior-informed or hybrid representation \citep{schneider2023cebra}; and joint
+behavioral/dynamical BunDLe-Net or a supervised autoencoder
+\citep{kumar2023bundleV5,le2018supervisedautoencoders}. These address different
+objectives and do not automatically validate outgoing-mechanism interventions.
+Temporal encoders require genuine causal prehistory rather than future
+borrowing. A new behavioral reference also requires an oracle-checked null:
+the present null removes inputs only to the final coordinate and is not
+automatically null for a readout containing the responsive bystander. Nonlinear
+alternatives have not been run. Frozen-map semantic checks, followed by new
+calibration and test pools, remain necessary. Graph similarity is a separate
+grouping option; correct support already coexisted with the failed PCA endpoint
+in this control.

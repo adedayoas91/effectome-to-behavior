@@ -1,0 +1,31 @@
+{
+  "manuscript_compiled": true,
+  "main_tex_sha256": "b25fd70325ce2e6fd9244159abfde3dd03230838ed8d087a0d69517e3796e999",
+  "section_sha256": "89b1aca729f4ee24856294230883aadf366a47c83854a480b9906d2d1032c096",
+  "pdf_sha256": "2e687d30eb88ae2c26cd2887deaa83ae13ce7545c723e32c609a6e1c3873b6ed",
+  "numbered_trials": 6,
+  "new_history_citation_keys": [
+    "adedayo2025cgc",
+    "adedayo2026fastcgc",
+    "cawley2010overfitting",
+    "clopper1934confidence",
+    "hoerl1970ridge",
+    "jolliffe2016pca",
+    "kumar2023bundleV5",
+    "le2018supervisedautoencoders",
+    "pearl2010causalinference",
+    "sani2021psid",
+    "schneider2023cebra",
+    "williamson2023importance"
+  ],
+  "undefined_references_or_citations": false,
+  "overfull_boxes": false,
+  "remaining_build_warnings": [
+    "Template lineno.sty UTF-8 warning",
+    "Underfull paragraph/table boxes"
+  ],
+  "probe_source_ruff": "repository and archived scripts passed",
+  "probe_source_mypy": "three archived probe/analysis/audit scripts passed; follow-imports=silent",
+  "probe_resume": "completed with frozen cached results and no additional fits",
+  "analysis_scope": "same five inspected development seeds; scalar equivalence and PCA sweep, no confirmatory claim"
+}

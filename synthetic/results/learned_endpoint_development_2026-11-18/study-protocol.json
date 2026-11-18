@@ -1,0 +1,140 @@
+{
+  "schema_version": "learned_endpoint_development_v1",
+  "config": {
+    "profile": "development",
+    "seeds": [
+      40000,
+      40001,
+      40002,
+      40003,
+      40004
+    ],
+    "n_components": 2,
+    "decoder_cs": [
+      0.1,
+      1.0,
+      10.0
+    ],
+    "endpoint_seed": 42,
+    "mechanism": {
+      "profile": "development",
+      "seeds": [
+        40000,
+        40001,
+        40002,
+        40003,
+        40004
+      ],
+      "generator": {
+        "scenario": "driver",
+        "seed": 20,
+        "n_trials": 24,
+        "trial_length": 1152,
+        "n_neurons": 6,
+        "fps": 10.0,
+        "driver_ar": 0.85,
+        "neutral_ar": 0.55,
+        "endpoint_ar": 0.75,
+        "coupling": 0.8,
+        "bystander_coupling": 0.5,
+        "noise_std": 0.1,
+        "initial_endpoint": 1.0,
+        "pulse_amplitude": 1.0,
+        "pulse_probability": 0.6
+      },
+      "fit": {
+        "ridge_alphas": [
+          0.01,
+          0.1,
+          1.0,
+          10.0
+        ],
+        "validation_fraction": 0.25,
+        "noise_floor": 1e-06
+      },
+      "rollout": {
+        "horizon": 8,
+        "target_length": 4,
+        "n_rollouts": 256,
+        "seed": 42
+      },
+      "evaluation_fraction": 0.5,
+      "discovery_history_length": 1024,
+      "discovery_burn_in": 128,
+      "support_selection_fraction": 0.5,
+      "effect_threshold": 0.1,
+      "nomination_threshold": 0.1
+    }
+  },
+  "methods": {
+    "conventional_cgc": {
+      "name": "conventional_cgc",
+      "max_lag": 1,
+      "max_lag_seconds": null,
+      "alpha": 0.01,
+      "partial": false,
+      "ridge": 1.0,
+      "absolute": false,
+      "threshold": 0.0,
+      "extra": {
+        "n_perm": 1000,
+        "beta": 0.005,
+        "seed": 42
+      }
+    },
+    "conventional_cgc_star": {
+      "name": "conventional_cgc_star",
+      "max_lag": 1,
+      "max_lag_seconds": null,
+      "alpha": 0.01,
+      "partial": false,
+      "ridge": 1.0,
+      "absolute": false,
+      "threshold": 0.0,
+      "extra": {
+        "n_perm": 1000,
+        "beta": 0.005,
+        "seed": 42
+      }
+    },
+    "fast_cgc": {
+      "name": "fast_cgc",
+      "max_lag": 1,
+      "max_lag_seconds": null,
+      "alpha": 0.01,
+      "partial": false,
+      "ridge": 1.0,
+      "absolute": false,
+      "threshold": 0.0,
+      "extra": {
+        "n_perm": 0,
+        "beta": 0.005,
+        "seed": 42
+      }
+    },
+    "fast_cgc_star": {
+      "name": "fast_cgc_star",
+      "max_lag": 1,
+      "max_lag_seconds": null,
+      "alpha": 0.01,
+      "partial": false,
+      "ridge": 1.0,
+      "absolute": false,
+      "threshold": 0.0,
+      "extra": {
+        "n_perm": 0,
+        "beta": 0.005,
+        "seed": 42
+      }
+    }
+  },
+  "implementation_fingerprint": "ab13124ef1039083790ff36e9307575016e8c306fd00c3eacf5c56e441a14675",
+  "entrypoints": {
+    "manifold_validation.py": "4afc6696488acc6f212312dd78077077a576258dd251e5ad19f0acdd6284eb91",
+    "_build_manifold_notebook.py": "1f822763a57121fc93da46781f1af4458d45258be6b5f20ffae9a1407efe8a5d"
+  },
+  "independent_behavior": "predeclared_last_neural_coordinate_sign_and_future_window_mean",
+  "conditioning": "identical_origins_no_endpoint_specific_selection",
+  "conventional_randomness": "Conventional CPU permutation randomness is uncontrolled by the public upstream seed API. The fixed procedure retains first completed native evidence and never selects favorable reruns. Exchangeability includes estimator randomization; byte-identical rediscovery is not promised.",
+  "references": "docs/learned_manifold_validation_plan.md"
+}

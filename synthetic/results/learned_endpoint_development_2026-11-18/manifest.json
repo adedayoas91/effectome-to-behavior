@@ -1,0 +1,189 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 948,
+      "sha256": "d9c5155249061db034e7327ad454dae1c250784a0e92967da4d12014a93aeb43"
+    },
+    {
+      "path": "analysis/analysis-report.md",
+      "bytes": 8416,
+      "sha256": "dd167d1dfb60db48d77acc38762d8f3474bdff813df39e2e29dd4f789b0951da"
+    },
+    {
+      "path": "analysis/figure-catalog.md",
+      "bytes": 612,
+      "sha256": "31b11e5fd89b7d64dbf7423a1b4f7c1fee7e9216dd21f435281a58534d5de736"
+    },
+    {
+      "path": "analysis/figures/01-endpoint-semantic-error.pdf",
+      "bytes": 21199,
+      "sha256": "aaa97a265a6fc1d210d2178d940754e6e882aaed3397b26c4606c829309b5418"
+    },
+    {
+      "path": "analysis/figures/01-endpoint-semantic-error.png",
+      "bytes": 83726,
+      "sha256": "c59420249adfe02128a8336a1091b4780c3da57e597dc3d21320d4e5487bcdcb"
+    },
+    {
+      "path": "analysis/figures/02-behavioral-effect-error.pdf",
+      "bytes": 44157,
+      "sha256": "9d6901647eb398327fd50a0be73a805d9ead1f184081e287f726ccbdb36f6023"
+    },
+    {
+      "path": "analysis/figures/02-behavioral-effect-error.png",
+      "bytes": 103003,
+      "sha256": "d0f220bb13047191b2d81bcab2ced45732e6415ab98b968bf852e8f5bc2d7c6c"
+    },
+    {
+      "path": "analysis/seed-metrics.csv",
+      "bytes": 113839,
+      "sha256": "e00197fe92d7bbc971bf46dfa65f227ba41d43eeb323d19fe339f627032fa131"
+    },
+    {
+      "path": "audit_saved_events.py",
+      "bytes": 5611,
+      "sha256": "ed9d8cc07138d860a29b3fb567f71bc478e5898953f2d1fe201f19b707eb9d03"
+    },
+    {
+      "path": "development-findings.md",
+      "bytes": 6731,
+      "sha256": "4d0ee5c8abdd3bfdadef41c28d15974d2ff46361ce93c5cc72f5be9e38d4883b"
+    },
+    {
+      "path": "guard-verification/README.md",
+      "bytes": 795,
+      "sha256": "695952d7bd2e4d05319947aaca9bfc3cb845b22dddbd5db4ca4f91759e945e12"
+    },
+    {
+      "path": "guard-verification/analysis/analysis-report.md",
+      "bytes": 8414,
+      "sha256": "8354d644ee30fc797505502234b0e7f373fbb7b2aea4d6c9ef7cdb1efac085d5"
+    },
+    {
+      "path": "guard-verification/analysis/figure-catalog.md",
+      "bytes": 605,
+      "sha256": "1045e10274dc12584ee4583b29ca26f6c2df123bf092df302b609bdd8d4b853d"
+    },
+    {
+      "path": "guard-verification/analysis/figures/01-endpoint-semantic-error.pdf",
+      "bytes": 18091,
+      "sha256": "290489a4efccf23d137efadb6fd22a9b1606a027355ff76bccef0282a1eac7e2"
+    },
+    {
+      "path": "guard-verification/analysis/figures/01-endpoint-semantic-error.png",
+      "bytes": 78648,
+      "sha256": "e701ccce9574d3b3ba34205845f696898f89e6c78a5e77c33f1ad38a45ab8f16"
+    },
+    {
+      "path": "guard-verification/analysis/figures/02-behavioral-effect-error.pdf",
+      "bytes": 28887,
+      "sha256": "6302be62399aa27d75a6916f66ed31b1e89c130a85867e2d28cb1c757cd9a798"
+    },
+    {
+      "path": "guard-verification/analysis/figures/02-behavioral-effect-error.png",
+      "bytes": 91103,
+      "sha256": "46a16645179f5e870d4e24f388ac354855cd2b0659145337fd0fdaff01840b38"
+    },
+    {
+      "path": "guard-verification/analysis/seed-metrics.csv",
+      "bytes": 22544,
+      "sha256": "540f93a1785c749fb8c07f790c1aae537e3bd4f41029d54f3fd2d15153750c39"
+    },
+    {
+      "path": "guard-verification/implementation-source.zip",
+      "bytes": 547719,
+      "sha256": "7eb72ba5f514d335189845776c04bab3875ecbfb8ff562a3a6b7c7072bda871a"
+    },
+    {
+      "path": "guard-verification/independent-verification.json",
+      "bytes": 357,
+      "sha256": "379435dc2da2e797a08822116f707871e5750f91e7395bb417842b22418a2417"
+    },
+    {
+      "path": "guard-verification/learned_manifold_validation_citation_audit.md",
+      "bytes": 9815,
+      "sha256": "879a5b865b1d27baa5e7b9c82d22f9a9d220afef03f8cad0422bfba15cd934f8"
+    },
+    {
+      "path": "guard-verification/learned_manifold_validation_plan.md",
+      "bytes": 22762,
+      "sha256": "1d19c64b571af153176a64bb5452a193ba9fc5c256851b2370bf04f247c86848"
+    },
+    {
+      "path": "guard-verification/learned_manifold_validation_references.bib",
+      "bytes": 4353,
+      "sha256": "2fd03a0711ddfcb1fd147fd1fce1102c85d3af4617595db58891b0296a1ed908"
+    },
+    {
+      "path": "guard-verification/manifest.json",
+      "bytes": 2700,
+      "sha256": "ca6a9913130b0b744bd5df31d2878197dabd3aa44aed74de042409344cba877e"
+    },
+    {
+      "path": "guard-verification/manifold-validation.json",
+      "bytes": 2950547,
+      "sha256": "c94fac8c643504c5c6e13b9ea732834f6be3874a16a6399e5fb4da48e0135ab2"
+    },
+    {
+      "path": "guard-verification/run-evidence.zip",
+      "bytes": 655850,
+      "sha256": "c116c392482b68bb1a306d76b6e4b7a709c9121547a22c0d1fd8c5f2a3757236"
+    },
+    {
+      "path": "guard-verification/study-protocol.json",
+      "bytes": 3461,
+      "sha256": "648a24187596ff1fb94237ad58ce8c88b6afe289157086192c8a45e8cc17c9e3"
+    },
+    {
+      "path": "implementation-source.zip",
+      "bytes": 547188,
+      "sha256": "4a3502b4660378c95c84f20512e1031679d611a0ff05b62b9d0c70a99255bf70"
+    },
+    {
+      "path": "independent-verification.json",
+      "bytes": 362,
+      "sha256": "54859ea6b274f5a07054756c53a8d4b2c71aadb38b8522af289d81543aeba35c"
+    },
+    {
+      "path": "learned_manifold_validation_citation_audit.md",
+      "bytes": 9815,
+      "sha256": "879a5b865b1d27baa5e7b9c82d22f9a9d220afef03f8cad0422bfba15cd934f8"
+    },
+    {
+      "path": "learned_manifold_validation_plan.md",
+      "bytes": 22263,
+      "sha256": "ee6fd17c61e4b8ffdd20bc73f2a3c025980a9033aecd337e115e8910d7f0bf8a"
+    },
+    {
+      "path": "learned_manifold_validation_references.bib",
+      "bytes": 4353,
+      "sha256": "2fd03a0711ddfcb1fd147fd1fce1102c85d3af4617595db58891b0296a1ed908"
+    },
+    {
+      "path": "manifold-validation.json",
+      "bytes": 14636966,
+      "sha256": "08c0b6b3880cf8d9d288b56b2242bd4379270280628b5d4bdc78326ade45d73b"
+    },
+    {
+      "path": "run-evidence.zip",
+      "bytes": 3231906,
+      "sha256": "6088bfab013d63038dba93a18aa52563cedd9787880d8861b896a3222a3a1d2f"
+    },
+    {
+      "path": "study-protocol.json",
+      "bytes": 3579,
+      "sha256": "552d85f8a672b4e04c6609531c35efd82522e0f0d73a6380030118dfa570be57"
+    },
+    {
+      "path": "verification.json",
+      "bytes": 1118,
+      "sha256": "258b7589b16c8b7162146920ddad42beac95656ed373aee0a5f14462ef09a230"
+    },
+    {
+      "path": "verified-references.pdf",
+      "bytes": 20103,
+      "sha256": "14f47d147485db3e96a421b911fe31afee2a9a5383cbcb8dec54a92cd7b5e807"
+    }
+  ]
+}

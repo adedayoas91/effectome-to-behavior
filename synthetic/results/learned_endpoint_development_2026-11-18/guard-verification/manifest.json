@@ -1,0 +1,84 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 795,
+      "sha256": "695952d7bd2e4d05319947aaca9bfc3cb845b22dddbd5db4ca4f91759e945e12"
+    },
+    {
+      "path": "analysis/analysis-report.md",
+      "bytes": 8414,
+      "sha256": "8354d644ee30fc797505502234b0e7f373fbb7b2aea4d6c9ef7cdb1efac085d5"
+    },
+    {
+      "path": "analysis/figure-catalog.md",
+      "bytes": 605,
+      "sha256": "1045e10274dc12584ee4583b29ca26f6c2df123bf092df302b609bdd8d4b853d"
+    },
+    {
+      "path": "analysis/figures/01-endpoint-semantic-error.pdf",
+      "bytes": 18091,
+      "sha256": "290489a4efccf23d137efadb6fd22a9b1606a027355ff76bccef0282a1eac7e2"
+    },
+    {
+      "path": "analysis/figures/01-endpoint-semantic-error.png",
+      "bytes": 78648,
+      "sha256": "e701ccce9574d3b3ba34205845f696898f89e6c78a5e77c33f1ad38a45ab8f16"
+    },
+    {
+      "path": "analysis/figures/02-behavioral-effect-error.pdf",
+      "bytes": 28887,
+      "sha256": "6302be62399aa27d75a6916f66ed31b1e89c130a85867e2d28cb1c757cd9a798"
+    },
+    {
+      "path": "analysis/figures/02-behavioral-effect-error.png",
+      "bytes": 91103,
+      "sha256": "46a16645179f5e870d4e24f388ac354855cd2b0659145337fd0fdaff01840b38"
+    },
+    {
+      "path": "analysis/seed-metrics.csv",
+      "bytes": 22544,
+      "sha256": "540f93a1785c749fb8c07f790c1aae537e3bd4f41029d54f3fd2d15153750c39"
+    },
+    {
+      "path": "implementation-source.zip",
+      "bytes": 547719,
+      "sha256": "7eb72ba5f514d335189845776c04bab3875ecbfb8ff562a3a6b7c7072bda871a"
+    },
+    {
+      "path": "independent-verification.json",
+      "bytes": 357,
+      "sha256": "379435dc2da2e797a08822116f707871e5750f91e7395bb417842b22418a2417"
+    },
+    {
+      "path": "learned_manifold_validation_citation_audit.md",
+      "bytes": 9815,
+      "sha256": "879a5b865b1d27baa5e7b9c82d22f9a9d220afef03f8cad0422bfba15cd934f8"
+    },
+    {
+      "path": "learned_manifold_validation_plan.md",
+      "bytes": 22762,
+      "sha256": "1d19c64b571af153176a64bb5452a193ba9fc5c256851b2370bf04f247c86848"
+    },
+    {
+      "path": "learned_manifold_validation_references.bib",
+      "bytes": 4353,
+      "sha256": "2fd03a0711ddfcb1fd147fd1fce1102c85d3af4617595db58891b0296a1ed908"
+    },
+    {
+      "path": "manifold-validation.json",
+      "bytes": 2950547,
+      "sha256": "c94fac8c643504c5c6e13b9ea732834f6be3874a16a6399e5fb4da48e0135ab2"
+    },
+    {
+      "path": "run-evidence.zip",
+      "bytes": 655850,
+      "sha256": "c116c392482b68bb1a306d76b6e4b7a709c9121547a22c0d1fd8c5f2a3757236"
+    },
+    {
+      "path": "study-protocol.json",
+      "bytes": 3461,
+      "sha256": "648a24187596ff1fb94237ad58ce8c88b6afe289157086192c8a45e8cc17c9e3"
+    }
+  ]
+}

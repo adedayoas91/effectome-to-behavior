@@ -1,7 +1,9 @@
 # Validate the learned behavioral manifold before expanding observation stresses
 
-Decision proposal: 18 November 2026. Status: research design, not an implemented
-or completed experiment. Priority is a learned behavioral endpoint. Hidden inputs
+Decision record: 18 November 2026. The initial plan and completed replication were
+checkpointed in commit `fac7ea4` before implementation. Status: the linear PCA
+bridge is implemented; the distributed/nonlinear study and confirmation remain
+planned. Priority is a learned behavioral endpoint. Hidden inputs
 and measurement-noise sweeps can remain outside this first claim, with explicit
 assumptions of full neural-state observation and the declared observation model.
 The completed mechanism replication and its unmet ranking-eligibility gate remain
@@ -308,5 +310,82 @@ unvalidated manifold.
 
 Verified bibliographic records are in
 [learned_manifold_validation_references.bib](learned_manifold_validation_references.bib).
-No production code, completed results or saved notebooks were changed for this
-research design.
+The checkpoint preserves the original design and justification. Subsequent
+implementation and findings are recorded below without rewriting the completed
+replication or its acceptance flags.
+
+## Implemented first bridge
+
+Notebook [08](../synthetic/08_learned_manifold_validation.ipynb) and
+`python -m synthetic.manifold_validation` run the independent bridge. The default
+development profile uses seeds **40000–40004**, both driver and endpoint-null
+scenarios, the same 24-trial/1,152-sample generator, 1,024-sample native discovery,
+eight-step futures and four-sample targets. The seven dynamics lanes are the true
+simulator, known support, empty support and four native methods. There are 360
+native window fits, reused across all seven endpoint arms. No calibration or
+confirmation pool is executed. Output is isolated under
+`outputs/learned-manifold-validation/development/<RUN_LABEL>/`.
+
+PCA is a deliberate engineering bridge: it offers an explicit frozen affine map,
+requires no additional runtime, and permits exact coordinate-change checks.
+[Jolliffe and Cadima (2016)](https://doi.org/10.1098/rsta.2015.0202) describe PCA;
+this reference does not imply that variance retention establishes behavioral
+meaning. Two KMeans regions supply the neural-geometry arm, using the
+centroid/partition approach associated with
+[Lloyd (1982)](https://doi.org/10.1109/TIT.1982.1056489). PCA, KMeans and regularized
+logistic readouts use [scikit-learn](https://www.jmlr.org/papers/v12/pedregosa11a.html).
+These are implementation references, not causal-identification guarantees.
+
+The scaler, two-dimensional PCA and KMeans regions see only nine inner-training
+trials. A training-only Hungarian permutation names the geometric regions; it
+cannot adjust their decision boundary. Behavioral readouts are explicitly
+supervised: logistic regularization is selected using the three inner-validation
+trials, then the readout alone is refit on all 12 outer-training trials with the
+encoder frozen. Each decoder row is either an instantaneous neural observation
+or a complete, nonoverlapping four-sample within-trial mean, with equal row weight
+(four instantaneous rows per window row). This trains the declared instantaneous
+source and averaged future target without constructing cross-trial windows.
+Artifacts record these counts, parameters, ownership and fingerprints. The
+full-neural supervised arm diagnoses information lost by compression.
+
+All neural-dynamics arms share the same 12 held-out factual origins. Each model's
+paired innovations and generated futures are reused across endpoint arms.
+Per-origin/candidate errors are made absolute before averaging. Saved binary
+events permit independent reconstruction of the semantic discrepancy and
+empirical triangle bound, including source-label errors. Both individual neurons
+and the predeclared driver/control pairs remain in the evaluation. This bridge
+reports effect error rather than claiming calibrated nominations or changing the
+old individual-ranking gate.
+
+The constant endpoint is retained with its occupancy failure; source-proxy and
+neural-nuisance coordinate endpoints remain visible. Raw neural training-envelope
+excursions are recorded per origin and branch. A coordinate box is a diagnostic,
+not a support theorem, and no observations are removed. Per-endpoint code boxes
+are also stored in frozen learned artifacts. No chart is refit or realigned on
+held-out natural or interventional outcomes.
+
+Regression coverage includes exact replay of the old coordinate API, ownership of
+inner-trial PCA, artifact roundtrips, sign/rotation invariance with a consistently
+transformed readout, origin/candidate ordering invariance, constant/proxy/nuisance
+counterexamples, source-label error in the event bound, prevention of signed-error
+cancellation, resume integrity and visible unavailable native lanes. This verifies
+the bridge; it does not substitute for the planned nonlinear behavioral study.
+
+The first five-seed bridge is complete. Its
+[findings and implications](learned_manifold_development_findings.md) retain the
+PCA semantic failure and the successful full-neural diagnostic separately.
+The next substantive representation experiment remains the distributed,
+behavior-prioritized encoder study above. The current notebook defaults to a new
+`endpoint-bridge-03` namespace after integrity-guard changes; the first run's
+executed source and evidence remain frozen in its curated archive.
+
+The subsequent [behavior-prioritized alternatives review](behavior_prioritized_alternatives.md)
+adds an exact scalar-score replay and a one-to-five-PC diagnostic. The scalar
+factorization preserves the existing full-neural binary classifier and its
+mean-score event; it is not independent evidence for a new encoder or a
+one-dimensional dynamical manifold. The same five development seeds remain the
+unit count. The [archived probe](../synthetic/results/behavior_prioritized_probe_2026-11-18/README.md)
+documents the tested alternative and the reasons for preferring a behavioral
+training objective to a neural-variance threshold. Distributed behavior requires
+a newly checked null if it includes coordinates influenced by the old nuisance
+path. Nonlinear and confirmatory experiments remain future work.

@@ -1,0 +1,51 @@
+{
+  "protocol": {
+    "status": "exploratory_investigation_on_inspected_development_seeds",
+    "baseline_report_sha256": "e494e723b780759a3cd9f9a99cd72d25c19e78c807f7b9b221560f8b704b8728",
+    "implementation_fingerprint": "ce6446454e735a6fd0b00b05ba962f1828e32b88d953a586fa0af6f7781c3e20",
+    "script_sha256": "66355f2b72fcb92b7b3b7d1234db566bbfa118b2069f95324611e57e9bc335bb",
+    "native_fits": 0,
+    "mechanism_fits": 0,
+    "arms": [
+      "behavior_reference",
+      "full_neural_behavior",
+      "behavior_score_1d",
+      "pca_behavior_k1",
+      "pca_behavior_k2",
+      "pca_behavior_k3",
+      "pca_behavior_k4",
+      "pca_behavior_k5"
+    ],
+    "selection": "all_dimensions_reported_no_test_chosen_winner_or_confirmatory_claim",
+    "reference": "predeclared_generator_endpoint_not_redefined_by_representation"
+  },
+  "execution_complete": true,
+  "cells": 10,
+  "methods_per_cell": 7,
+  "endpoint_arms": 8,
+  "independent_development_seeds": 5,
+  "new_independent_confirmatory_seeds": 0,
+  "new_native_or_mechanism_fits": 0,
+  "natural_score_label_disagreements": 0,
+  "rollout_score_event_disagreements": 0,
+  "rollout_config_template": {
+    "horizon": 8,
+    "target_length": 4,
+    "n_rollouts": 256,
+    "seed": 42
+  },
+  "effective_seed_by_cell": {
+    "driver-40000": 228338327,
+    "null-40000": 228338327,
+    "driver-40001": 2652908140,
+    "null-40001": 2652908140,
+    "driver-40002": 1357983667,
+    "null-40002": 1357983667,
+    "driver-40003": 3481869635,
+    "null-40003": 3481869635,
+    "driver-40004": 2681049234,
+    "null-40004": 2681049234
+  },
+  "PCA_dimension_fit_calls": 40,
+  "score_fit_calls": 0
+}

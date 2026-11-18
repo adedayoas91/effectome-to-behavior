@@ -1,0 +1,39 @@
+{
+  "full_suite_before_guard_revision": {
+    "passed": 732,
+    "skipped": 1,
+    "seconds": 333.89
+  },
+  "related_suite_after_guard_revision": {
+    "passed": 128,
+    "seconds": 29.77
+  },
+  "ruff": "all checks passed",
+  "mypy_src": "98 source files clean",
+  "mypy_new_entrypoints": "4 files clean with follow-imports=silent",
+  "additional_broad_notebook_typing": {
+    "passed": false,
+    "existing_error": "notebooks/_build_notebooks.py:202 object has no attribute __iter__; outside mypy src/ scope"
+  },
+  "bibliography": "8 verified references compiled with Tectonic and BibTeX",
+  "primary_run": {
+    "cells": 10,
+    "available_lanes": 70,
+    "native_window_fits": 360,
+    "development_seeds": [
+      40000,
+      40001,
+      40002,
+      40003,
+      40004
+    ]
+  },
+  "current_source_smoke": {
+    "cells": 2,
+    "available_lanes": 14,
+    "native_window_fits": 72,
+    "source_fingerprint_matches_current": true,
+    "independent_replication": false
+  },
+  "scientific_limit": "PCA bridge has failed behavioral semantics; nonlinear/distributed manifold study and confirmation remain planned"
+}

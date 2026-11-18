@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "parent_report_hash_verified": true,
+  "probe_source_hash_verified": true,
+  "natural_classifications_identical": 276480,
+  "rollout_events_identical": 1935360,
+  "independent_metric_rows_checked": 560,
+  "origin_candidate_errors_checked": 53760,
+  "triangle_bound_violations": 0,
+  "new_native_fits": 0,
+  "new_mechanism_fits": 0,
+  "independent_development_seeds": 5,
+  "new_independent_confirmatory_seeds": 0
+}

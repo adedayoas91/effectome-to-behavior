@@ -1,0 +1,144 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 3443,
+      "sha256": "cba4cde1a77ced67df9e9cb28717c9f304203f69b454b6625ea1984fc11923d4"
+    },
+    {
+      "path": "analysis/analysis-report.md",
+      "bytes": 2575,
+      "sha256": "cbd5c0a9aeca7c2ae367fa280bb33f589c0b25444168d0263a922e41e9a45ae0"
+    },
+    {
+      "path": "analysis/figure-catalog.md",
+      "bytes": 1342,
+      "sha256": "2bba9a7e60daca8062d00012df1ad7e1dcc15ac121b9c1e55e19bfc5b328c4ba"
+    },
+    {
+      "path": "analysis/figures/01-compression-effect-error.pdf",
+      "bytes": 23615,
+      "sha256": "6496a68aa27ecb261316deb552cd9ffb8e5b095b1f1d253621fa3b21d1bd62b6"
+    },
+    {
+      "path": "analysis/figures/01-compression-effect-error.png",
+      "bytes": 134855,
+      "sha256": "ae9bf31e97f634487f252d302e34edd2e1dbbe06262ba770153c021334b36f2d"
+    },
+    {
+      "path": "analysis/figures/02-variance-versus-behavior-direction.pdf",
+      "bytes": 20575,
+      "sha256": "e569d76baa356776581d521f180af9cf05847de6fee2c4f14b634dd42932674d"
+    },
+    {
+      "path": "analysis/figures/02-variance-versus-behavior-direction.png",
+      "bytes": 67631,
+      "sha256": "65950d9256bae24f754263cc0b9201005a4cf0b6cc40a05962d92caf89eed624"
+    },
+    {
+      "path": "analysis/numeric-summary.md",
+      "bytes": 701,
+      "sha256": "32f47103ce1f67a18ee32869eed5017f5de83e23cda28533e87df86c999a8224"
+    },
+    {
+      "path": "analysis/statistics.json",
+      "bytes": 19579,
+      "sha256": "9b91c73e3e4f24d35725fe1a9420d079c93de02da4d69a80af1e57c44145a86d"
+    },
+    {
+      "path": "analysis/stats-appendix.md",
+      "bytes": 1749,
+      "sha256": "398a5611a227fe74e8e3d30d2ba2307fc445bd184d9e8ef0ae260c6886299e51"
+    },
+    {
+      "path": "analyze_probe.py",
+      "bytes": 13166,
+      "sha256": "e2a684eb5b649445856d1987e533d21381a8ef255b97fa6ddf57352479eceb6f"
+    },
+    {
+      "path": "audit_probe.py",
+      "bytes": 7064,
+      "sha256": "f64962179d9244b9ac53d61ebf3062abbe0c368fd973be075ffc97008b447d66"
+    },
+    {
+      "path": "behavior_prioritized_alternatives.md",
+      "bytes": 12195,
+      "sha256": "9f4c877bf0abb6def2a9053ebbc069071ab20babbfc7bd3d5e1440433b93963d"
+    },
+    {
+      "path": "behavior_prioritized_alternatives_citation_audit.md",
+      "bytes": 5738,
+      "sha256": "04f2580c7e73122c641049095aa1fa330ae4aadd49211120bb40c337d7667215"
+    },
+    {
+      "path": "behavior_prioritized_alternatives_references.bib",
+      "bytes": 5575,
+      "sha256": "92b773f2b654780361d29468e9d079c3214e6c8723d5e623b4df99cec5830518"
+    },
+    {
+      "path": "implementation-source.zip",
+      "bytes": 550993,
+      "sha256": "5196becd5524b599af5a655a1b96aec5afa1408044381ddd56935d2a36fef97b"
+    },
+    {
+      "path": "independent-verification.json",
+      "bytes": 436,
+      "sha256": "d366c9a521cbabf29175f08cd9b1fee9486b6f7dcde6fd0c7fca567f453ba0f3"
+    },
+    {
+      "path": "manuscript-history-build-verification.json",
+      "bytes": 1231,
+      "sha256": "42a6a9ff1a676fd5e7453c032c7d777c0f6a0ae519e85497183bae06bcfef098"
+    },
+    {
+      "path": "manuscript-history-source-and-pdf.zip",
+      "bytes": 3371661,
+      "sha256": "29b6fcca07f7bbfdab344815eeb8311967a49a97106a0b58e605479e47930ce8"
+    },
+    {
+      "path": "methodological_development.tex",
+      "bytes": 13499,
+      "sha256": "89b1aca729f4ee24856294230883aadf366a47c83854a480b9906d2d1032c096"
+    },
+    {
+      "path": "methodological_development_evidence.md",
+      "bytes": 5057,
+      "sha256": "49fa391c8a078ec73a7202d83a5f04f362d86fcbadd385ea5f90539d0cabc146"
+    },
+    {
+      "path": "parent-manifold-validation.json",
+      "bytes": 14693335,
+      "sha256": "e494e723b780759a3cd9f9a99cd72d25c19e78c807f7b9b221560f8b704b8728"
+    },
+    {
+      "path": "parent-run-evidence.zip",
+      "bytes": 3241495,
+      "sha256": "dceb2fb6e93f2ba26af1cc77d3401ffa6a7fd1dac349b0f60463962d1e81e89d"
+    },
+    {
+      "path": "probe-evidence.zip",
+      "bytes": 1166642,
+      "sha256": "31b96920078a91103c9342f610555df74aeef401700278be28594921ce024220"
+    },
+    {
+      "path": "probe-protocol.json",
+      "bytes": 778,
+      "sha256": "faa3f225894de6d12a2a6565cbeea42a3cf5a50db5abf1f75375ced39da4b8c2"
+    },
+    {
+      "path": "probe-summary.json",
+      "bytes": 1643,
+      "sha256": "7927dc731a0a5eb49be69cb6c35c9f6f05dfca7cfb3a8548f50f6b082c9c24c6"
+    },
+    {
+      "path": "probe_behavioral_compression.py",
+      "bytes": 12296,
+      "sha256": "66355f2b72fcb92b7b3b7d1234db566bbfa118b2069f95324611e57e9bc335bb"
+    },
+    {
+      "path": "seed-metrics.csv",
+      "bytes": 52491,
+      "sha256": "ce5231cf351b7b8a8d21923780a70dc5c55e653740ee3a87f2d5e5ff005f7e6b"
+    }
+  ]
+}

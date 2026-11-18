@@ -1,6 +1,44 @@
 # Four-CSL simulation validation
 
-The next experiment is
+The latest experiment is
+[`08_learned_manifold_validation.ipynb`](08_learned_manifold_validation.ipynb).
+Run All fits five development seeds (40000–40004), both driver/null scenarios,
+all four native methods and oracle/known/empty controls. Seven frozen endpoint
+arms share each neural fit and its futures. This is the initial **linear PCA
+bridge**; distributed/nonlinear manifold validation remains planned. Read the
+[plan, justifications and references](../docs/learned_manifold_validation_plan.md).
+Go directly to 08 without rerunning earlier notebooks.
+
+```sh
+.venv/bin/python -m synthetic.manifold_validation
+.venv/bin/python -u -m synthetic.manifold_validation --run --workers 4
+.venv/bin/python -m synthetic.manifold_validation --status
+```
+
+Results are under
+`outputs/learned-manifold-validation/development/endpoint-bridge-03/`.
+The runner saves `manifold-validation.json`, per-cell endpoint artifacts,
+per-rollout events, native evidence and `analysis/seed-metrics.csv` with a
+descriptive report. `--profile smoke` runs one development seed;
+`--oracle-only` runs the three mechanism controls. No new calibration or
+confirmation pool is enabled, and graph comparison remains separate.
+
+The first five-seed development run is complete and archived under
+[`results/learned_endpoint_development_2026-11-18/`](results/learned_endpoint_development_2026-11-18/).
+Its executed source is preserved. The `03` default starts a fresh directory after
+adding stricter initial-state and resume-data checks; read the archived `01`
+report directly to inspect the original evidence.
+
+A separate [behavior-prioritized compression investigation](results/behavior_prioritized_probe_2026-11-18/README.md)
+replays the cached mechanisms with a scalar factorization of the trained
+full-neural classifier and reports every PCA dimension from one to five.
+The scalar code preserves the classifier's low effect error exactly; it is an
+equivalent supervised binary readout, not an independently trained nonlinear
+manifold. This probe is documented in the [method comparison](../docs/behavior_prioritized_alternatives.md)
+and the manuscript's numbered development history. It is separate from notebook
+08, uses the same inspected seeds, and performs no native or mechanism refitting.
+
+The preceding experiment is
 [`07_mechanism_replication.ipynb`](07_mechanism_replication.ipynb): a full fresh-seed
 replication with 19 separate calibration-null seeds, 20 driver-test seeds and
 60 null-test seeds. Run All is enabled. The primary history is 1,024 samples;
@@ -74,8 +112,8 @@ execute in the separately pinned Python 3.13 CPU environment; see
 extra supplies ipykernel; use your existing notebook editor/frontend.
 
 The filename prefixes now match the recommended order. These are independently
-runnable entrypoints, so you can go directly to **06** to evaluate the latest
-methodology revision without rerunning the completed old confirmation.
+runnable entrypoints, so you can go directly to **08** for the learned-endpoint
+bridge without rerunning the completed earlier studies.
 
 1. [00_ground_truth.ipynb](00_ground_truth.ipynb): generating-process controls.
 2. [01_four_csl_sanity.ipynb](01_four_csl_sanity.ipynb): native graph recovery.
@@ -89,9 +127,13 @@ methodology revision without rerunning the completed old confirmation.
    recovery study, acceptance decisions, seed uncertainty and null calibration.
 7. [06_mechanism_driver_validation.ipynb](06_mechanism_driver_validation.ipynb):
    new development-only known-support/estimated-support mechanism diagnostic.
+8. [07_mechanism_replication.ipynb](07_mechanism_replication.ipynb): completed
+   fresh-seed mechanism replication and independent null calibration/testing.
+9. [08_learned_manifold_validation.ipynb](08_learned_manifold_validation.ipynb):
+   training-frozen learned-endpoint bridge and independent behavioral semantics.
 
 **Run All now starts fitting by default**, as requested for the faster-machine
-rerun. Notebook 01 has sanity enabled; notebooks 02, 04, 05 and 06 have their
+rerun. Notebook 01 has sanity enabled; notebooks 02, 04, 05, 06, 07 and 08 have their
 fitting switches enabled. Notebook 06 also runs the paired 256/1024-history
 comparison. Notebooks 00 and 03 compute their generating-process controls
 directly. Notebook 05 retains its full 140-recording/560-method-run profile with
