@@ -1,0 +1,289 @@
+INFO Mechanism replication inventory: {
+  "profile": "replication",
+  "primary_history": 1024,
+  "comparison_history": 256,
+  "calibration_null_seeds": [
+    10000,
+    10001,
+    10002,
+    10003,
+    10004,
+    10005,
+    10006,
+    10007,
+    10008,
+    10009,
+    10010,
+    10011,
+    10012,
+    10013,
+    10014,
+    10015,
+    10016,
+    10017,
+    10018
+  ],
+  "positive_test_seeds": [
+    20000,
+    20001,
+    20002,
+    20003,
+    20004,
+    20005,
+    20006,
+    20007,
+    20008,
+    20009,
+    20010,
+    20011,
+    20012,
+    20013,
+    20014,
+    20015,
+    20016,
+    20017,
+    20018,
+    20019
+  ],
+  "null_test_seeds": [
+    30000,
+    30001,
+    30002,
+    30003,
+    30004,
+    30005,
+    30006,
+    30007,
+    30008,
+    30009,
+    30010,
+    30011,
+    30012,
+    30013,
+    30014,
+    30015,
+    30016,
+    30017,
+    30018,
+    30019,
+    30020,
+    30021,
+    30022,
+    30023,
+    30024,
+    30025,
+    30026,
+    30027,
+    30028,
+    30029,
+    30030,
+    30031,
+    30032,
+    30033,
+    30034,
+    30035,
+    30036,
+    30037,
+    30038,
+    30039,
+    30040,
+    30041,
+    30042,
+    30043,
+    30044,
+    30045,
+    30046,
+    30047,
+    30048,
+    30049,
+    30050,
+    30051,
+    30052,
+    30053,
+    30054,
+    30055,
+    30056,
+    30057,
+    30058,
+    30059
+  ],
+  "primary_cells": 99,
+  "comparison_positive_cells": 20,
+  "planned_cells": 119,
+  "planned_method_runs": 714,
+  "lanes": [
+    "known_support",
+    "empty_support",
+    "conventional_cgc",
+    "conventional_cgc_star",
+    "fast_cgc",
+    "fast_cgc_star"
+  ],
+  "all_four_native_methods_requested": true,
+  "training_trials_per_recording": 12,
+  "support_discovery_inner_training_trials": 9,
+  "native_window_fits": 4284,
+  "calibration_alpha": 0.05,
+  "minimum_nomination_effect_cutoff": 0.1,
+  "calibration_scope": "primary_history_null_seed_maximum_across_units_and_directions",
+  "comparison_scope": "paired_positive_seeds_only_not_independently_calibrated_nomination",
+  "claim_scope": "bounded_fully_observed_model_matched_replication_not_biological_necessity",
+  "fitting_enabled": true,
+  "output_root": "outputs/driver-mechanism-replication/replication/mechanism-replication-01",
+  "workers": 4
+}
+INFO Replication calibration: cells=0/119 available=0/714
+2026-11-17 22:27:07,635 99761 Global seed set to 10000
+2026-11-17 22:27:07,645 99760 Global seed set to 10001
+2026-11-17 22:27:07,646 99762 Global seed set to 10002
+2026-11-17 22:27:07,677 99763 Global seed set to 10003
+2026-11-17 22:27:07,712 99761 Mechanism development: scenario=null seed=10000 lane=known_support
+2026-11-17 22:27:07,725 99760 Mechanism development: scenario=null seed=10001 lane=known_support
+2026-11-17 22:27:07,731 99762 Mechanism development: scenario=null seed=10002 lane=known_support
+2026-11-17 22:27:07,757 99763 Mechanism development: scenario=null seed=10003 lane=known_support
+2026-11-17 22:27:07,865 99761 Mechanism development: scenario=null seed=10000 lane=empty_support
+2026-11-17 22:27:07,884 99762 Mechanism development: scenario=null seed=10002 lane=empty_support
+2026-11-17 22:27:07,885 99760 Mechanism development: scenario=null seed=10001 lane=empty_support
+2026-11-17 22:27:07,909 99763 Mechanism development: scenario=null seed=10003 lane=empty_support
+2026-11-17 22:27:08,010 99761 Mechanism development: scenario=null seed=10000 lane=conventional_cgc
+2026-11-17 22:27:08,027 99760 Mechanism development: scenario=null seed=10001 lane=conventional_cgc
+2026-11-17 22:27:08,032 99762 Mechanism development: scenario=null seed=10002 lane=conventional_cgc
+2026-11-17 22:27:08,065 99763 Mechanism development: scenario=null seed=10003 lane=conventional_cgc
+2026-11-17 22:28:09,853 99760 Estimated 9 conventional_cgc matrices (6 neurons)
+2026-11-17 22:28:09,872 99761 Estimated 9 conventional_cgc matrices (6 neurons)
+2026-11-17 22:28:09,877 99763 Estimated 9 conventional_cgc matrices (6 neurons)
+2026-11-17 22:28:09,979 99762 Estimated 9 conventional_cgc matrices (6 neurons)
+2026-11-17 22:28:10,011 99760 Mechanism development: scenario=null seed=10001 lane=conventional_cgc_star
+2026-11-17 22:28:10,024 99761 Mechanism development: scenario=null seed=10000 lane=conventional_cgc_star
+2026-11-17 22:28:10,031 99763 Mechanism development: scenario=null seed=10003 lane=conventional_cgc_star
+2026-11-17 22:28:10,117 99762 Mechanism development: scenario=null seed=10002 lane=conventional_cgc_star
+2026-11-17 22:28:35,828 99761 Estimated 9 conventional_cgc_star matrices (6 neurons)
+2026-11-17 22:28:35,865 99760 Estimated 9 conventional_cgc_star matrices (6 neurons)
+2026-11-17 22:28:35,872 99763 Estimated 9 conventional_cgc_star matrices (6 neurons)
+2026-11-17 22:28:35,973 99761 Mechanism development: scenario=null seed=10000 lane=fast_cgc
+2026-11-17 22:28:36,004 99762 Estimated 9 conventional_cgc_star matrices (6 neurons)
+2026-11-17 22:28:36,026 99760 Mechanism development: scenario=null seed=10001 lane=fast_cgc
+2026-11-17 22:28:36,027 99763 Mechanism development: scenario=null seed=10003 lane=fast_cgc
+2026-11-17 22:28:36,259 99762 Mechanism development: scenario=null seed=10002 lane=fast_cgc
+INFO Replication calibration: cells=1/119 available=6/714
+INFO Replication calibration: cells=2/119 available=12/714
+INFO Replication calibration: cells=3/119 available=18/714
+INFO Replication calibration: cells=4/119 available=24/714
+INFO Replication calibration: cells=5/119 available=30/714
+INFO Replication calibration: cells=6/119 available=36/714
+INFO Replication calibration: cells=7/119 available=42/714
+INFO Replication calibration: cells=8/119 available=48/714
+INFO Replication calibration: cells=9/119 available=54/714
+INFO Replication calibration: cells=10/119 available=60/714
+INFO Replication calibration: cells=11/119 available=66/714
+INFO Replication calibration: cells=12/119 available=72/714
+INFO Replication calibration: cells=13/119 available=78/714
+INFO Replication calibration: cells=14/119 available=84/714
+INFO Replication calibration: cells=15/119 available=90/714
+INFO Replication calibration: cells=16/119 available=96/714
+INFO Replication calibration: cells=17/119 available=102/714
+INFO Replication calibration: cells=18/119 available=108/714
+INFO Replication calibration: cells=19/119 available=114/714
+INFO Replication evaluation: cells=19/119 available=114/714
+INFO Replication evaluation: cells=20/119 available=120/714
+INFO Replication evaluation: cells=21/119 available=126/714
+INFO Replication evaluation: cells=22/119 available=132/714
+INFO Replication evaluation: cells=23/119 available=138/714
+INFO Replication evaluation: cells=24/119 available=144/714
+INFO Replication evaluation: cells=25/119 available=150/714
+INFO Replication evaluation: cells=26/119 available=156/714
+INFO Replication evaluation: cells=27/119 available=162/714
+INFO Replication evaluation: cells=28/119 available=168/714
+INFO Replication evaluation: cells=29/119 available=174/714
+INFO Replication evaluation: cells=30/119 available=180/714
+INFO Replication evaluation: cells=31/119 available=186/714
+INFO Replication evaluation: cells=32/119 available=192/714
+INFO Replication evaluation: cells=33/119 available=198/714
+INFO Replication evaluation: cells=34/119 available=204/714
+INFO Replication evaluation: cells=35/119 available=210/714
+INFO Replication evaluation: cells=36/119 available=216/714
+INFO Replication evaluation: cells=37/119 available=222/714
+INFO Replication evaluation: cells=38/119 available=228/714
+INFO Replication evaluation: cells=39/119 available=234/714
+INFO Replication evaluation: cells=40/119 available=240/714
+INFO Replication evaluation: cells=41/119 available=246/714
+INFO Replication evaluation: cells=42/119 available=252/714
+INFO Replication evaluation: cells=43/119 available=258/714
+INFO Replication evaluation: cells=44/119 available=264/714
+INFO Replication evaluation: cells=45/119 available=270/714
+INFO Replication evaluation: cells=46/119 available=276/714
+INFO Replication evaluation: cells=47/119 available=282/714
+INFO Replication evaluation: cells=48/119 available=288/714
+INFO Replication evaluation: cells=49/119 available=294/714
+INFO Replication evaluation: cells=50/119 available=300/714
+INFO Replication evaluation: cells=51/119 available=306/714
+INFO Replication evaluation: cells=52/119 available=312/714
+INFO Replication evaluation: cells=53/119 available=318/714
+INFO Replication evaluation: cells=54/119 available=324/714
+INFO Replication evaluation: cells=55/119 available=330/714
+INFO Replication evaluation: cells=56/119 available=336/714
+INFO Replication evaluation: cells=57/119 available=342/714
+INFO Replication evaluation: cells=58/119 available=348/714
+INFO Replication evaluation: cells=59/119 available=354/714
+INFO Replication evaluation: cells=60/119 available=360/714
+INFO Replication evaluation: cells=61/119 available=366/714
+INFO Replication evaluation: cells=62/119 available=372/714
+INFO Replication evaluation: cells=63/119 available=378/714
+INFO Replication evaluation: cells=64/119 available=384/714
+INFO Replication evaluation: cells=65/119 available=390/714
+INFO Replication evaluation: cells=66/119 available=396/714
+INFO Replication evaluation: cells=67/119 available=402/714
+INFO Replication evaluation: cells=68/119 available=408/714
+INFO Replication evaluation: cells=69/119 available=414/714
+INFO Replication evaluation: cells=70/119 available=420/714
+INFO Replication evaluation: cells=71/119 available=426/714
+INFO Replication evaluation: cells=72/119 available=432/714
+INFO Replication evaluation: cells=73/119 available=438/714
+INFO Replication evaluation: cells=74/119 available=444/714
+INFO Replication evaluation: cells=75/119 available=450/714
+INFO Replication evaluation: cells=76/119 available=456/714
+INFO Replication evaluation: cells=77/119 available=462/714
+INFO Replication evaluation: cells=78/119 available=468/714
+INFO Replication evaluation: cells=79/119 available=474/714
+INFO Replication evaluation: cells=80/119 available=480/714
+INFO Replication evaluation: cells=81/119 available=486/714
+INFO Replication evaluation: cells=82/119 available=492/714
+INFO Replication evaluation: cells=83/119 available=498/714
+INFO Replication evaluation: cells=84/119 available=504/714
+INFO Replication evaluation: cells=85/119 available=510/714
+INFO Replication evaluation: cells=86/119 available=516/714
+INFO Replication evaluation: cells=87/119 available=522/714
+INFO Replication evaluation: cells=88/119 available=528/714
+INFO Replication evaluation: cells=89/119 available=534/714
+INFO Replication evaluation: cells=90/119 available=540/714
+INFO Replication evaluation: cells=91/119 available=546/714
+INFO Replication evaluation: cells=92/119 available=552/714
+INFO Replication evaluation: cells=93/119 available=558/714
+INFO Replication evaluation: cells=94/119 available=564/714
+INFO Replication evaluation: cells=95/119 available=570/714
+INFO Replication evaluation: cells=96/119 available=576/714
+INFO Replication evaluation: cells=97/119 available=582/714
+INFO Replication evaluation: cells=98/119 available=588/714
+INFO Replication evaluation: cells=99/119 available=594/714
+INFO Replication evaluation: cells=100/119 available=600/714
+INFO Replication evaluation: cells=101/119 available=606/714
+INFO Replication evaluation: cells=102/119 available=612/714
+INFO Replication evaluation: cells=103/119 available=618/714
+INFO Replication evaluation: cells=104/119 available=624/714
+INFO Replication evaluation: cells=105/119 available=630/714
+INFO Replication evaluation: cells=106/119 available=636/714
+INFO Replication evaluation: cells=107/119 available=642/714
+INFO Replication evaluation: cells=108/119 available=648/714
+INFO Replication evaluation: cells=109/119 available=654/714
+INFO Replication evaluation: cells=110/119 available=660/714
+INFO Replication evaluation: cells=111/119 available=666/714
+INFO Replication evaluation: cells=112/119 available=672/714
+INFO Replication evaluation: cells=113/119 available=678/714
+INFO Replication evaluation: cells=114/119 available=684/714
+INFO Replication evaluation: cells=115/119 available=690/714
+INFO Replication evaluation: cells=116/119 available=696/714
+INFO Replication evaluation: cells=117/119 available=702/714
+INFO Replication evaluation: cells=118/119 available=708/714
+INFO Replication evaluation: cells=119/119 available=714/714
+INFO Replication complete: cells=119/119 available=714/714
+INFO Saved replication report: outputs/driver-mechanism-replication/replication/mechanism-replication-01/replication-report.json; analysis: outputs/driver-mechanism-replication/replication/mechanism-replication-01/analysis/analysis-report.md

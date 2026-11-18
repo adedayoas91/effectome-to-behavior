@@ -1,0 +1,25 @@
+Completed-run collation verification, 2026-11-17
+
+.venv/bin/python synthetic/results/completed_runs_2026-11-17/reproduce_analysis.py
+PASS: 335 checks; all planned summaries retained; independent-seed means, sample SDs, sign tests, full-family Holm and driver exact null bounds agree.
+
+.venv/bin/python -m ruff check synthetic/results/completed_runs_2026-11-17/reproduce_analysis.py
+PASS: all checks passed.
+
+.venv/bin/python -m ruff format --check synthetic/results/completed_runs_2026-11-17/reproduce_analysis.py
+PASS: file already formatted.
+
+.venv/bin/python -m mypy synthetic/results/completed_runs_2026-11-17/reproduce_analysis.py
+PASS: no issues in one source file.
+
+Archive and report checks
+PASS: all 857 ZIP members verified against manifest hashes; current input/source files match archived bytes; all audited primary source hashes agree.
+PASS: seven notebooks fully executed with zero saved errors, archived byte-exactly, working copies untouched.
+PASS: 45 local report links resolve.
+PASS: all three scientific figures visually inspected; interval and independent-seed labels present.
+PASS: independent read-only review checked 38 summary rows, held-out graph-state occupancy and paired effect sizes.
+PASS: git diff --check -- synthetic/README.md.
+
+Scope
+No new fits, new independent seeds, graph-similarity merge, manuscript edits/build, dependency installation, commit or push performed.
+Original fits were not rerun; source archives omit virtual environments and large framework/old-driver caches as listed in provenance.json.

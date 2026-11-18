@@ -1,0 +1,8 @@
+stage,planned_method_entries,available_method_entries,raw_seed_count_per_scenario,scope
+01 native sanity,24,24,3,chain/null technical control
+02 shared transition example,4,4,1,development example
+04 framework smoke,48,48,3,four scenarios; publication matrix not executed
+05 driver recovery,560,560,20 positive/diagnostic; 60 null,frozen criteria; all methods fail
+06 mechanism smoke,12,12,1,development seed 20 reused; includes four oracle/control entries
+06 mechanism history-256,12,12,1,development seed 20 reused; includes four oracle/control entries
+06 mechanism history-1024,12,12,1,development seed 20 reused; includes four oracle/control entries

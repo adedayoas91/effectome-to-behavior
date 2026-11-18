@@ -1,0 +1,5 @@
+method,status,raw_seed,n_training_origins,n_evaluation_origins,baseline_log_loss,augmented_log_loss,gain_nats,requested_graph_states,occupied_heldout_graph_states,heldout_H_effectome_given_manifold_nats
+conventional_cgc,available,42,164,60,1.3931098409973592,1.4824398902542277,-0.0893300492568685,2,2,0.630356900301576
+conventional_cgc_star,available,42,164,60,1.3931098409973592,1.463098159088737,-0.06998831809137784,2,2,0.06928208269967086
+fast_cgc,available,42,164,60,1.3931098409973592,1.3818734439388993,0.011236397058459913,2,1,-0.0
+fast_cgc_star,available,42,164,60,1.3931098409973592,1.3627822600296955,0.030327580967663748,2,1,-0.0

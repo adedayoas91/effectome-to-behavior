@@ -1,5 +1,52 @@
 # Four-CSL simulation validation
 
+The next experiment is
+[`07_mechanism_replication.ipynb`](07_mechanism_replication.ipynb): a full fresh-seed
+replication with 19 separate calibration-null seeds, 20 driver-test seeds and
+60 null-test seeds. Run All is enabled. The primary history is 1,024 samples;
+the same positive-test seeds also run at 256 samples for a paired diagnostic.
+The cited design, prospective acceptance gates and calibration limits are in
+[`mechanism_replication_protocol.md`](../docs/mechanism_replication_protocol.md).
+This remains separate from graph similarity.
+
+That fresh-seed study is now complete. Its
+[results and discussion PDF](results/mechanism_replication_2026-11-17/analysis/replication-results.pdf)
+and [frozen evidence bundle](results/mechanism_replication_2026-11-17/README.md)
+report accurate effects across 20 fresh seeds, no false nominations in 60 null
+seeds, and the retained 19/20 individual-ranking eligibility limit. The older
+`result_collation.pdf` below remains the pre-replication record for notebooks 00–06.
+
+From the application repository, inventory, run, or inspect progress with:
+
+```sh
+.venv/bin/python -m synthetic.mechanism_replication --profile replication
+.venv/bin/python -u -m synthetic.mechanism_replication --profile replication --workers 4 --run
+.venv/bin/python -m synthetic.mechanism_replication --profile replication --status
+```
+
+New results are under
+`outputs/driver-mechanism-replication/replication/mechanism-replication-01/`.
+The runner writes `study-protocol.json`, locks `calibration.json` before test
+jobs, and updates `replication-report.json` after each completed cell. Notebook
+runs also stream `run.log`. Keep the code, profile and label unchanged to resume
+first-completed evidence; never rerun a result to select a favorable estimate.
+The threshold is the larger of the calibration order statistic and the existing
+0.10 effect-size floor. Nomination calibration is per method under the global
+null; its conditional null rate still needs the separate 60-seed exact-bound audit.
+
+The [compiled synthetic results and discussion](result_collation.pdf) are in
+[`result_collation.tex`](result_collation.tex), with a
+[verified bibliography](result_collation.bib) and
+[citation audit](result_collation-citations.md). Rebuild from this directory with
+`tectonic --keep-logs result_collation.tex`.
+
+The completed `faster-machine-03` notebook runs are collated in
+[`results/completed_runs_2026-11-17/`](results/completed_runs_2026-11-17/).
+Start with its [analysis report](results/completed_runs_2026-11-17/analysis-report.md)
+and [numeric summary](results/completed_runs_2026-11-17/numeric-summary.md).
+The bundle preserves executed notebooks, source reports, statistical limits and
+comparison figures. It contains no graph-similarity results or new fitted runs.
+
 Current simulation results use only conventional c-GC, conventional c-GC*,
 fastC-GC and fastC-GC*. Discovery calls the pinned upstream packages; no fitted
 VAR readout participates. VAR-estimator results have been removed from the

@@ -1,0 +1,16 @@
+{
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 17.0.0 (clang-1700.6.4.2)]",
+  "platform": "macOS-15.8.3-x86_64-i386-64bit-Mach-O",
+  "packages": {
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "matplotlib": "3.11.1",
+    "scikit-learn": "1.9.0",
+    "fastcgc": "0.1.0",
+    "effectome": "0.1.0",
+    "pytest": "9.1.1",
+    "mypy": "2.3.0",
+    "ruff": "0.16.2"
+  },
+  "scope": "Collection-time main runtime; isolated conventional runtime provenance remains in native evidence."
+}

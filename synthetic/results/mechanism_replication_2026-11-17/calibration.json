@@ -1,0 +1,913 @@
+{
+  "study_fingerprint": "12816838bd2fd250710b454e37b2a42e2fbc45dd789f6d0f91a56594ccedf101",
+  "methods": {
+    "known_support": {
+      "status": "complete",
+      "complete": true,
+      "method": "known_support",
+      "alpha": 0.05,
+      "rank": 19,
+      "threshold": 0.0,
+      "planned_seed_count": 19,
+      "available_seed_count": 19,
+      "planned_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "available_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "missing_seeds": [],
+      "unavailable_seeds": [],
+      "seed_maxima": [
+        {
+          "seed": 10000,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10001,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10002,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10003,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10004,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10005,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10006,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10007,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10008,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10009,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10010,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10011,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10012,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10013,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10014,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10015,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10016,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10017,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10018,
+          "maximum_score": 0.0
+        }
+      ],
+      "candidates": [
+        "group:control_pair",
+        "group:driver_pair",
+        "neuron:0",
+        "neuron:1",
+        "neuron:2",
+        "neuron:3",
+        "neuron:4",
+        "neuron:5"
+      ],
+      "reasons": [],
+      "ignored_non_null_cells": 0,
+      "nomination_comparison": "strictly_greater_than",
+      "finite_sample_tail_probability_bound": 0.05,
+      "scope": "per_method_whole_seed_global_null_not_strong_nonnull_or_simultaneous_control",
+      "assumptions": "independent exchangeable null seeds; unchanged fitting/scoring/candidate procedure",
+      "fingerprint": "59c138f2e07e697a55a58fc8490578bc8bcf954033339bb49cc21c1f066342f4",
+      "nomination_floor": 0.1,
+      "operational_threshold": 0.1
+    },
+    "empty_support": {
+      "status": "complete",
+      "complete": true,
+      "method": "empty_support",
+      "alpha": 0.05,
+      "rank": 19,
+      "threshold": 0.0,
+      "planned_seed_count": 19,
+      "available_seed_count": 19,
+      "planned_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "available_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "missing_seeds": [],
+      "unavailable_seeds": [],
+      "seed_maxima": [
+        {
+          "seed": 10000,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10001,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10002,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10003,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10004,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10005,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10006,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10007,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10008,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10009,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10010,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10011,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10012,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10013,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10014,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10015,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10016,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10017,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10018,
+          "maximum_score": 0.0
+        }
+      ],
+      "candidates": [
+        "group:control_pair",
+        "group:driver_pair",
+        "neuron:0",
+        "neuron:1",
+        "neuron:2",
+        "neuron:3",
+        "neuron:4",
+        "neuron:5"
+      ],
+      "reasons": [],
+      "ignored_non_null_cells": 0,
+      "nomination_comparison": "strictly_greater_than",
+      "finite_sample_tail_probability_bound": 0.05,
+      "scope": "per_method_whole_seed_global_null_not_strong_nonnull_or_simultaneous_control",
+      "assumptions": "independent exchangeable null seeds; unchanged fitting/scoring/candidate procedure",
+      "fingerprint": "313b0fab3a2344433aa551679f390254667967de398b5add59d8a3600964d7d6",
+      "nomination_floor": 0.1,
+      "operational_threshold": 0.1
+    },
+    "conventional_cgc": {
+      "status": "complete",
+      "complete": true,
+      "method": "conventional_cgc",
+      "alpha": 0.05,
+      "rank": 19,
+      "threshold": 0.0,
+      "planned_seed_count": 19,
+      "available_seed_count": 19,
+      "planned_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "available_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "missing_seeds": [],
+      "unavailable_seeds": [],
+      "seed_maxima": [
+        {
+          "seed": 10000,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10001,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10002,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10003,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10004,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10005,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10006,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10007,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10008,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10009,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10010,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10011,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10012,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10013,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10014,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10015,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10016,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10017,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10018,
+          "maximum_score": 0.0
+        }
+      ],
+      "candidates": [
+        "group:control_pair",
+        "group:driver_pair",
+        "neuron:0",
+        "neuron:1",
+        "neuron:2",
+        "neuron:3",
+        "neuron:4",
+        "neuron:5"
+      ],
+      "reasons": [],
+      "ignored_non_null_cells": 0,
+      "nomination_comparison": "strictly_greater_than",
+      "finite_sample_tail_probability_bound": 0.05,
+      "scope": "per_method_whole_seed_global_null_not_strong_nonnull_or_simultaneous_control",
+      "assumptions": "independent exchangeable null seeds; unchanged fitting/scoring/candidate procedure",
+      "fingerprint": "bf00f18c9a379d2f8fcda7066dafcf8085ca3ae426c22487b0ac6400996b68d0",
+      "nomination_floor": 0.1,
+      "operational_threshold": 0.1
+    },
+    "conventional_cgc_star": {
+      "status": "complete",
+      "complete": true,
+      "method": "conventional_cgc_star",
+      "alpha": 0.05,
+      "rank": 19,
+      "threshold": 0.0,
+      "planned_seed_count": 19,
+      "available_seed_count": 19,
+      "planned_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "available_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "missing_seeds": [],
+      "unavailable_seeds": [],
+      "seed_maxima": [
+        {
+          "seed": 10000,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10001,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10002,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10003,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10004,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10005,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10006,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10007,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10008,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10009,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10010,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10011,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10012,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10013,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10014,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10015,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10016,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10017,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10018,
+          "maximum_score": 0.0
+        }
+      ],
+      "candidates": [
+        "group:control_pair",
+        "group:driver_pair",
+        "neuron:0",
+        "neuron:1",
+        "neuron:2",
+        "neuron:3",
+        "neuron:4",
+        "neuron:5"
+      ],
+      "reasons": [],
+      "ignored_non_null_cells": 0,
+      "nomination_comparison": "strictly_greater_than",
+      "finite_sample_tail_probability_bound": 0.05,
+      "scope": "per_method_whole_seed_global_null_not_strong_nonnull_or_simultaneous_control",
+      "assumptions": "independent exchangeable null seeds; unchanged fitting/scoring/candidate procedure",
+      "fingerprint": "ea04eabfd492a8d00aab72ad1f3451db8986faa2074144730badd73760342592",
+      "nomination_floor": 0.1,
+      "operational_threshold": 0.1
+    },
+    "fast_cgc": {
+      "status": "complete",
+      "complete": true,
+      "method": "fast_cgc",
+      "alpha": 0.05,
+      "rank": 19,
+      "threshold": 0.0,
+      "planned_seed_count": 19,
+      "available_seed_count": 19,
+      "planned_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "available_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "missing_seeds": [],
+      "unavailable_seeds": [],
+      "seed_maxima": [
+        {
+          "seed": 10000,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10001,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10002,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10003,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10004,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10005,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10006,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10007,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10008,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10009,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10010,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10011,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10012,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10013,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10014,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10015,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10016,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10017,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10018,
+          "maximum_score": 0.0
+        }
+      ],
+      "candidates": [
+        "group:control_pair",
+        "group:driver_pair",
+        "neuron:0",
+        "neuron:1",
+        "neuron:2",
+        "neuron:3",
+        "neuron:4",
+        "neuron:5"
+      ],
+      "reasons": [],
+      "ignored_non_null_cells": 0,
+      "nomination_comparison": "strictly_greater_than",
+      "finite_sample_tail_probability_bound": 0.05,
+      "scope": "per_method_whole_seed_global_null_not_strong_nonnull_or_simultaneous_control",
+      "assumptions": "independent exchangeable null seeds; unchanged fitting/scoring/candidate procedure",
+      "fingerprint": "9a8a577bdb9c24353dd0910e145477ca51c922b42780f90c188a822b35c44a45",
+      "nomination_floor": 0.1,
+      "operational_threshold": 0.1
+    },
+    "fast_cgc_star": {
+      "status": "complete",
+      "complete": true,
+      "method": "fast_cgc_star",
+      "alpha": 0.05,
+      "rank": 19,
+      "threshold": 0.0,
+      "planned_seed_count": 19,
+      "available_seed_count": 19,
+      "planned_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "available_seeds": [
+        10000,
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018
+      ],
+      "missing_seeds": [],
+      "unavailable_seeds": [],
+      "seed_maxima": [
+        {
+          "seed": 10000,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10001,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10002,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10003,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10004,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10005,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10006,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10007,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10008,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10009,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10010,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10011,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10012,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10013,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10014,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10015,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10016,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10017,
+          "maximum_score": 0.0
+        },
+        {
+          "seed": 10018,
+          "maximum_score": 0.0
+        }
+      ],
+      "candidates": [
+        "group:control_pair",
+        "group:driver_pair",
+        "neuron:0",
+        "neuron:1",
+        "neuron:2",
+        "neuron:3",
+        "neuron:4",
+        "neuron:5"
+      ],
+      "reasons": [],
+      "ignored_non_null_cells": 0,
+      "nomination_comparison": "strictly_greater_than",
+      "finite_sample_tail_probability_bound": 0.05,
+      "scope": "per_method_whole_seed_global_null_not_strong_nonnull_or_simultaneous_control",
+      "assumptions": "independent exchangeable null seeds; unchanged fitting/scoring/candidate procedure",
+      "fingerprint": "e9006f820b88c42de39125fb1ca17f535c3e80b1a37cafe147652cf555a82e4c",
+      "nomination_floor": 0.1,
+      "operational_threshold": 0.1
+    }
+  },
+  "uses_test_results": false,
+  "selection_scope": "primary_history_global_null_only"
+}

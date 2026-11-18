@@ -1,0 +1,17 @@
+[
+  {
+    "seed": 20012,
+    "source_state": 1,
+    "n_origins": 6,
+    "largest_individual_effect": 0.021484375,
+    "group": "group:driver_pair",
+    "group_true_effect": 0.23046875,
+    "native_estimated_effects": [
+      0.23046875,
+      0.23046875,
+      0.23046875,
+      0.23046875
+    ],
+    "native_nominating_group": 4
+  }
+]

@@ -1,0 +1,33 @@
+{
+  "all_checks_passed": true,
+  "verified_audit_source_paths": [
+    "outputs/csl-sanity/reruns/faster-machine-03/sanity.json",
+    "outputs/csl-sanity/reruns/faster-machine-03/analysis/analysis-report.md",
+    "outputs/csl-sanity/reruns/faster-machine-03/analysis/stats-appendix.md",
+    "outputs/synthetic-transition-examples/matched_marginals/seed-42/four-csl-sanity/faster-machine-03/comparison.json",
+    "outputs/framework-validation/csl_sanity/smoke/reruns/faster-machine-03/validation.json",
+    "outputs/framework-validation/csl_sanity/smoke/reruns/faster-machine-03/analysis/statistics.json",
+    "outputs/framework-validation/csl_sanity/smoke/reruns/faster-machine-03/analysis/summary.csv",
+    "outputs/framework-validation/csl_sanity/smoke/reruns/faster-machine-03/run_metrics.csv",
+    "outputs/framework-validation/csl_sanity/smoke/reruns/faster-machine-03/transition_attribution.csv",
+    "outputs/framework-validation/csl_sanity/smoke/reruns/faster-machine-03/analysis/stats-appendix.md",
+    "synthetic/00_ground_truth.ipynb",
+    "synthetic/02_shared_transition_comparison.ipynb",
+    "synthetic/03_correspondence_and_controls.ipynb",
+    "conf/framework_validation/manuscript.yaml",
+    "src/effectome/experiments/framework_validation_analysis.py",
+    "src/effectome/experiments/framework_validation.py",
+    "outputs/driver-validation/csl_sanity/scheduled-v2/confirmatory/reruns/faster-machine-03/driver-validation.json",
+    "outputs/driver-mechanism-validation/reruns/faster-machine-03/smoke-conventional_cgc-conventional_cgc_star-fast_cgc-fast_cgc_star/mechanism-validation.json",
+    "outputs/driver-mechanism-validation/reruns/faster-machine-03/history-comparison/history-256/mechanism-validation.json",
+    "outputs/driver-mechanism-validation/reruns/faster-machine-03/history-comparison/history-1024/mechanism-validation.json",
+    "ZIP integrity and all member hashes",
+    "Byte-exact original notebook files",
+    "No historical archives restored",
+    "All source/protocol snapshots complete"
+  ],
+  "archive_count": 3,
+  "archive_member_count": 857,
+  "notebook_count": 7,
+  "fits_rerun": false
+}

@@ -1,0 +1,191 @@
+{
+  "schema_version": "completed_collation_file_manifest_v1",
+  "excludes": "manifest.json itself; regeneration of figures may change PDF timestamps and requires refreshing this manifest",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 4384,
+      "sha256": "334e1c064be1c92ae5dab968011308859c626ea2f186093900ddc7b27f3934af"
+    },
+    {
+      "path": "analysis-references.bib",
+      "bytes": 1971,
+      "sha256": "f82cb2219cc22794cb3dc89a8861f87406aac51beedbfef128a2311f7309512a"
+    },
+    {
+      "path": "analysis-report.md",
+      "bytes": 5144,
+      "sha256": "5d9229787ddf5b2114942f6859ca62fe535e9d42d04646e74fb2867cbc496d44"
+    },
+    {
+      "path": "archive-verification.json",
+      "bytes": 2132,
+      "sha256": "3e519ca732b1672ed2e1dcf4f5d7b57d2ad0d61dca8e42a7a1e286fac5617553"
+    },
+    {
+      "path": "audits/driver_review.json",
+      "bytes": 402982,
+      "sha256": "9396970d0048077d3a596a376538730b1b114a59bc8e7f50fc30d91a23ceb1c6"
+    },
+    {
+      "path": "audits/framework_review.json",
+      "bytes": 404123,
+      "sha256": "08eb2a1671007336ea0d01143aa65a735b3fa571feb7521906227ce3e9959c18"
+    },
+    {
+      "path": "audits/mechanism_review.json",
+      "bytes": 2610633,
+      "sha256": "a703041032b5170de35a7fe1f61231e1906724a4bc221e01084961ff2f8d5a30"
+    },
+    {
+      "path": "citation-audit.md",
+      "bytes": 5673,
+      "sha256": "c19ccb5631cd23e7ecc1811fc1a999bd7678a29db0ff80f564f483f8b396a5f6"
+    },
+    {
+      "path": "environment.json",
+      "bytes": 838,
+      "sha256": "fc29ed32ad58b8165f56eaf89bdba088dbac48c46a442d344be55709b3ae8337"
+    },
+    {
+      "path": "executed-notebooks.zip",
+      "bytes": 2135351,
+      "sha256": "988ebe551b544260a452313f1e82a457a8e712dfa1eebca6da6f30f14ac9b4d9"
+    },
+    {
+      "path": "figure-catalog.md",
+      "bytes": 5068,
+      "sha256": "bfb5d4de43e8a16a946f53a1e3d1c463e6f15ebbe83aabfddbe804aa76b15aa5"
+    },
+    {
+      "path": "figures/01-framework-gains.pdf",
+      "bytes": 27307,
+      "sha256": "c6bbfe060ba7df27311db3c89a2facb9826de0df6313692c0edd986f0bda782c"
+    },
+    {
+      "path": "figures/01-framework-gains.png",
+      "bytes": 106264,
+      "sha256": "254e67be84ae586efd280d68f535451dd3d5003a0297396d4cbbd73931b82398"
+    },
+    {
+      "path": "figures/02-driver-gates.pdf",
+      "bytes": 20665,
+      "sha256": "f16f0614fae5d69a7ba14027ca6fc420cfeb2bdaa9f1927ac632a073903c323c"
+    },
+    {
+      "path": "figures/02-driver-gates.png",
+      "bytes": 130628,
+      "sha256": "27c0b3efa28b6169391321244431e7e5e8e3b531c816c633965e139a437f9fb0"
+    },
+    {
+      "path": "figures/03-mechanism-history.pdf",
+      "bytes": 20550,
+      "sha256": "73b3a5e6f94893345279f04efa58e2ef2d8476ac3afd12e10c0e11969b9c9b24"
+    },
+    {
+      "path": "figures/03-mechanism-history.png",
+      "bytes": 89530,
+      "sha256": "f648e6836fc706fb4f3f77bae2d6df58bee41c2fe92bc0b606cc0ef081f38ed0"
+    },
+    {
+      "path": "implementation-source.zip",
+      "bytes": 514165,
+      "sha256": "d4fa2df2b8be0ecf00f37239ee3999f437c23d1937305745dbacfa55025e2e78"
+    },
+    {
+      "path": "inputs.zip",
+      "bytes": 4549963,
+      "sha256": "1b34191f81e45f271b9b186041c3a13a2b3405bc97f5ad47b2712f98c7bdb196"
+    },
+    {
+      "path": "numeric-summary.md",
+      "bytes": 7282,
+      "sha256": "0b920d5beed24d06145574a64fc40db581738bee2088c95b9420225ea8af9fa1"
+    },
+    {
+      "path": "provenance.json",
+      "bytes": 542866,
+      "sha256": "66ab3d314a917f6103a576c8c496c3ee3ff849bd672be9c1abc1c064e00aa1a1"
+    },
+    {
+      "path": "quality-checks.txt",
+      "bytes": 1542,
+      "sha256": "365f01cb7d5aceeb1b31b82996a344f73504b88782a795c355bff12dc9c4afba"
+    },
+    {
+      "path": "reproduce_analysis.py",
+      "bytes": 22237,
+      "sha256": "7a3e79b780e1acd44a31794965be4240316878be89c03db5bc6e002f2fdb439b"
+    },
+    {
+      "path": "stats-appendix.md",
+      "bytes": 5343,
+      "sha256": "b55f4edd35c0000d4488a7b230a5a144cef2bb8bb516c3220c970a47658872b2"
+    },
+    {
+      "path": "tables/availability.csv",
+      "bytes": 662,
+      "sha256": "760b25620d0658ffc006ce9101ca0e3c3d34c6acad03f615b53bbf05397b4a3d"
+    },
+    {
+      "path": "tables/driver-null.csv",
+      "bytes": 651,
+      "sha256": "f84a8e6824afaca135a34a1d50ad260806954b8bef248f0b57dac6e31f28d493"
+    },
+    {
+      "path": "tables/driver-prior-comparison.csv",
+      "bytes": 13505,
+      "sha256": "10db6d9da0b2ebf60ef5d425a9388184d42e282a9cadec1c77869c011a1764c2"
+    },
+    {
+      "path": "tables/driver-seeds.csv",
+      "bytes": 52916,
+      "sha256": "00b8c0df9ac368057353d4b9098ad7faba2a8fcd7cd10773d120f06b6423252a"
+    },
+    {
+      "path": "tables/driver-summary.csv",
+      "bytes": 15869,
+      "sha256": "2118aa31ed0f5dd68e658127f805e8cc86e9ff7dabac7076f7f689516663360e"
+    },
+    {
+      "path": "tables/framework-contrasts.csv",
+      "bytes": 6592,
+      "sha256": "14c16e50d8390968b508f5a654a67f8884f832e62f03dce915be7d3fe3510f65"
+    },
+    {
+      "path": "tables/framework-seeds.csv",
+      "bytes": 17535,
+      "sha256": "43dff463d833195f82269807ca8a958f79cf891a6ed9e2990b93f452b84ffb8a"
+    },
+    {
+      "path": "tables/mechanism-lanes.csv",
+      "bytes": 5567,
+      "sha256": "11a207a6d92569dcc009dbc6a9758f0ba93dcb461d7e319f49049fc5ce9e16e4"
+    },
+    {
+      "path": "tables/mechanism-paired-effects.csv",
+      "bytes": 3520,
+      "sha256": "c42401701f726a58bf90921b87469a65ebf3bc91c23fc2afb8cd1d22be97770f"
+    },
+    {
+      "path": "tables/native-sanity.csv",
+      "bytes": 4573,
+      "sha256": "81f16a5a3d321bd77a8037481e57a0abff853480a97e6418e54cf8a61d181e0c"
+    },
+    {
+      "path": "tables/notebook-execution.csv",
+      "bytes": 786,
+      "sha256": "46e3f831cd08cddedb2054cef3a80783139dccd4099b4fe1f530951738b52dea"
+    },
+    {
+      "path": "tables/shared-prediction.csv",
+      "bytes": 648,
+      "sha256": "53c2080b0c6a0344a55c6bb48f364f44632ea351a9d06009c5280731b1fca098"
+    },
+    {
+      "path": "verification.json",
+      "bytes": 19174,
+      "sha256": "0c5a8e1d016ee4eed7394cf9e97d26b9d2dc76eedfab65ae8b504e03c4baf427"
+    }
+  ]
+}

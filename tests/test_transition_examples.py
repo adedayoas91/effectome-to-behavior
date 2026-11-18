@@ -92,10 +92,10 @@ def test_invalid_example_design_is_rejected(kwargs):
         TransitionExampleConfig(**kwargs)
 
 
-def test_synthetic_notebooks_are_output_free_and_every_code_cell_parses():
+def test_synthetic_notebook_code_parses_and_run_defaults_remain_enabled():
     root = Path(__file__).resolve().parents[1] / "synthetic"
     paths = sorted(root.glob("*.ipynb"))
-    assert len(paths) == 7
+    assert len(paths) == 8
     assert (root / "06_mechanism_driver_validation.ipynb") in paths
     enabled = {}
     for path in paths:
@@ -103,8 +103,8 @@ def test_synthetic_notebooks_are_output_free_and_every_code_cell_parses():
         assert notebook["metadata"]["language_info"]["version"].startswith("3.14")
         for index, cell in enumerate(notebook["cells"]):
             if cell["cell_type"] == "code":
-                assert cell["execution_count"] is None
-                assert cell["outputs"] == []
+                # Working notebooks may contain the user's completed runs.
+                # Output-free publication is checked against fresh builder output below.
                 tree = ast.parse("".join(cell["source"]), filename=f"{path}:cell-{index}")
                 for node in ast.walk(tree):
                     if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
@@ -116,6 +116,33 @@ def test_synthetic_notebooks_are_output_free_and_every_code_cell_parses():
         "RUN_SANITY": True, "RUN_COMPARISON": True, "RUN_VALIDATION": True,
         "RUN_DRIVER_VALIDATION": True, "RUN": True, "RUN_HISTORY_COMPARISON": True,
     }
+
+
+def test_synthetic_builders_create_output_free_notebooks_without_clearing_saved_runs(tmp_path, monkeypatch):
+    from notebooks._build_notebooks import write_notebook
+    from synthetic import (
+        _build_csl_sanity_notebook,
+        _build_driver_notebook,
+        _build_mechanism_notebook,
+        _build_replication_notebook,
+        _build_validation_notebook,
+    )
+
+    def redirected(path, cells):
+        write_notebook(tmp_path / path.name, cells)
+
+    for module in (_build_csl_sanity_notebook, _build_driver_notebook, _build_mechanism_notebook,
+                   _build_replication_notebook, _build_validation_notebook):
+        monkeypatch.setattr(module, "write_notebook", redirected)
+        module.main()
+    generated = list(tmp_path.glob("*.ipynb"))
+    assert len(generated) == 5
+    for path in generated:
+        for cell in json.loads(path.read_text())["cells"]:
+            if cell["cell_type"] == "code":
+                assert cell["execution_count"] is None
+                assert cell["outputs"] == []
+                ast.parse("".join(cell["source"]))
 
 
 def _notebook_switches(source: str, switches: dict[str, bool]) -> ast.Module:
@@ -179,6 +206,7 @@ def test_synthetic_notebook_prefixes_follow_documented_execution_order():
         "02_shared_transition_comparison.ipynb", "03_correspondence_and_controls.ipynb",
         "04_framework_validation.ipynb", "05_driver_recovery.ipynb",
         "06_mechanism_driver_validation.ipynb",
+        "07_mechanism_replication.ipynb",
     ]
 
 

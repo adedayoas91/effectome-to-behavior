@@ -1,0 +1,985 @@
+{
+  "source_implementation_fingerprint": "2d010386674499ce87fc986343ebf93f6f27d91de953802db8687e30652b83ad",
+  "matches_frozen_protocol": true,
+  "archive": "implementation-source.zip",
+  "members": [
+    {
+      "path": "conf/attribution/default.yaml",
+      "bytes": 178,
+      "sha256": "15c34c902be3b6bccb4690fdf01ebb9842d4862c0e213d06b7c092c58d2670ba"
+    },
+    {
+      "path": "conf/community/leiden.yaml",
+      "bytes": 175,
+      "sha256": "5d7bff2a2c284d30441f93c3df718d3f01ba44b9cea71602e4a71c5a55afff64"
+    },
+    {
+      "path": "conf/community/markov_stability.yaml",
+      "bytes": 251,
+      "sha256": "726e4ad250c26e3594cd203654c9165a5a9fb5d2ae02eea430e8dbbe1e09562c"
+    },
+    {
+      "path": "conf/community/temporal.yaml",
+      "bytes": 469,
+      "sha256": "46579968f502ad9d1e5bc988a5b1ad6b33e1580f9f6f46078ae8fda47d9109ed"
+    },
+    {
+      "path": "conf/community/temporal_greedy.yaml",
+      "bytes": 171,
+      "sha256": "81cf1191da835be9dd7eb5dae5a0d2ceee0c8aa7b12f60647add6938657118a7"
+    },
+    {
+      "path": "conf/config.yaml",
+      "bytes": 643,
+      "sha256": "aab4444aebd44bd3ef6aa22fa9d353bedd98969922c47358bf3ef8b1eda2a573"
+    },
+    {
+      "path": "conf/connectivity/cgc.yaml",
+      "bytes": 542,
+      "sha256": "1bbf04d904e4aad5084090986f56fb53ac466618e3ae52e856d2fd374e7edc85"
+    },
+    {
+      "path": "conf/connectivity/cgc_star.yaml",
+      "bytes": 438,
+      "sha256": "955b39927dfe34713d3bf1a5fdb827bb2f1affc47af24428c705d598ad7e91ae"
+    },
+    {
+      "path": "conf/connectivity/conventional_cgc.yaml",
+      "bytes": 238,
+      "sha256": "1f24714df9f203f673ea3dc1dc037c264b618c25b9311e60a2ab11cd12f1b2ed"
+    },
+    {
+      "path": "conf/connectivity/conventional_cgc_star.yaml",
+      "bytes": 229,
+      "sha256": "9309851acd8ebd905d0df6d1bbb4ec1d63c665cf09941fe81fe62d2f5bbd9a7b"
+    },
+    {
+      "path": "conf/connectivity/correlation.yaml",
+      "bytes": 239,
+      "sha256": "18b9e5fb2a6d9cbb7fec374b1a5eed31f3aa115a753315f9d0d5c24b921304ea"
+    },
+    {
+      "path": "conf/connectivity/fast_cgc.yaml",
+      "bytes": 223,
+      "sha256": "748f4bd05fa67c8eb755086350c5b0e5882409cb48357679d79467a874480966"
+    },
+    {
+      "path": "conf/connectivity/fast_cgc_star.yaml",
+      "bytes": 224,
+      "sha256": "ca0d8614685d7c46612e2dc79af3cd7948aae438e194ea6e137158037735dd24"
+    },
+    {
+      "path": "conf/connectivity/jpcmci.yaml",
+      "bytes": 329,
+      "sha256": "5d18cf0f0d18b6313b78349c35e98eb4503087da7329bc40059bd85081975646"
+    },
+    {
+      "path": "conf/connectivity/pcmci.yaml",
+      "bytes": 207,
+      "sha256": "0c1a559273529cdaae5ad2ec6e41ba0b6885347689c59f8944a2baa0c82113da"
+    },
+    {
+      "path": "conf/connectivity/sparse_var.yaml",
+      "bytes": 488,
+      "sha256": "5f4bef361c54817488cd4035c8b531c65b9103443851ba0c0fd9131df1121178"
+    },
+    {
+      "path": "conf/connectivity/switching_var.yaml",
+      "bytes": 412,
+      "sha256": "9a3c0534ccecaf3385ea48b54dc589783230bceb6f3eeebad5b73c04446d5bb8"
+    },
+    {
+      "path": "conf/connectivity/time_varying.yaml",
+      "bytes": 550,
+      "sha256": "b3771cc8511b1282161927e937ea965096de5791c702750760ad7fec4cc6a09f"
+    },
+    {
+      "path": "conf/connectivity/tvvar_fused.yaml",
+      "bytes": 459,
+      "sha256": "9c3eab2d9fe882c22e8c7a2f99faf891282ca1eae1efd2671ad777707d51a6f2"
+    },
+    {
+      "path": "conf/connectivity/tvvar_smooth.yaml",
+      "bytes": 465,
+      "sha256": "b69b0f829b08a6161254e56b65c4cc899c29fd70dd74e818c4cdbc35a7f4269d"
+    },
+    {
+      "path": "conf/connectivity/windowed_sparse_var.yaml",
+      "bytes": 326,
+      "sha256": "4161c87edab5583e385c4341c3cb145aa8686c0f3ce4bb380452538b6142e9f4"
+    },
+    {
+      "path": "conf/cross_method/csl_sanity.yaml",
+      "bytes": 413,
+      "sha256": "b741743d2c6fa283ffa3c9fef750d6aa40e9669a0392d218f82a69cb6929d9af"
+    },
+    {
+      "path": "conf/cross_method/development.yaml",
+      "bytes": 370,
+      "sha256": "6d019d0a3c707457f51178addfa47d605f8cea11a1325ead620d103f49bf1442"
+    },
+    {
+      "path": "conf/cross_method/smoke.yaml",
+      "bytes": 801,
+      "sha256": "0d53b91af4c32e3781749e6a05ff4c5bed5c4a58ab10435d8d69faf73b308f8a"
+    },
+    {
+      "path": "conf/data/220119_F2_run11.yaml",
+      "bytes": 739,
+      "sha256": "5445de6301a2ab2ac01ad2f47eec8a9cb836e0fc80d6341909c18bc7b25323a0"
+    },
+    {
+      "path": "conf/data/220127_F4_run2.yaml",
+      "bytes": 804,
+      "sha256": "a95548467bfe90c653248a113a8a565c68facaa9b8f55eedc28681667fe4638d"
+    },
+    {
+      "path": "conf/data/c_elegans.yaml",
+      "bytes": 1653,
+      "sha256": "9f52e4d1d54df36ae16bc44aecba1e774a748698605a4f665b33d78a53d79437"
+    },
+    {
+      "path": "conf/data/synthetic.yaml",
+      "bytes": 711,
+      "sha256": "95244ea649ec3d7b6c82626355cb2a97bc4304b2ca5f78f8f4bbcd6db15c2227"
+    },
+    {
+      "path": "conf/data/zebrafish.yaml",
+      "bytes": 474,
+      "sha256": "e997c84a407c321fba32ce957bbeef1a9e1aa836a70ef306a1c12071c4510bff"
+    },
+    {
+      "path": "conf/driver_validation/acceptance.yaml",
+      "bytes": 559,
+      "sha256": "c7a073aede526162153baee55fdf7cc4cc4527a1005be8d5b47bcac5a7f6114f"
+    },
+    {
+      "path": "conf/driver_validation/confirmatory.yaml",
+      "bytes": 1089,
+      "sha256": "b0bc9b73a14237105c47c34221438118e6648ab27548576896a3bf07c3fe1265"
+    },
+    {
+      "path": "conf/driver_validation/development.yaml",
+      "bytes": 657,
+      "sha256": "7e6f1d30b16ee6d65b57563f5c0eb7675fda27be83c2fd8e30e5a35290e90356"
+    },
+    {
+      "path": "conf/driver_validation/smoke.yaml",
+      "bytes": 624,
+      "sha256": "1543f2bac1664b087f8f155bd0472caafe7d0dde7efbbeb5771c5b9fbe5f83fe"
+    },
+    {
+      "path": "conf/evaluation-manifests/c-elegans-worm0-development.yaml",
+      "bytes": 3326,
+      "sha256": "73cb186d211d501aea351e4012812e27e75ad3130fd0834934ec939e1cf6542d"
+    },
+    {
+      "path": "conf/evaluation-manifests/synthetic-endpoint-sensitivity.yaml",
+      "bytes": 1075,
+      "sha256": "2e839964d8284fb356590de4a7d29411284f4af4591ad58f6f2ed101459e102f"
+    },
+    {
+      "path": "conf/evaluation-manifests/synthetic-smoke.yaml",
+      "bytes": 946,
+      "sha256": "461bdf226bcc988b4978e6f6d01d5ec54f623488eed63de5c7defa639b5d91e9"
+    },
+    {
+      "path": "conf/evaluation-manifests/v2a-220119-F2-run11-development.yaml",
+      "bytes": 2558,
+      "sha256": "ae11f42e03db083f5819665d7c298aa7cd6a9bdae830352943677e9ede1961de"
+    },
+    {
+      "path": "conf/evaluation-manifests/v2a-220127-F4-run2-development.yaml",
+      "bytes": 2610,
+      "sha256": "97f2a3f13fcff7fe33e3177f6dd7a2cff65551786b3ef5c125847114dceffed8"
+    },
+    {
+      "path": "conf/evaluation/default.yaml",
+      "bytes": 1783,
+      "sha256": "e941d235f1bd18bcc50655114d26ed2727ea5e4ae9528c586c637157a8866e7d"
+    },
+    {
+      "path": "conf/evaluation/legacy_descriptive.yaml",
+      "bytes": 1634,
+      "sha256": "7261588dbd5c85b841e90cf466aacf841d27ec70a538603f0f1de1c5dccba4bb"
+    },
+    {
+      "path": "conf/evaluation/revised_primary.yaml",
+      "bytes": 1689,
+      "sha256": "ee4fbd729b5e37509dcd48418818b18588d3ff7eb52da5feaa286803d392bb26"
+    },
+    {
+      "path": "conf/framework_validation/development.yaml",
+      "bytes": 416,
+      "sha256": "02724444eb0447eb0f2a98174d417d18870b6513330cb430e852c4f0127b3706"
+    },
+    {
+      "path": "conf/framework_validation/manuscript.yaml",
+      "bytes": 485,
+      "sha256": "00b51f784cdb63fb5a62189b8408187c04dedba7b6b1581943e17aa7f9748ae2"
+    },
+    {
+      "path": "conf/framework_validation/smoke.yaml",
+      "bytes": 465,
+      "sha256": "7e9ad49dc65195ce06a2148c61b47382e0e415500ce5cfa464a817047926252f"
+    },
+    {
+      "path": "conf/intervention/default.yaml",
+      "bytes": 776,
+      "sha256": "18ef8809ccbcdb8beba30e670d9070df75d4bd7ecff3c812f6502abfaba358b0"
+    },
+    {
+      "path": "conf/linking/default.yaml",
+      "bytes": 665,
+      "sha256": "8c0b3c74b64da89ab21aad54da8e03e9761d02bd67e0b5980141e8123d40ac56"
+    },
+    {
+      "path": "conf/manifold/bunddle.yaml",
+      "bytes": 549,
+      "sha256": "00ebd9c562375373182fa092fb2b1edd36691ef9ab80ce77182879e5a6b81191"
+    },
+    {
+      "path": "conf/manifold/cebra.yaml",
+      "bytes": 291,
+      "sha256": "8e4fc51db25ffd9dfff7a123858fa68fe23aefaf1325f41942ebeb75a481d531"
+    },
+    {
+      "path": "conf/manifold/classical.yaml",
+      "bytes": 246,
+      "sha256": "ee8291760d0f957d49e9fbec9910c207a7945ca3fb3625d9283822602f79a133"
+    },
+    {
+      "path": "conf/mechanism_replication/pilot.yaml",
+      "bytes": 661,
+      "sha256": "7940fb0f2dc3318a49421ec66f74d12c3f119f92f0f3125300ffb347244db50c"
+    },
+    {
+      "path": "conf/mechanism_replication/replication.yaml",
+      "bytes": 1189,
+      "sha256": "16ddd22a8db40302dc4a8b9249b2a68d6545f28b7fe568a41e9b87d469a44045"
+    },
+    {
+      "path": "conf/mechanism_validation/development.yaml",
+      "bytes": 504,
+      "sha256": "651273379d5afc0071f315957f4088f9e22389997b89a14ea57773009bb903d5"
+    },
+    {
+      "path": "conf/mechanism_validation/smoke.yaml",
+      "bytes": 479,
+      "sha256": "897c8d4afa22a86843ba2dec5fb1f389137da673152d2d8e27b8b20c85357c7d"
+    },
+    {
+      "path": "conf/preprocess/default.yaml",
+      "bytes": 451,
+      "sha256": "4478d612f783cb50ee8da5ec529b2c8114c0286d9e05971d7a7a211b27747fbe"
+    },
+    {
+      "path": "conf/states/default.yaml",
+      "bytes": 1207,
+      "sha256": "8b438a8e58b15eeecfc7aca48483a131ddb8fb142e4921de1c752f24fc6d96e9"
+    },
+    {
+      "path": "conf/validation/revised.yaml",
+      "bytes": 2254,
+      "sha256": "b93c0834f5f3793d083991dccc4e6efa1d0682fb53056c86db3c1dc25cb1506c"
+    },
+    {
+      "path": "conf/validation/worm_0_clock.yaml",
+      "bytes": 437,
+      "sha256": "8b4751f62e2b92be68e945807bc352a924c02f4859620ffc351f462cc5ca8407"
+    },
+    {
+      "path": "conf/windowing/primary_physical.yaml",
+      "bytes": 473,
+      "sha256": "29a331d6e380cfa4848d10987403b5e08fc4ec3849731a4d160e3431c83823a7"
+    },
+    {
+      "path": "conf/windowing/reference_500_15_15.yaml",
+      "bytes": 415,
+      "sha256": "b7aef9119b75ec14a69958319fb447ae121485b26d2fc92a3d7c025f174ef2a2"
+    },
+    {
+      "path": "conf/windowing/sensitivity_fast_cadence.yaml",
+      "bytes": 440,
+      "sha256": "6691b48c2ec7f72e5c0222acb7ac1e400ecc96060c89d7c64938c8c5e9db2a3a"
+    },
+    {
+      "path": "conf/windowing/sensitivity_history_180s.yaml",
+      "bytes": 408,
+      "sha256": "d17502330a89b9655c4ff62d7b7dc8d35c0d477b36eff26db4eef54954c249f2"
+    },
+    {
+      "path": "conf/windowing/sensitivity_history_90s.yaml",
+      "bytes": 403,
+      "sha256": "6d86a044594e810be9b4143947d7e210b1ccc94169ea6cc33847aa0cfa6f81fa"
+    },
+    {
+      "path": "conf/windowing/sensitivity_slow_cadence.yaml",
+      "bytes": 404,
+      "sha256": "3286737f80cc9b3a5d25134e023dd23b4d696337bec8c3cafea86f2cfe719e6d"
+    },
+    {
+      "path": "docs/driver_methodology_references.bib",
+      "bytes": 3340,
+      "sha256": "b4060b7e58dae1603fefc01b1dee0998cb881a83cf741d2e2a35782fd534fcd8"
+    },
+    {
+      "path": "docs/driver_methodology_revision.md",
+      "bytes": 13578,
+      "sha256": "e1946f9b331127fbc95ea05586d807028bf7f74829390e07173cf70ec878bb31"
+    },
+    {
+      "path": "docs/mechanism_replication_citation_audit.md",
+      "bytes": 8282,
+      "sha256": "54113f279bad5abf8d4f70f736bf8fc53cfaf7ce817c5acb6872a2132b527bbc"
+    },
+    {
+      "path": "docs/mechanism_replication_protocol.md",
+      "bytes": 11994,
+      "sha256": "5508ec77581064d182fd181a1a67336b4b51991bdd93657b013de82d11b896e2"
+    },
+    {
+      "path": "docs/mechanism_replication_references.bib",
+      "bytes": 5199,
+      "sha256": "62ee07dd9d16a2d6fbb2fdcb736d3e0dcc961ac5c619c6cf4ecb418126eb0fc9"
+    },
+    {
+      "path": "notebooks/_build_notebooks.py",
+      "bytes": 51761,
+      "sha256": "5b523729d7e0bb93afb67fcdcf9cb99719365c2dad6c0dcf95a34a8fd372e1b4"
+    },
+    {
+      "path": "notebooks/_shared.py",
+      "bytes": 67364,
+      "sha256": "eefdfeb4245b7455d85a01df4f9462ccc7a0b37fe4590260bf15cfa9d966572c"
+    },
+    {
+      "path": "pipeline/00_preprocess.py",
+      "bytes": 1730,
+      "sha256": "5d9c381f21a7501e20b28fafc2c1081ac2ac662d29a43bcb7c464003d9f8dfb7"
+    },
+    {
+      "path": "pipeline/01_connectivity.py",
+      "bytes": 1560,
+      "sha256": "f1a5e8e1b745c3bb550809a135741012061fb4e988f915df92b6815b5b7f60b1"
+    },
+    {
+      "path": "pipeline/02_dynamics.py",
+      "bytes": 4111,
+      "sha256": "27550e6e82e1e015356e6eec02979b43b7c68f0098c3a77997988bd7fea245d3"
+    },
+    {
+      "path": "pipeline/03_community.py",
+      "bytes": 1207,
+      "sha256": "8a4a179dd96c8d870d12cb37f82d47d4e82d14db737e46486d9572fa8494648c"
+    },
+    {
+      "path": "pipeline/04_manifold.py",
+      "bytes": 10906,
+      "sha256": "fd1e8be9c7142ad773fb8b1f28e300ec1d50a57af25f02844d80405627266002"
+    },
+    {
+      "path": "pipeline/05_linking.py",
+      "bytes": 20607,
+      "sha256": "0f19e638b7de212390d7f36b1b2aca2c1fb6da70bfe54f270959af08feea2d0a"
+    },
+    {
+      "path": "pipeline/06_attribution.py",
+      "bytes": 4112,
+      "sha256": "31594958df42dc04f97e06105dc1a1d98f40b8b58d2db4f0a3302e3873487f17"
+    },
+    {
+      "path": "pipeline/07_intervention.py",
+      "bytes": 6134,
+      "sha256": "b9fb19e1bb44c4f8f4bd755018e139a9b70bc4ae542e935b42b647b3f0395046"
+    },
+    {
+      "path": "pipeline/08_evaluate.py",
+      "bytes": 8408,
+      "sha256": "3123504b246bf2205ef780818725408fc42ff4f887db5285a0b851810f7737cc"
+    },
+    {
+      "path": "pipeline/09_validate.py",
+      "bytes": 2567,
+      "sha256": "b9bb99a93229fd21407402e7550a04c95ba8c31885aa6cc3ed67c9eb55435bf0"
+    },
+    {
+      "path": "pipeline/10_state_calibration.py",
+      "bytes": 2541,
+      "sha256": "304bbae21bdbf799445b7d504cb5703239624b231e959ad2e6916f75b9b4fdff"
+    },
+    {
+      "path": "pipeline/11_cross_method.py",
+      "bytes": 3439,
+      "sha256": "4f47f33115496f644df5ecf02d3b13eebfe7815f4001dae61af0ab124f4f8c34"
+    },
+    {
+      "path": "pipeline/12_framework_validation.py",
+      "bytes": 2334,
+      "sha256": "fa8a923c2333f7af00a1915bb35153cc91b8ec252a02faa246d97fd617b20043"
+    },
+    {
+      "path": "pipeline/13_driver_validation.py",
+      "bytes": 3509,
+      "sha256": "e0316d7037dacda00b27627cc6eb83acca9a2469b8a0c9aeb6cdf902f5ff80f3"
+    },
+    {
+      "path": "pipeline/14_csl_sanity.py",
+      "bytes": 1332,
+      "sha256": "94a61eb015e52274c06055fdd5d41a0b33a6b434edadb404af85539236ec4d87"
+    },
+    {
+      "path": "pipeline/15_mechanism_validation.py",
+      "bytes": 3284,
+      "sha256": "402fff5476b9288fbb194c37ef76d1a05cdc1abec8c6ecc25944b14960236034"
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 2121,
+      "sha256": "993ec74ac3f42c44d8c987299f2e22233eccde83eb63dac6efd292d4660acb41"
+    },
+    {
+      "path": "src/effectome/__init__.py",
+      "bytes": 444,
+      "sha256": "37d42b2557aef4c80aca0d16dcd9b1e28924ce70425c238b84648bace7c60e78"
+    },
+    {
+      "path": "src/effectome/attribution/__init__.py",
+      "bytes": 379,
+      "sha256": "c4193ffd1c2833bd8ce01bdbe3882fde9485260a86524493bee1a5a0a79b8b20"
+    },
+    {
+      "path": "src/effectome/attribution/scoring.py",
+      "bytes": 12713,
+      "sha256": "0ea7e857052ffb68e1dfcdae480d3b1e7215aa0fae8bc4599b7f38381506f8a2"
+    },
+    {
+      "path": "src/effectome/attribution/transition_prediction.py",
+      "bytes": 13570,
+      "sha256": "a0bc62e37f9bdc5334392e21eae2af9a6542b065054e72c7eb017402aa65c2b0"
+    },
+    {
+      "path": "src/effectome/community/__init__.py",
+      "bytes": 886,
+      "sha256": "494438a2278d5e623d1ad2d3168b76a0fd70a6e72d06c2734849a25a1c11a3be"
+    },
+    {
+      "path": "src/effectome/community/base.py",
+      "bytes": 7820,
+      "sha256": "f125790acafc87c9050c75c9ee383825f17a04722bb61b25adb9a836c6da1121"
+    },
+    {
+      "path": "src/effectome/community/multiscale.py",
+      "bytes": 1749,
+      "sha256": "6e097ba79a872642e7beb9ba7bb72730962bdb339354275da6e25b01f7c563f3"
+    },
+    {
+      "path": "src/effectome/community/static.py",
+      "bytes": 1891,
+      "sha256": "875c42e77e0459f19a2e68ff11c5bbf8c132902f44a95b60f37ae8c92869e41e"
+    },
+    {
+      "path": "src/effectome/community/temporal.py",
+      "bytes": 31286,
+      "sha256": "4bc8cd40d455d3f4dd6ee9b5dd86e8c1bed177adb7383117dd8f8955994d8be4"
+    },
+    {
+      "path": "src/effectome/connectivity/__init__.py",
+      "bytes": 1255,
+      "sha256": "3521ecc37abae3673e3559e71db77e080788489d426f2384e03a5dbdbd8b5e11"
+    },
+    {
+      "path": "src/effectome/connectivity/_native_gc_runtime.py",
+      "bytes": 4903,
+      "sha256": "d1d441733ebd7d84321ca4f7c3c2e76b19c48c10c1dbfe2d4a6be54fb7898c4a"
+    },
+    {
+      "path": "src/effectome/connectivity/_native_gc_worker.py",
+      "bytes": 4366,
+      "sha256": "9bac092a48fb56018f835903203e3481044e5f1473343b1951f23137fa326681"
+    },
+    {
+      "path": "src/effectome/connectivity/base.py",
+      "bytes": 15416,
+      "sha256": "d75293a1f0b4a973552abb854f7d3fe5ce4e9206e5a3577bdd10eb0fdfac35ce"
+    },
+    {
+      "path": "src/effectome/connectivity/correlation.py",
+      "bytes": 1292,
+      "sha256": "af7fd7296cbe87c5df9fa208e410ef4c1ffd3cddc9498c0874282d5f83809e0c"
+    },
+    {
+      "path": "src/effectome/connectivity/gc_predictive_readout.py",
+      "bytes": 9179,
+      "sha256": "f22375b8ebcd3f67a80c26cdb461a7c5c232a4bfae5810a8c8b9fe0b8b7ecd2d"
+    },
+    {
+      "path": "src/effectome/connectivity/native_gc.py",
+      "bytes": 12815,
+      "sha256": "bacce4ae421ebbd29b11543263992281de0a6f0d40d3111804d4692b4d180c45"
+    },
+    {
+      "path": "src/effectome/connectivity/pcmci.py",
+      "bytes": 5281,
+      "sha256": "0bdb7812666d9e0afe36a2e5947312f06229a365928ede9abea683115d2949bb"
+    },
+    {
+      "path": "src/effectome/connectivity/predictive.py",
+      "bytes": 2364,
+      "sha256": "09fdb6ac224c842e8860bde02c80a8353c7c8cc20c8e9477f4722e4d21a3ef26"
+    },
+    {
+      "path": "src/effectome/connectivity/registry.py",
+      "bytes": 1063,
+      "sha256": "f792a67e5a78ae0cc2e988e166bea0f6f6a6d66e40bc03aac5b0d812ee7bcbcf"
+    },
+    {
+      "path": "src/effectome/connectivity/sparse_var.py",
+      "bytes": 18572,
+      "sha256": "612337bf903eb14961eda35d93ff03bca6ff9cb69c14b245c73269a5e4d85feb"
+    },
+    {
+      "path": "src/effectome/connectivity/switching_var.py",
+      "bytes": 23953,
+      "sha256": "273a0d0122d93de664ba7ac1ca75a8fe4c427e1095111a18bc425d08afc3957b"
+    },
+    {
+      "path": "src/effectome/connectivity/time_varying.py",
+      "bytes": 5748,
+      "sha256": "be82ca2c8ff2003dfd69ea05530b4163b06d041160b562b5a275f6f448cb4324"
+    },
+    {
+      "path": "src/effectome/connectivity/tvvar.py",
+      "bytes": 29367,
+      "sha256": "2637475881bf4cff1c18e66040a7b674d1b0e028ff5cd589703784bfa605f94a"
+    },
+    {
+      "path": "src/effectome/connectivity/var_utils.py",
+      "bytes": 7968,
+      "sha256": "585d219b131b137bbfbe9c00dee209363ee660910c82bf24f016a0afc1372508"
+    },
+    {
+      "path": "src/effectome/core/__init__.py",
+      "bytes": 110,
+      "sha256": "fe1bb911b08a6a10ad5af14aa17cbc49197ea0dff93c0fee06a0a3a31b3f02e8"
+    },
+    {
+      "path": "src/effectome/core/causalised_gc.py",
+      "bytes": 26882,
+      "sha256": "b6c7e71f8f5085cbaf92813cb1ec050b78083692c9aab78284b82c82a2a93474"
+    },
+    {
+      "path": "src/effectome/data_module/__init__.py",
+      "bytes": 1333,
+      "sha256": "6118d3add122b553b1370fe18385e84509d686fa84c586bbe9528113c0b9ee9b"
+    },
+    {
+      "path": "src/effectome/data_module/loaders.py",
+      "bytes": 28793,
+      "sha256": "63ee8c6e7adb01b3c814d512acae31a82b9a1aa204edea33c737066579d70f5c"
+    },
+    {
+      "path": "src/effectome/data_module/preprocess.py",
+      "bytes": 17419,
+      "sha256": "0b09b1b58b1b4cd4b4ec9a4df97be2dcceb804d9c39c63a0e8143d8313a58862"
+    },
+    {
+      "path": "src/effectome/data_module/schema.py",
+      "bytes": 22195,
+      "sha256": "2026d6e75b18c3c2871a52692ea6cc6cdd5670e787b3b3eaf8861fb6f932a7a7"
+    },
+    {
+      "path": "src/effectome/data_module/segmentation.py",
+      "bytes": 8183,
+      "sha256": "e8fca2c798bae79438cd786a0581b7838111557e5002ceddf32ef4f584643a6c"
+    },
+    {
+      "path": "src/effectome/data_module/windowing.py",
+      "bytes": 27022,
+      "sha256": "9e333e5cf43b761236db7f4de7b2d602759d3d2b45e672386be69f944101a400"
+    },
+    {
+      "path": "src/effectome/dynamics/__init__.py",
+      "bytes": 1957,
+      "sha256": "5882410c3a69820dab8aa679aa033be4051cfbab0cc736529e830c0113d5c670"
+    },
+    {
+      "path": "src/effectome/dynamics/graph_states.py",
+      "bytes": 39461,
+      "sha256": "49ec66ff838410f1405e4b6721092b1121b77e8e79dcc221f34ffe9cdf85e487"
+    },
+    {
+      "path": "src/effectome/dynamics/metrics.py",
+      "bytes": 9521,
+      "sha256": "dc0df44232ac59b2bedcdbfe98c2ea7cdbcea731973f4a8f8fbace8ea3cd043d"
+    },
+    {
+      "path": "src/effectome/dynamics/probabilistic.py",
+      "bytes": 23883,
+      "sha256": "d9b8d8fb94872da91b281d7f5f8ac4516b3bd430b03e8c22e271f5918886b501"
+    },
+    {
+      "path": "src/effectome/dynamics/state_evaluation.py",
+      "bytes": 15750,
+      "sha256": "d272a6887c9b24d5606e278caea8c3c3222cae2e4c3db5dbe59f9443be01c378"
+    },
+    {
+      "path": "src/effectome/dynamics/transitions.py",
+      "bytes": 19411,
+      "sha256": "da06206b26ee027c19bff1bf03ae7b2ec4755d81321d75f9921ee19449e753b7"
+    },
+    {
+      "path": "src/effectome/experiments/__init__.py",
+      "bytes": 1801,
+      "sha256": "d58a3b98685fa452461f1f341175bac3b830237a073877a163fb06fd9058ff58"
+    },
+    {
+      "path": "src/effectome/experiments/adapters.py",
+      "bytes": 9302,
+      "sha256": "4045289b8119b6bf105b821dac6f6c79da633b5d9b1a0ea2ccbab4835cc89fd5"
+    },
+    {
+      "path": "src/effectome/experiments/benchmark.py",
+      "bytes": 34826,
+      "sha256": "077b05063d7d50483ee405af28ce58ed7478c167bc859a2159baec91423c8b93"
+    },
+    {
+      "path": "src/effectome/experiments/csl_sanity.py",
+      "bytes": 8294,
+      "sha256": "597db5600a22c4df31c606e902ca8b023761374fb7acdc66548f5848ba602908"
+    },
+    {
+      "path": "src/effectome/experiments/csl_sanity_reporting.py",
+      "bytes": 8874,
+      "sha256": "5096c8dc80ae0d49f59963599e30919d94eb83fbe806927f0ecf80df83848be0"
+    },
+    {
+      "path": "src/effectome/experiments/driver_acceptance.py",
+      "bytes": 16927,
+      "sha256": "8a7fbeba4894e51d573fa7816947824ea8e718852b2f5f16ed391d19daa19d77"
+    },
+    {
+      "path": "src/effectome/experiments/driver_ground_truth.py",
+      "bytes": 15251,
+      "sha256": "59e28f215b63f34a45bb57a535085862a6cea4f60662053e8ad1a6f6057f0d77"
+    },
+    {
+      "path": "src/effectome/experiments/driver_recovery_statistics.py",
+      "bytes": 6967,
+      "sha256": "ca5b09d59f0660ac04f86d79db5a8b9d16c7bc0d9cf72dab1a09c798f28a1717"
+    },
+    {
+      "path": "src/effectome/experiments/driver_study.py",
+      "bytes": 6876,
+      "sha256": "f337feffeab4ca628f0b7fe39b7781b5be928c163faf8a8d0af100d3275a6c4f"
+    },
+    {
+      "path": "src/effectome/experiments/driver_validation.py",
+      "bytes": 20293,
+      "sha256": "55ece7e8864bd7292fe6b5f79a4ceb3c3c915f5c842650b66421efb2f2993347"
+    },
+    {
+      "path": "src/effectome/experiments/driver_validation_reporting.py",
+      "bytes": 11249,
+      "sha256": "bd949e9832ecfefed4949673f4dfcfab440d22801d28e834df616c3081ae3dcd"
+    },
+    {
+      "path": "src/effectome/experiments/framework_validation.py",
+      "bytes": 17688,
+      "sha256": "550db3e88eefb91959e3a3ad9e356dd55f80043ee9ac07ffc17ea6d5dc5075c3"
+    },
+    {
+      "path": "src/effectome/experiments/framework_validation_analysis.py",
+      "bytes": 15478,
+      "sha256": "4451a93171b861fb0fb0a6f20dd0adb1b21a012ca145ba6450c132cc41a86bfb"
+    },
+    {
+      "path": "src/effectome/experiments/mechanism_calibration.py",
+      "bytes": 10978,
+      "sha256": "9df9fa66679097430b12f0366a8243e4c292c88ef5d9ced821b1541edbb2b0b7"
+    },
+    {
+      "path": "src/effectome/experiments/mechanism_controls.py",
+      "bytes": 6497,
+      "sha256": "b359b5f14c78eabb755aba3a7ef29347e0b96fc6d6bfbf7f98834d392f822826"
+    },
+    {
+      "path": "src/effectome/experiments/mechanism_metrics.py",
+      "bytes": 6144,
+      "sha256": "4710883e8fc6d5426560eaddc07ff9dac2954dfb402517e00d612407a6007124"
+    },
+    {
+      "path": "src/effectome/experiments/mechanism_replication.py",
+      "bytes": 9788,
+      "sha256": "5af2097e474c7a35111e7b295d316fd4f6aa599ce5fa37ea032ddcd90d7e45a8"
+    },
+    {
+      "path": "src/effectome/experiments/mechanism_replication_analysis.py",
+      "bytes": 16751,
+      "sha256": "41e9bdd4415a154fc1665c10bdd327ba93cc3b5d5cbf593cb2641678e0f58faf"
+    },
+    {
+      "path": "src/effectome/experiments/mechanism_replication_config.py",
+      "bytes": 6341,
+      "sha256": "daba26fb60732c27533326b4c07bfe93d746f3e11287d10466cfa241f147848b"
+    },
+    {
+      "path": "src/effectome/experiments/mechanism_reporting.py",
+      "bytes": 4340,
+      "sha256": "dd641cee5c3a7efd3932189cbfa957df193c25f7533131ec3c59cc28937dda0e"
+    },
+    {
+      "path": "src/effectome/experiments/mechanism_validation.py",
+      "bytes": 12556,
+      "sha256": "87f0ba34f482d6f0ed5407863b99f23670faa3f31d687322015671c3eb1398a1"
+    },
+    {
+      "path": "src/effectome/experiments/mechanism_validation_config.py",
+      "bytes": 4063,
+      "sha256": "f28aa0a56eb220c38e4a0d40168d4db83a8bd8bdf075dd1b7b324c1465aa8d9e"
+    },
+    {
+      "path": "src/effectome/experiments/notebook_utils.py",
+      "bytes": 3911,
+      "sha256": "7088aea589ad58324644c57666af71f90a678062141b0b73982a37cb97d1ff08"
+    },
+    {
+      "path": "src/effectome/experiments/state_calibration.py",
+      "bytes": 18676,
+      "sha256": "741db9de5c0a4e403da0ebf57431561a8a8b022db4a6e3df916523e7986c42df"
+    },
+    {
+      "path": "src/effectome/experiments/structural_mechanism.py",
+      "bytes": 15282,
+      "sha256": "845a00b13fe34d8f1506af366d8df5f8d72fd589a7153b58037740c35f6eef90"
+    },
+    {
+      "path": "src/effectome/experiments/transition_examples.py",
+      "bytes": 8197,
+      "sha256": "d64065b06a35e9745d9b295890a9a1056a4db9431b99ccb9d7805f61f7911fc7"
+    },
+    {
+      "path": "src/effectome/experiments/validation.py",
+      "bytes": 28214,
+      "sha256": "980589c85238ee03d4f7b3a09af4c41c6565c29fc2a8d58cfafd47745b3366e3"
+    },
+    {
+      "path": "src/effectome/intervention/__init__.py",
+      "bytes": 528,
+      "sha256": "aea9735a8d55fe2758e9afc92e48caf9d8dd1bb44cf571bb73e362c9ce0daeb9"
+    },
+    {
+      "path": "src/effectome/intervention/surrogate.py",
+      "bytes": 42693,
+      "sha256": "747057ce0f3ce818716d42069486afa2495bbb5b8b920f6d29cbdb9b65a809f2"
+    },
+    {
+      "path": "src/effectome/linking/__init__.py",
+      "bytes": 2298,
+      "sha256": "45361df1a6000ec9d8503e7417faa8709a8b6ae45871fe46306432e88a63ce35"
+    },
+    {
+      "path": "src/effectome/linking/alignment.py",
+      "bytes": 8328,
+      "sha256": "d377ee098e6986ce36eb4aa9b7d8bea42e78a41c4f2a83649f9e78c145c4f181"
+    },
+    {
+      "path": "src/effectome/linking/comparison.py",
+      "bytes": 4118,
+      "sha256": "09b6cbfdb2d2bfe71c6064cea7e1640db87670b690a33d9851bc177274d7d605"
+    },
+    {
+      "path": "src/effectome/linking/decoding.py",
+      "bytes": 18280,
+      "sha256": "f027cb46c5f6cb6d9bce0dc63235a682810f51abd6b47d8c6a4a518071a7bfa3"
+    },
+    {
+      "path": "src/effectome/linking/shared_transitions.py",
+      "bytes": 17538,
+      "sha256": "b07e0d1b31eebbeb63fc351c221b207a5912cd08683963a45ad510e672f4b557"
+    },
+    {
+      "path": "src/effectome/linking/stats.py",
+      "bytes": 18116,
+      "sha256": "a546544873eca050b5e254a003018f539bd72312989e8fe7943276eb0d582e0f"
+    },
+    {
+      "path": "src/effectome/linking/transition_diagnostics.py",
+      "bytes": 9606,
+      "sha256": "4efa226284eb4046f8071a7ce51189afcc6d16c7a12775083153421109ba4b9c"
+    },
+    {
+      "path": "src/effectome/linking/transition_synthesis.py",
+      "bytes": 11034,
+      "sha256": "d85725ff3781c9759df8f5ec126f6bb85ec149d71f0d2cb6cff7ed58f4944b68"
+    },
+    {
+      "path": "src/effectome/manifold/__init__.py",
+      "bytes": 744,
+      "sha256": "53fede081e4712681ddc9f965ea7bf35732f5c5acbf376b937797a7c2e3c70f3"
+    },
+    {
+      "path": "src/effectome/manifold/base.py",
+      "bytes": 10098,
+      "sha256": "37892a882193fb2eb6f5fb5595b088b06662f7beeaaa272799412349263cf8ef"
+    },
+    {
+      "path": "src/effectome/manifold/bundle_net.py",
+      "bytes": 15053,
+      "sha256": "4efc2ff5ca261c24500ba1ddc0cb411ba43ae22c1cc702b25c52740719c81001"
+    },
+    {
+      "path": "src/effectome/manifold/cebra_embed.py",
+      "bytes": 1816,
+      "sha256": "1c98fd9143b080b881e19c8f19bb0fc58b7e94500978ef4cf8238062127753ac"
+    },
+    {
+      "path": "src/effectome/manifold/classical.py",
+      "bytes": 1773,
+      "sha256": "473d957af64fdaf336b9241a2962d376afd2d7f02055942fbd5de48b3a712bb1"
+    },
+    {
+      "path": "src/effectome/utils/__init__.py",
+      "bytes": 242,
+      "sha256": "4bb81eee3a15e12b251d00bd25229ef04865e23b205d2499825e1a1cdbcc6f37"
+    },
+    {
+      "path": "src/effectome/utils/hydra.py",
+      "bytes": 1198,
+      "sha256": "ca067d86519555f4b5e2a2e22ccceb06dc7883f27e3581128277f5c9635fc301"
+    },
+    {
+      "path": "src/effectome/utils/io.py",
+      "bytes": 3280,
+      "sha256": "8e90dc40dcf7d58e10a0a2bece5687306bd3d21d4fe7ed10199f5ecf75e31f9a"
+    },
+    {
+      "path": "src/effectome/utils/seed.py",
+      "bytes": 788,
+      "sha256": "eaaddb2fe77c1bb25132baeab22ffb2059fde7b4780e8717029963207e56b9d0"
+    },
+    {
+      "path": "src/effectome/utils/synthetic.py",
+      "bytes": 41800,
+      "sha256": "2b611dd8b4cf2e95e95278757fa55c83922f0e33dd7114b9e05adc4a1ab6a14a"
+    },
+    {
+      "path": "src/effectome/viz/__init__.py",
+      "bytes": 245,
+      "sha256": "5f5629b05b5856903843097f5a5ecdd6ee377deb14665e8ba743eb7d12191574"
+    },
+    {
+      "path": "src/effectome/viz/plots.py",
+      "bytes": 2141,
+      "sha256": "bb16de88d1477d994a892243268b33514cceebeae0019df42ff750679eaad203"
+    },
+    {
+      "path": "src/effectome/workflows/__init__.py",
+      "bytes": 1473,
+      "sha256": "f1d087fa4fd17c97c676dbced6b81733a1823a4725228462ca978a5010d4aa10"
+    },
+    {
+      "path": "src/effectome/workflows/confirmation.py",
+      "bytes": 15474,
+      "sha256": "45c3cc4b904d586db88df8c47337fc5bd31ea80753a1cb97f75a4f29ade325fd"
+    },
+    {
+      "path": "src/effectome/workflows/connectivity.py",
+      "bytes": 5656,
+      "sha256": "569a1e9a1a382aa902e9032ed82d0afaabebb21ce4feab50f2a6aa967bac83b4"
+    },
+    {
+      "path": "src/effectome/workflows/cross_method.py",
+      "bytes": 25673,
+      "sha256": "8c0f0fa679e48beb7a4395451611dfbd61fae8d17c44eec7bd79b621961008fa"
+    },
+    {
+      "path": "src/effectome/workflows/evaluation.py",
+      "bytes": 87664,
+      "sha256": "eb2debf1411a49a1e5e13ee7a2eab4ed1a87e4718e4a87d5f5dde322efd8e110"
+    },
+    {
+      "path": "src/effectome/workflows/feature_ownership.py",
+      "bytes": 13323,
+      "sha256": "c7f41c409a234eb0166b112a768751e57cf93dde2bebae6da279c1825e8e3088"
+    },
+    {
+      "path": "src/effectome/workflows/resume.py",
+      "bytes": 15294,
+      "sha256": "994008fc99216a0a69de738b37f8b51edc8616eee8555567fff2332fc8bfa62b"
+    },
+    {
+      "path": "synthetic/07_mechanism_replication.ipynb",
+      "bytes": 13766,
+      "sha256": "d5750b9d20c49944d0fe5eaa1cfb4f87a15edd15c45ef6240405fc7282d0ec22"
+    },
+    {
+      "path": "synthetic/_build_replication_notebook.py",
+      "bytes": 9495,
+      "sha256": "245dd088a3a8541fd30b8d68f5676e986b1689ee2198f45e37a5bfab2df86380"
+    },
+    {
+      "path": "synthetic/export_mechanism_replication.py",
+      "bytes": 10260,
+      "sha256": "f26fe69cd977c121cb4daaf9e77ff941d4efade0d46c83e8e5cb36c7b7a7cbc1"
+    },
+    {
+      "path": "synthetic/mechanism_replication.py",
+      "bytes": 5743,
+      "sha256": "018b35bbe279f1aa4f9276ba0a7be765e1c0eda3d681b54331caee4df61a488f"
+    },
+    {
+      "path": "synthetic/write_mechanism_replication_results.py",
+      "bytes": 21104,
+      "sha256": "278690f9f21e6f9803817590396a8833b7a5203a66d28b5e5bf5b89ecc86b65b"
+    },
+    {
+      "path": "tests/test_mechanism_calibration.py",
+      "bytes": 10682,
+      "sha256": "89d51c5e5b5017c87ea3edc8aed3e9d1e0a47fad9a5443d62a1cb6a658fa9993"
+    },
+    {
+      "path": "tests/test_mechanism_replication.py",
+      "bytes": 8265,
+      "sha256": "ff95f05d564f78f55a7b43cde2a599d5e51012c92a92699bed837ba3d80989d0"
+    },
+    {
+      "path": "tests/test_mechanism_replication_entrypoints.py",
+      "bytes": 3445,
+      "sha256": "35b4d672920e846bf2b1e4b5453e6f566df3aa157707d624cb13d4ff45b06bb6"
+    },
+    {
+      "path": "tests/test_mechanism_validation.py",
+      "bytes": 9680,
+      "sha256": "df0883714206f9b9dbef58d3642e6095262661e167a46af51f9d804ffe009daf"
+    },
+    {
+      "path": "tests/test_transition_examples.py",
+      "bytes": 12075,
+      "sha256": "3854fe433531e15545d3ff96588cc74a4af7101305ebdd369ecc71835cd83d3c"
+    },
+    {
+      "path": "tools/conventional-cgc/README.md",
+      "bytes": 4758,
+      "sha256": "13dd5c577b08be4e6f1202ddbed17fba18bb0d12993df3b6a129ba75de2c5b0b"
+    },
+    {
+      "path": "tools/conventional-cgc/pyproject.toml",
+      "bytes": 348,
+      "sha256": "9485662cd45346ce7727376ede922bdd295686f85f125aac6f0e9a7580ff4eb4"
+    },
+    {
+      "path": "tools/conventional-cgc/uv.lock",
+      "bytes": 64209,
+      "sha256": "2c9cf09a9ace9f8cd66e4d73c47102f3c847e746766674bbc29612a8a83d8e5b"
+    },
+    {
+      "path": "uv.lock",
+      "bytes": 270900,
+      "sha256": "69cbeedf1f6a2e06d2c84abc9c3bef8ec297442e762f329b4346b8d570836997"
+    }
+  ],
+  "scope": "Source/protocol snapshot; existing executed notebooks00\u201306 and unrelated user changes are not modified.",
+  "analysis_exporters_updated_after_fits": true,
+  "fitting_source_unchanged": true
+}

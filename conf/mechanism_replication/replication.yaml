@@ -1,0 +1,19 @@
+# Freeze before inspecting any new calibration or test results. See the cited protocol.
+profile: replication
+calibration_seeds: [10000, 10001, 10002, 10003, 10004, 10005, 10006, 10007, 10008, 10009, 10010, 10011, 10012, 10013, 10014, 10015, 10016, 10017, 10018]
+positive_seeds: [20000, 20001, 20002, 20003, 20004, 20005, 20006, 20007, 20008, 20009, 20010, 20011, 20012, 20013, 20014, 20015, 20016, 20017, 20018, 20019]
+null_seeds: [30000, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30008, 30009, 30010, 30011, 30012, 30013, 30014, 30015, 30016, 30017, 30018, 30019, 30020, 30021, 30022, 30023, 30024, 30025, 30026, 30027, 30028, 30029, 30030, 30031, 30032, 30033, 30034, 30035, 30036, 30037, 30038, 30039, 30040, 30041, 30042, 30043, 30044, 30045, 30046, 30047, 30048, 30049, 30050, 30051, 30052, 30053, 30054, 30055, 30056, 30057, 30058, 30059]
+primary_history: 1024
+comparison_history: 256
+calibration_alpha: 0.05
+nomination_floor: 0.1
+confidence_level: 0.95
+min_positive_seeds: 20
+min_null_seeds: 60
+min_topk_recall: 0.75
+min_nomination_recall: 0.75
+min_nomination_precision: 0.75
+max_effect_mae: 0.05
+max_null_probability: 0.05
+bootstrap_replicates: 2000
+analysis_seed: 20261117

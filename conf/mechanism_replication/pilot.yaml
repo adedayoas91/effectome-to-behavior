@@ -1,0 +1,19 @@
+# Engineering-only disjoint pools; cannot satisfy full replication seed-count gates.
+profile: pilot
+calibration_seeds: [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014, 1015, 1016, 1017, 1018]
+positive_seeds: [1100, 1101, 1102, 1103]
+null_seeds: [1200, 1201, 1202, 1203, 1204, 1205]
+primary_history: 1024
+comparison_history: 256
+calibration_alpha: 0.05
+nomination_floor: 0.1
+confidence_level: 0.95
+min_positive_seeds: 20
+min_null_seeds: 60
+min_topk_recall: 0.75
+min_nomination_recall: 0.75
+min_nomination_precision: 0.75
+max_effect_mae: 0.05
+max_null_probability: 0.05
+bootstrap_replicates: 2000
+analysis_seed: 20261117

@@ -1,0 +1,101 @@
+method,scenario,metric,decision,n_seeds,mean,sd,mean_interval,interval_scope
+conventional_cgc,single_driver,log_loss_gain,fail,20,-0.010427030604021344,0.018662313899370928,"[-0.018818948850526904, -0.0027642104174932683]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,single_driver,topk_precision,fail,20,0.325,0.37257991018529735,"[0.175, 0.5]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,single_driver,topk_recall,fail,20,0.325,0.37257991018529735,"[0.175, 0.5]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,single_driver,group_advantage,fail,20,-0.0018056372180314383,0.016493885177538387,"[-0.009512853964744878, 0.004613705447821738]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,single_driver,group_win,fail,20,0.525,0.34316637057662985,"[0.375, 0.675]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,redundant_group,log_loss_gain,fail,20,-0.2633866585968125,0.13450111970103068,"[-0.323251094927068, -0.21240494433161392]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,redundant_group,topk_precision,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,redundant_group,topk_recall,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,redundant_group,group_advantage,fail,20,-0.07833940138777593,0.08501094702454709,"[-0.11968474395195662, -0.047000021187633745]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,redundant_group,group_win,fail,20,0.2,0.2513123449750173,"[0.1, 0.3]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,correlated_bystander,log_loss_gain,fail,20,-0.013659512064585235,0.019535041195328052,"[-0.022538635549172518, -0.005708374161564932]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,correlated_bystander,topk_precision,fail,20,0.05,0.15389675281277312,"[0.0, 0.125]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,correlated_bystander,topk_recall,fail,20,0.05,0.15389675281277312,"[0.0, 0.125]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,correlated_bystander,group_advantage,fail,20,-0.0013023274412694423,0.005331172614138937,"[-0.003794673134459051, 0.0007198273876258586]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,correlated_bystander,group_win,fail,20,0.4,0.3479261869692297,"[0.25, 0.55]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,null,log_loss_gain,fail,60,-0.08581761284657353,0.05335369757994117,"[-0.09921740339045143, -0.07163518680215317]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,null,topk_precision,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,null,topk_recall,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,null,group_advantage,fail,60,-0.010505239589073824,0.03189584088439364,"[-0.019047299893394147, -0.0023442785100563543]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,null,group_win,fail,60,0.4083333333333333,0.3504436252284764,"[0.31666666666666665, 0.5]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,hidden_confounder,log_loss_gain,diagnostic,20,-0.005912094219459899,0.005538769201803881,"[-0.008364633176629438, -0.0035329826095718444]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,hidden_confounder,topk_precision,diagnostic,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,hidden_confounder,topk_recall,diagnostic,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,hidden_confounder,group_advantage,diagnostic,20,0.00018973413324553835,0.0018800288161413723,"[-0.0006044655469394234, 0.0009685511317519052]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc,hidden_confounder,group_win,diagnostic,20,0.675,0.4063638504436245,"[0.5, 0.85]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,single_driver,log_loss_gain,fail,20,-0.01377146843399312,0.01013431543961777,"[-0.01810355653755242, -0.009249470035973007]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,single_driver,topk_precision,fail,20,0.15,0.2350811729908136,"[0.05, 0.25]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,single_driver,topk_recall,fail,20,0.15,0.2350811729908136,"[0.05, 0.25]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,single_driver,group_advantage,fail,20,0.004170073114586281,0.010780859356468792,"[0.00029173058481218514, 0.009333399234114385]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,single_driver,group_win,fail,20,0.55,0.3940344628262062,"[0.4, 0.725]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,redundant_group,log_loss_gain,fail,20,-0.19095825756478807,0.09379660557791986,"[-0.23319352600206186, -0.15428824268789598]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,redundant_group,topk_precision,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,redundant_group,topk_recall,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,redundant_group,group_advantage,fail,20,-0.03231453227357497,0.06658376130999553,"[-0.060473688417343685, -0.0038125095505438123]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,redundant_group,group_win,fail,20,0.325,0.4063638504436245,"[0.15, 0.5]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,correlated_bystander,log_loss_gain,fail,20,-0.013253319171146642,0.01890506125547995,"[-0.020801194958386456, -0.004818575947972561]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,correlated_bystander,topk_precision,fail,20,0.025,0.11180339887498947,"[0.0, 0.075]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,correlated_bystander,topk_recall,fail,20,0.025,0.11180339887498947,"[0.0, 0.075]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,correlated_bystander,group_advantage,fail,20,-0.0024982101852278745,0.007080503089252592,"[-0.005975284755416096, -0.0001967237340768349]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,correlated_bystander,group_win,fail,20,0.35,0.36634754853252327,"[0.2, 0.525]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,null,log_loss_gain,fail,60,-0.07029787855518875,0.049555608951690755,"[-0.08353670068782386, -0.05792561934365156]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,null,topk_precision,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,null,topk_recall,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,null,group_advantage,fail,60,-0.001222413820973339,0.008807839608703936,"[-0.0034228123397159107, 0.0010000731441077776]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,null,group_win,fail,60,0.44166666666666665,0.34557329751414856,"[0.35833333333333334, 0.5333333333333333]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,hidden_confounder,log_loss_gain,diagnostic,20,-0.005797058172998623,0.004946992689978249,"[-0.007817266519964014, -0.003754969773005923]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,hidden_confounder,topk_precision,diagnostic,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,hidden_confounder,topk_recall,diagnostic,0,,,,descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,hidden_confounder,group_advantage,diagnostic,20,0.00011829056373611609,0.0009769552778482959,"[-0.0003099371478805658, 0.0005239889671018694]",descriptive_percentile_bootstrap_independent_seeds
+conventional_cgc_star,hidden_confounder,group_win,diagnostic,20,0.4,0.3838859479749573,"[0.25, 0.575]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,single_driver,log_loss_gain,fail,20,-0.013337811456242469,0.017028995128875186,"[-0.020631228700278156, -0.006138412168534314]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,single_driver,topk_precision,fail,20,0.2,0.2991215208080594,"[0.075, 0.325]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,single_driver,topk_recall,fail,20,0.2,0.2991215208080594,"[0.075, 0.3256249999999966]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,single_driver,group_advantage,fail,20,-0.0030759863887471718,0.01091554447475014,"[-0.0076350217673836675, 0.0013028621991582347]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,single_driver,group_win,fail,20,0.5,0.3244428422615251,"[0.35, 0.65]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,redundant_group,log_loss_gain,fail,20,-0.24157936155622767,0.12227635618653417,"[-0.29381127871293744, -0.19425441422109957]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,redundant_group,topk_precision,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,redundant_group,topk_recall,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,redundant_group,group_advantage,fail,20,-0.07568883976779515,0.091819312361429,"[-0.11517889450030634, -0.04043222223485476]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,redundant_group,group_win,fail,20,0.15,0.3284733426658931,"[0.025, 0.3]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,correlated_bystander,log_loss_gain,fail,20,-0.014309161007074809,0.016912753503342454,"[-0.02170632773898814, -0.007491948343016455]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,correlated_bystander,topk_precision,fail,20,0.2,0.2513123449750173,"[0.1, 0.3]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,correlated_bystander,topk_recall,fail,20,0.2,0.2513123449750173,"[0.1, 0.3]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,correlated_bystander,group_advantage,fail,20,-0.0012895416406316297,0.004238411054608369,"[-0.003178057491796356, 0.0003766423626819261]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,correlated_bystander,group_win,fail,20,0.5,0.28097574347450816,"[0.375, 0.625]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,null,log_loss_gain,fail,60,-0.09214139351949999,0.057887961563882775,"[-0.10826487853827252, -0.07808539572411255]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,null,topk_precision,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,null,topk_recall,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,null,group_advantage,fail,60,-0.01180128545996356,0.02539944294461606,"[-0.01802080924515851, -0.005686510072420786]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,null,group_win,fail,60,0.35833333333333334,0.3692831657375883,"[0.26666666666666666, 0.45]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,hidden_confounder,log_loss_gain,diagnostic,20,-0.005625121097992691,0.006478601431347862,"[-0.008267420681371032, -0.002791531884605292]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,hidden_confounder,topk_precision,diagnostic,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,hidden_confounder,topk_recall,diagnostic,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,hidden_confounder,group_advantage,diagnostic,20,-0.00015367929961231618,0.003686740549220189,"[-0.0019120273441404494, 0.001166112951374595]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc,hidden_confounder,group_win,diagnostic,20,0.675,0.24468024246479647,"[0.575, 0.775]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,single_driver,log_loss_gain,fail,20,-0.012254835763879696,0.011413032661430598,"[-0.017111017783694324, -0.007243559356697424]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,single_driver,topk_precision,fail,20,0.025,0.11180339887498947,"[0.0, 0.075]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,single_driver,topk_recall,fail,20,0.025,0.11180339887498947,"[0.0, 0.075]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,single_driver,group_advantage,fail,20,-0.0005333406922387901,0.004478152095075569,"[-0.0025392621366563833, 0.0012124937337316287]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,single_driver,group_win,fail,20,0.375,0.31933318682925255,"[0.25, 0.5006249999999965]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,redundant_group,log_loss_gain,fail,20,-0.1331481163747486,0.07002962832059596,"[-0.16210141849307702, -0.1042761411373941]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,redundant_group,topk_precision,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,redundant_group,topk_recall,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,redundant_group,group_advantage,fail,20,-0.024304286799050195,0.030533245834466472,"[-0.03849162585917637, -0.013379883826070332]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,redundant_group,group_win,fail,20,0.225,0.3024026594146497,"[0.1, 0.375]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,correlated_bystander,log_loss_gain,fail,20,-0.0091128398749921,0.01508728221317717,"[-0.015012063830828168, -0.0021966340183330268]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,correlated_bystander,topk_precision,fail,20,0.075,0.1831737742662616,"[0.0, 0.175]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,correlated_bystander,topk_recall,fail,20,0.075,0.1831737742662616,"[0.0, 0.15]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,correlated_bystander,group_advantage,fail,20,-4.853700522763496e-05,0.0014190986271899917,"[-0.0006434227380165841, 0.0005153879699754131]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,correlated_bystander,group_win,fail,20,0.375,0.35817519970568945,"[0.225, 0.525]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,null,log_loss_gain,fail,60,-0.05357989038426629,0.03141465773629621,"[-0.06218759571232658, -0.04574903129010239]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,null,topk_precision,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,null,topk_recall,fail,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,null,group_advantage,fail,60,-0.0004651544142349916,0.0037274597329032847,"[-0.0014547922998252249, 0.00035254471369499713]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,null,group_win,fail,60,0.4583333333333333,0.3715709511673544,"[0.36666666666666664, 0.5583333333333333]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,hidden_confounder,log_loss_gain,diagnostic,20,-0.007552304001518094,0.005699265509313756,"[-0.010271302123331591, -0.005381836361078531]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,hidden_confounder,topk_precision,diagnostic,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,hidden_confounder,topk_recall,diagnostic,0,,,,descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,hidden_confounder,group_advantage,diagnostic,20,-0.0002095257244803304,0.000529779723164853,"[-0.00044801736763381157, -7.872529082333778e-06]",descriptive_percentile_bootstrap_independent_seeds
+fast_cgc_star,hidden_confounder,group_win,diagnostic,20,0.325,0.2935714743061999,"[0.2, 0.45]",descriptive_percentile_bootstrap_independent_seeds

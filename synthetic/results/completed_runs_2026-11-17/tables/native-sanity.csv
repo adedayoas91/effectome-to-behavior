@@ -1,0 +1,25 @@
+method,scenario,seed,status,support,tp,fp,fn,tn,n_selected,n_true,precision,recall,f1,false_positive_rate,exact_support
+conventional_cgc,chain,0,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+conventional_cgc,chain,1,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+conventional_cgc,chain,2,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+conventional_cgc,null,0,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True
+conventional_cgc,null,1,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True
+conventional_cgc,null,2,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True
+conventional_cgc_star,chain,0,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+conventional_cgc_star,chain,1,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+conventional_cgc_star,chain,2,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+conventional_cgc_star,null,0,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True
+conventional_cgc_star,null,1,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True
+conventional_cgc_star,null,2,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True
+fast_cgc,chain,0,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+fast_cgc,chain,1,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+fast_cgc,chain,2,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+fast_cgc,null,0,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True
+fast_cgc,null,1,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True
+fast_cgc,null,2,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True
+fast_cgc_star,chain,0,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+fast_cgc_star,chain,1,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+fast_cgc_star,chain,2,available,"[[false, true, false, false], [false, false, true, false], [false, false, false, false], [false, false, false, false]]",2,0,0,10,2,2,1.0,1.0,1.0,0.0,True
+fast_cgc_star,null,0,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True
+fast_cgc_star,null,1,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True
+fast_cgc_star,null,2,available,"[[false, false, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]]",0,0,0,12,0,0,,,,0.0,True

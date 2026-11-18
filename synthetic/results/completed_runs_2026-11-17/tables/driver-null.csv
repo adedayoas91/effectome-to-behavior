@@ -1,0 +1,5 @@
+method,n_independent_seeds,seeds_with_any_false_nominee,fraction,one_sided_exact_upper_bound,confidence_level,coverage_scope,maximum_allowed_upper_bound,decision
+conventional_cgc,60,50,0.8333333333333334,0.9066930672947636,0.95,per_method_seed_event_not_simultaneous_across_methods,0.05,fail
+conventional_cgc_star,60,20,0.3333333333333333,0.44646564446522585,0.95,per_method_seed_event_not_simultaneous_across_methods,0.05,fail
+fast_cgc,60,42,0.7,0.7962944655537768,0.95,per_method_seed_event_not_simultaneous_across_methods,0.05,fail
+fast_cgc_star,60,24,0.4,0.514350874264025,0.95,per_method_seed_event_not_simultaneous_across_methods,0.05,fail

@@ -1,0 +1,36 @@
+{
+  "document": "result_collation.tex",
+  "compiled_pdf": "result_collation.pdf",
+  "pages": 13,
+  "compile_command": "tectonic --keep-logs result_collation.tex",
+  "latex_warnings": 0,
+  "bibtex_warnings": 0,
+  "undefined_citations": 0,
+  "unique_cited_references": 11,
+  "primary_numeric_rows_reviewed": 66,
+  "framework_interval_endpoints_verified": 16,
+  "figures": 3,
+  "tables": 8,
+  "saved_notebooks_unchanged": 7,
+  "frozen_collation_manifest_unchanged": true,
+  "new_scientific_runs": false,
+  "graph_similarity_merged": false,
+  "files": {
+    "result_collation.tex": {
+      "bytes": 39453,
+      "sha256": "bd7f38ee723e820bb39b315b986ce10c5961097fe19973f90b3a9e7dc34a6d32"
+    },
+    "result_collation.bib": {
+      "bytes": 4628,
+      "sha256": "59aac7dde643d60b43da9066e7be107f529c32320e855b88bef7ec9de23150e6"
+    },
+    "result_collation.pdf": {
+      "bytes": 161741,
+      "sha256": "d0d96029c5e74363b7d176391727b631c382491ddb7b94b15f340be53ad07d81"
+    },
+    "result_collation-citations.md": {
+      "bytes": 8494,
+      "sha256": "bc26931618594f8d8a1a4eae127b723c57e90cb9d4a7c5312ae0fdce9c32d706"
+    }
+  }
+}

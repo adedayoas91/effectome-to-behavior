@@ -1,0 +1,16 @@
+{
+  "all_checks_passed": true,
+  "checks": [
+    "Frozen fitting source unchanged",
+    "All planned disjoint seed sets and cell uniqueness verified",
+    "4,284 actual native window fits and 952 artifact hashes verified; no oracle substitution",
+    "Independent seed means/SD, paired inputs, MAE changes, sign tests, Holm and exact null bounds agree",
+    "Frozen 20-seed ranking gate retained; conditional19 metrics not promoted"
+  ],
+  "actual_native_window_fits": 4284,
+  "verified_native_artifacts": 952,
+  "regression_tests_passed": 654,
+  "regression_tests_skipped": 1,
+  "graph_similarity_included": false,
+  "new_scientific_runs": true
+}

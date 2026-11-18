@@ -1,0 +1,26 @@
+{
+  "scope": "Collection-time installed versions, not proof of a separate machine or historical run environment; null means distribution metadata absent. Execution settings are in archived reports.",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 17.0.0 (clang-1700.6.4.2)]",
+  "platform": "macOS-15.8.3-x86_64-i386-64bit-Mach-O",
+  "main_packages": {
+    "effectome": "0.1.0",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "pandas": "3.1.0",
+    "matplotlib": "3.11.1",
+    "scikit-learn": "1.9.0",
+    "torch": null,
+    "nbformat": null,
+    "ruff": "0.16.2"
+  },
+  "conventional_runtime": {
+    "python": "3.13.5 (main, Jul 23 2025, 00:30:58) [Clang 20.1.4 ]",
+    "packages": {
+      "numpy": "2.2.0",
+      "scipy": "1.18.1",
+      "scikit-learn": "1.9.1",
+      "matplotlib": "3.11.2",
+      "torch": null
+    }
+  }
+}
