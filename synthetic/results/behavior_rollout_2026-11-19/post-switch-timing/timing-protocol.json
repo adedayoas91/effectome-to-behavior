@@ -1,0 +1,124 @@
+{
+  "signature": "f84c2815dc1c4db74ae1b8a296faa651c1c99c40a05941429007c34d6bd64421",
+  "profile": "confirmation",
+  "seeds": [
+    86000,
+    86001,
+    86002,
+    86003,
+    86004,
+    86005,
+    86006,
+    86007,
+    86008,
+    86009,
+    86010,
+    86011,
+    86012,
+    86013,
+    86014,
+    86015,
+    86016,
+    86017,
+    86018,
+    86019
+  ],
+  "scenarios": [
+    "driver_switch",
+    "constant",
+    "nuisance_switch"
+  ],
+  "generator": {
+    "n_trials": 72,
+    "history_lengths": [
+      256,
+      1024
+    ],
+    "horizon": 8,
+    "target_length": 4,
+    "fps": 10.0,
+    "washout": 64,
+    "origin_jitter": 64,
+    "gap_jitter": 64
+  },
+  "learning": {
+    "ridge_alphas": [
+      0.001,
+      0.01,
+      0.1,
+      1.0
+    ],
+    "dynamics_weights": [
+      0.05,
+      0.2
+    ],
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "max_epochs": 200,
+    "min_epochs": 20,
+    "patience": 20,
+    "batch_size": 128,
+    "max_pairs_per_trial": 128,
+    "early_samples": 32,
+    "validation_fraction": 0.25,
+    "seed": 20261118,
+    "device": "cpu",
+    "runtime_python": null
+  },
+  "method": {
+    "name": "fast_cgc",
+    "max_lag": 1,
+    "max_lag_seconds": null,
+    "alpha": 0.01,
+    "partial": false,
+    "ridge": 1.0,
+    "absolute": false,
+    "threshold": 0.0,
+    "extra": {
+      "n_perm": 0,
+      "beta": 0.005,
+      "seed": 42
+    }
+  },
+  "delays": [
+    0,
+    8,
+    16,
+    32,
+    64,
+    128,
+    192,
+    256,
+    512,
+    768,
+    1023
+  ],
+  "encoder_trial_stop": 10,
+  "evaluation_trial_start": 24,
+  "rollouts": 128,
+  "ridge_alpha": 1.0,
+  "consensus": 0.25,
+  "margin": 0.005,
+  "level": 0.05,
+  "joint_test": "intersection_union_then_holm",
+  "implementation": "bf680db4f7ef693cc0eb7b55c5205f1fb796e9329697e9eb0e84ec660f8275c6",
+  "entrypoint_sha256": "76d47481a4d4b52d70743ba91e698df70437f07477a10bccc2ba4a1944541cb4",
+  "isolated_rollout_config_sha256": "0c1d9e778007742632f351b37344ab8f7213cc82b647cd99d70acb6ba91bb738",
+  "encoder_worker_sha256": "9cdf47db829c7c2ba1e9cc8227c665eb9f9ed9ea625d2e49ee2177d11e3c5770",
+  "encoder_lock_sha256": "1e2ec4d4a77a34da34c8dada1c93c061320cdfb2a7aaa547296cb040a7f25387",
+  "encoder_runtime": {
+    "torch_version": "2.2.2",
+    "numpy_version": "1.26.4",
+    "python_version": "3.12.8",
+    "platform": "darwin-x86_64",
+    "device": "cpu"
+  },
+  "runtime": {
+    "python": "3.14.7",
+    "platform": "macOS-15.8.3-x86_64-i386-64bit-Mach-O",
+    "numpy": "2.5.4",
+    "scikit-learn": "1.9.0",
+    "scipy": "1.18.1",
+    "fastcgc": "0.1.0"
+  }
+}

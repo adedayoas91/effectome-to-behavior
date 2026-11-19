@@ -1,0 +1,3 @@
+# Statistical appendix
+
+The independent unit is the simulation process seed. All forecast gains subtract the local dynamic-support MAE from the matched pooled MAE on the same seed and outcome. The primary sign tests ask whether more than half the driver gains exceed 0.005, and whether more than half the gains in each control are below 0.005. Ties count against the required direction. The intersection of the three required tests controls the complete decision at 0.05. Seed-bootstrap percentile intervals with 20,000 resamples are exploratory and pointwise. The paired local-support diagnostic and effect MAEs are descriptive. Active effects use oracle magnitude of at least 0.05.

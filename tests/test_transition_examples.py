@@ -95,7 +95,7 @@ def test_invalid_example_design_is_rejected(kwargs):
 def test_synthetic_notebook_code_parses_and_run_defaults_remain_enabled():
     root = Path(__file__).resolve().parents[1] / "synthetic"
     paths = sorted(root.glob("*.ipynb"))
-    assert len(paths) == 9
+    assert len(paths) == 11
     assert (root / "06_mechanism_driver_validation.ipynb") in paths
     enabled = {}
     for path in paths:
@@ -121,6 +121,8 @@ def test_synthetic_notebook_code_parses_and_run_defaults_remain_enabled():
 def test_synthetic_builders_create_output_free_notebooks_without_clearing_saved_runs(tmp_path, monkeypatch):
     from notebooks._build_notebooks import write_notebook
     from synthetic import (
+        _build_behavior_supervised_notebook,
+        _build_behavior_transition_notebook,
         _build_csl_sanity_notebook,
         _build_driver_notebook,
         _build_manifold_notebook,
@@ -133,11 +135,12 @@ def test_synthetic_builders_create_output_free_notebooks_without_clearing_saved_
         write_notebook(tmp_path / path.name, cells)
 
     for module in (_build_csl_sanity_notebook, _build_driver_notebook, _build_mechanism_notebook,
-                   _build_replication_notebook, _build_validation_notebook, _build_manifold_notebook):
+                   _build_replication_notebook, _build_validation_notebook, _build_manifold_notebook,
+                   _build_behavior_supervised_notebook, _build_behavior_transition_notebook):
         monkeypatch.setattr(module, "write_notebook", redirected)
         module.main()
     generated = list(tmp_path.glob("*.ipynb"))
-    assert len(generated) == 6
+    assert len(generated) == 8
     for path in generated:
         for cell in json.loads(path.read_text())["cells"]:
             if cell["cell_type"] == "code":
@@ -209,6 +212,8 @@ def test_synthetic_notebook_prefixes_follow_documented_execution_order():
         "06_mechanism_driver_validation.ipynb",
         "07_mechanism_replication.ipynb",
         "08_learned_manifold_validation.ipynb",
+        "09_behavior_supervised_validation.ipynb",
+        "10_behavior_transition_experiment.ipynb",
     ]
 
 

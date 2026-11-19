@@ -1,0 +1,29 @@
+{
+  "profile": "development",
+  "procedure_fingerprint": "8250c89619672c754bc0a6f636fbb648c570aebaf66f57f3815747edaf919532",
+  "signature": "bdaff61b16de59743a8ec163374638d8e2af9f39d895edfb31554abdb93059ec",
+  "completed_cases": 15,
+  "planned_cases": 15,
+  "execution_complete": true,
+  "all_lanes_available": true,
+  "native_window_fits": 2880,
+  "cases": [
+    "cases/driver_switch-81001/case.json",
+    "cases/constant-81001/case.json",
+    "cases/nuisance_switch-81001/case.json",
+    "cases/driver_switch-81002/case.json",
+    "cases/constant-81002/case.json",
+    "cases/nuisance_switch-81002/case.json",
+    "cases/driver_switch-81003/case.json",
+    "cases/constant-81003/case.json",
+    "cases/nuisance_switch-81003/case.json",
+    "cases/driver_switch-81004/case.json",
+    "cases/constant-81004/case.json",
+    "cases/nuisance_switch-81004/case.json",
+    "cases/driver_switch-81005/case.json",
+    "cases/constant-81005/case.json",
+    "cases/nuisance_switch-81005/case.json"
+  ],
+  "independent_unit": "simulation_process_seed",
+  "confirmation": null
+}

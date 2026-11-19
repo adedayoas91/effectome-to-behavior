@@ -1,0 +1,180 @@
+# Continuous behavior units; separate experiment from notebook 08.
+profile: development
+development_seeds:
+- 40005
+- 40006
+- 40007
+- 40008
+- 40009
+calibration_seeds:
+- 50000
+- 50001
+- 50002
+- 50003
+- 50004
+- 50005
+- 50006
+- 50007
+- 50008
+- 50009
+- 50010
+- 50011
+- 50012
+- 50013
+- 50014
+- 50015
+- 50016
+- 50017
+- 50018
+positive_seeds:
+- 60000
+- 60001
+- 60002
+- 60003
+- 60004
+- 60005
+- 60006
+- 60007
+- 60008
+- 60009
+- 60010
+- 60011
+- 60012
+- 60013
+- 60014
+- 60015
+- 60016
+- 60017
+- 60018
+- 60019
+null_seeds:
+- 70000
+- 70001
+- 70002
+- 70003
+- 70004
+- 70005
+- 70006
+- 70007
+- 70008
+- 70009
+- 70010
+- 70011
+- 70012
+- 70013
+- 70014
+- 70015
+- 70016
+- 70017
+- 70018
+- 70019
+- 70020
+- 70021
+- 70022
+- 70023
+- 70024
+- 70025
+- 70026
+- 70027
+- 70028
+- 70029
+- 70030
+- 70031
+- 70032
+- 70033
+- 70034
+- 70035
+- 70036
+- 70037
+- 70038
+- 70039
+- 70040
+- 70041
+- 70042
+- 70043
+- 70044
+- 70045
+- 70046
+- 70047
+- 70048
+- 70049
+- 70050
+- 70051
+- 70052
+- 70053
+- 70054
+- 70055
+- 70056
+- 70057
+- 70058
+- 70059
+generator:
+  scenario: driver
+  seed: 40005
+  n_trials: 24
+  trial_length: 1152
+  n_neurons: 10
+  fps: 10.0
+  driver_ar: 0.85
+  readout_ar: 0.75
+  nuisance_ar: 0.7
+  coupling: 0.8
+  nuisance_coupling: 0.8
+  noise_std: 0.1
+  pulse_amplitude: 1.0
+  pulse_probability: 0.6
+  initial_readout: 0.8
+fit:
+  ridge_alphas:
+  - 0.01
+  - 0.1
+  - 1.0
+  - 10.0
+  validation_fraction: 0.25
+  noise_floor: 1.0e-06
+rollout:
+  horizon: 8
+  target_length: 4
+  n_rollouts: 256
+  seed: 42
+learning:
+  ridge_alphas:
+  - 0.001
+  - 0.01
+  - 0.1
+  - 1.0
+  dynamics_weights:
+  - 0.05
+  - 0.2
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  max_epochs: 200
+  min_epochs: 20
+  patience: 20
+  batch_size: 128
+  max_pairs_per_trial: 128
+  early_samples: 32
+  validation_fraction: 0.25
+  seed: 20261118
+  device: cpu
+  runtime_python: null
+decisions:
+  gold_effect_floor: 0.1
+  nomination_floor: 0.1
+  max_behavioral_mae: 0.05
+  max_positive_unit_mae: 0.05
+  max_semantic_mae: 0.05
+  max_origin_decoding_mae: 0.1
+  min_nomination_recall: 0.75
+  min_nomination_precision: 0.75
+  max_null_probability: 0.05
+  calibration_alpha: 0.05
+  confidence_level: 0.95
+  min_positive_seeds: 20
+  min_null_seeds: 60
+  primary_readout: bunddle_behavior_2d
+evaluation_fraction: 0.5
+discovery_history_length: 1024
+discovery_burn_in: 128
+support_selection_fraction: 0.5
+retain_rollout_samples: false

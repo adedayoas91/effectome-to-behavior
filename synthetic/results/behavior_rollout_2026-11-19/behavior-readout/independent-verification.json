@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "profile": "confirmation",
+  "completed_cells": 99,
+  "available_method_runs": 693,
+  "native_window_fits": 3564,
+  "exact_native_consensus_supports": 367,
+  "tested_native_consensus_supports": 396,
+  "exact_oracle_null_cells": 79,
+  "verified_artifact_hashes": 1287,
+  "seed_dynamics_readout_rows": 8316,
+  "origin_candidate_effects_recomputed": 1197504,
+  "bound_violations": 0,
+  "tolerance": 1e-12,
+  "scope": "numerical_and_artifact_checks_of_saved_evidence"
+}

@@ -1,0 +1,901 @@
+{
+  "profile": "confirmation",
+  "signature": "f84c2815dc1c4db74ae1b8a296faa651c1c99c40a05941429007c34d6bd64421",
+  "completed_cases": 60,
+  "planned_cases": 60,
+  "execution_complete": true,
+  "native_training_fits": 2520,
+  "cases": [
+    "cases/constant-86000/case.json",
+    "cases/driver_switch-86000/case.json",
+    "cases/nuisance_switch-86000/case.json",
+    "cases/constant-86001/case.json",
+    "cases/driver_switch-86001/case.json",
+    "cases/nuisance_switch-86001/case.json",
+    "cases/constant-86002/case.json",
+    "cases/driver_switch-86002/case.json",
+    "cases/nuisance_switch-86002/case.json",
+    "cases/constant-86003/case.json",
+    "cases/driver_switch-86003/case.json",
+    "cases/nuisance_switch-86003/case.json",
+    "cases/constant-86004/case.json",
+    "cases/driver_switch-86004/case.json",
+    "cases/nuisance_switch-86004/case.json",
+    "cases/constant-86005/case.json",
+    "cases/driver_switch-86005/case.json",
+    "cases/nuisance_switch-86005/case.json",
+    "cases/constant-86006/case.json",
+    "cases/driver_switch-86006/case.json",
+    "cases/nuisance_switch-86006/case.json",
+    "cases/constant-86007/case.json",
+    "cases/driver_switch-86007/case.json",
+    "cases/nuisance_switch-86007/case.json",
+    "cases/constant-86008/case.json",
+    "cases/driver_switch-86008/case.json",
+    "cases/nuisance_switch-86008/case.json",
+    "cases/constant-86009/case.json",
+    "cases/driver_switch-86009/case.json",
+    "cases/nuisance_switch-86009/case.json",
+    "cases/constant-86010/case.json",
+    "cases/driver_switch-86010/case.json",
+    "cases/nuisance_switch-86010/case.json",
+    "cases/constant-86011/case.json",
+    "cases/driver_switch-86011/case.json",
+    "cases/nuisance_switch-86011/case.json",
+    "cases/constant-86012/case.json",
+    "cases/driver_switch-86012/case.json",
+    "cases/nuisance_switch-86012/case.json",
+    "cases/constant-86013/case.json",
+    "cases/driver_switch-86013/case.json",
+    "cases/nuisance_switch-86013/case.json",
+    "cases/constant-86014/case.json",
+    "cases/driver_switch-86014/case.json",
+    "cases/nuisance_switch-86014/case.json",
+    "cases/constant-86015/case.json",
+    "cases/driver_switch-86015/case.json",
+    "cases/nuisance_switch-86015/case.json",
+    "cases/constant-86016/case.json",
+    "cases/driver_switch-86016/case.json",
+    "cases/nuisance_switch-86016/case.json",
+    "cases/constant-86017/case.json",
+    "cases/driver_switch-86017/case.json",
+    "cases/nuisance_switch-86017/case.json",
+    "cases/constant-86018/case.json",
+    "cases/driver_switch-86018/case.json",
+    "cases/nuisance_switch-86018/case.json",
+    "cases/constant-86019/case.json",
+    "cases/driver_switch-86019/case.json",
+    "cases/nuisance_switch-86019/case.json"
+  ],
+  "confirmation": {
+    "margin_mae": 0.005,
+    "level": 0.05,
+    "family_size": 22,
+    "complete": true,
+    "passed": true,
+    "earliest_supported_delay_samples": {
+      "256": 192,
+      "1024": 768
+    },
+    "earliest_sustained_delay_samples": {
+      "256": null,
+      "1024": 768
+    },
+    "tests": [
+      {
+        "history_samples": 256,
+        "delay_samples": 0,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.05087651192346778,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.004600311186061572,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.004592884732907458,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 256,
+        "delay_samples": 8,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.057992741582712615,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0032107904312480284,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0032374661437950493,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 256,
+        "delay_samples": 16,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.050107129884249146,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.001504561891846859,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0015242626040809309,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 256,
+        "delay_samples": 32,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.04146831972563173,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0034323053418264084,
+            "gains_on_expected_side": 19,
+            "p_value": 2.002716064453125e-05
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.003420005681224002,
+            "gains_on_expected_side": 19,
+            "p_value": 2.002716064453125e-05
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 256,
+        "delay_samples": 64,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.02641033372475789,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0023015515837559756,
+            "gains_on_expected_side": 19,
+            "p_value": 2.002716064453125e-05
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0023105401706160476,
+            "gains_on_expected_side": 19,
+            "p_value": 2.002716064453125e-05
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 256,
+        "delay_samples": 128,
+        "complete": true,
+        "joint_p_value": 0.9999799728393555,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0031079632670560644,
+            "gains_on_expected_side": 2,
+            "p_value": 0.9999799728393555
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0037595637835411144,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.003781364684017152,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 256,
+        "delay_samples": 192,
+        "complete": true,
+        "joint_p_value": 0.0012884140014648438,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": 0.011880154292891746,
+            "gains_on_expected_side": 17,
+            "p_value": 0.0012884140014648438
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.002922823410134108,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.002912446255139803,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 0.021903038024902344,
+        "passed": true
+      },
+      {
+        "history_samples": 256,
+        "delay_samples": 256,
+        "complete": true,
+        "joint_p_value": 2.002716064453125e-05,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": 0.019372111830999537,
+            "gains_on_expected_side": 19,
+            "p_value": 2.002716064453125e-05
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0023441313603350736,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.002377147888758689,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 0.000400543212890625,
+        "passed": true
+      },
+      {
+        "history_samples": 256,
+        "delay_samples": 512,
+        "complete": true,
+        "joint_p_value": 2.002716064453125e-05,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": 0.016533888970891523,
+            "gains_on_expected_side": 19,
+            "p_value": 2.002716064453125e-05
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.002177787040876149,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0021573237568419112,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 0.000400543212890625,
+        "passed": true
+      },
+      {
+        "history_samples": 256,
+        "delay_samples": 768,
+        "complete": true,
+        "joint_p_value": 9.5367431640625e-07,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": 0.016891357078753142,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.004023397474483745,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.004019793556838336,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 2.09808349609375e-05,
+        "passed": true
+      },
+      {
+        "history_samples": 256,
+        "delay_samples": 1023,
+        "complete": true,
+        "joint_p_value": 0.005908966064453125,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": 0.018295193778210483,
+            "gains_on_expected_side": 16,
+            "p_value": 0.005908966064453125
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.002103261579126957,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0020977567878368436,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 0.09454345703125,
+        "passed": false
+      },
+      {
+        "history_samples": 1024,
+        "delay_samples": 0,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.05007017907653194,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0015579614729903338,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.00158702425912349,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 1024,
+        "delay_samples": 8,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.06596813287270212,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0010077897487286852,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0010421988566961082,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 1024,
+        "delay_samples": 16,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.06325269541237404,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0006148762260539647,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0006502406592421836,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 1024,
+        "delay_samples": 32,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.060099812168344854,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0009313186556508202,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0009245810122247428,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 1024,
+        "delay_samples": 64,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.055797228932463375,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.000294066564966243,
+            "gains_on_expected_side": 19,
+            "p_value": 2.002716064453125e-05
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.00028752473773992204,
+            "gains_on_expected_side": 19,
+            "p_value": 2.002716064453125e-05
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 1024,
+        "delay_samples": 128,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.04171156176997447,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0006695715989200101,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0007041894225062351,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 1024,
+        "delay_samples": 192,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0358103501904267,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0007111408042965228,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0007218935784942357,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 1024,
+        "delay_samples": 256,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.025814952634263522,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0009292488237817919,
+            "gains_on_expected_side": 19,
+            "p_value": 2.002716064453125e-05
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0009426497246386639,
+            "gains_on_expected_side": 19,
+            "p_value": 2.002716064453125e-05
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 1024,
+        "delay_samples": 512,
+        "complete": true,
+        "joint_p_value": 1.0,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0009314625296161893,
+            "gains_on_expected_side": 0,
+            "p_value": 1.0
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.00022950861334433275,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.000247936601435618,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 1.0,
+        "passed": false
+      },
+      {
+        "history_samples": 1024,
+        "delay_samples": 768,
+        "complete": true,
+        "joint_p_value": 9.5367431640625e-07,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": 0.014298082697194422,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0011398062494812316,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0011343932913569499,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 2.09808349609375e-05,
+        "passed": true
+      },
+      {
+        "history_samples": 1024,
+        "delay_samples": 1023,
+        "complete": true,
+        "joint_p_value": 2.002716064453125e-05,
+        "scenarios": {
+          "driver_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": 0.02007525563392868,
+            "gains_on_expected_side": 19,
+            "p_value": 2.002716064453125e-05
+          },
+          "constant": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0006078818875580622,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          },
+          "nuisance_switch": {
+            "complete": true,
+            "seed_count": 20,
+            "available_seed_count": 20,
+            "observed_row_count": 20,
+            "mean_gain": -0.0005898357893405939,
+            "gains_on_expected_side": 20,
+            "p_value": 9.5367431640625e-07
+          }
+        },
+        "holm_p_value": 0.000400543212890625,
+        "passed": true
+      }
+    ]
+  }
+}

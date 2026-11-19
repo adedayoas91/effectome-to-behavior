@@ -1,5 +1,6 @@
 """Behavioral-manifold learning (Stage 5): classical, CEBRA, BundDLe-Net."""
 
+from . import behavior_dynamics as _behavior_dynamics  # noqa: E402,F401
 from . import cebra_embed as _cebra  # noqa: E402,F401
 from . import classical as _classical  # noqa: E402,F401
 from .base import (

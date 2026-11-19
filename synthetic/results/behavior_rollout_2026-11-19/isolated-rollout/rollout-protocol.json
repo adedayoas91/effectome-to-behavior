@@ -1,0 +1,109 @@
+{
+  "signature": "7df2b9426f2a83dde37900f332f634f96229e7dcadd13f71b915406528b67a17",
+  "profile": "confirmation",
+  "seeds": [
+    84000,
+    84001,
+    84002,
+    84003,
+    84004,
+    84005,
+    84006,
+    84007,
+    84008,
+    84009,
+    84010,
+    84011,
+    84012,
+    84013,
+    84014,
+    84015,
+    84016,
+    84017,
+    84018,
+    84019
+  ],
+  "scenarios": [
+    "driver_switch",
+    "constant",
+    "nuisance_switch"
+  ],
+  "generator": {
+    "n_trials": 32,
+    "history_lengths": [
+      1024
+    ],
+    "horizon": 8,
+    "target_length": 4,
+    "fps": 10.0,
+    "washout": 64,
+    "origin_jitter": 64,
+    "gap_jitter": 64
+  },
+  "learning": {
+    "ridge_alphas": [
+      0.001,
+      0.01,
+      0.1,
+      1.0
+    ],
+    "dynamics_weights": [
+      0.05,
+      0.2
+    ],
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "max_epochs": 200,
+    "min_epochs": 20,
+    "patience": 20,
+    "batch_size": 128,
+    "max_pairs_per_trial": 128,
+    "early_samples": 32,
+    "validation_fraction": 0.25,
+    "seed": 20261118,
+    "device": "cpu",
+    "runtime_python": null
+  },
+  "method": {
+    "name": "fast_cgc",
+    "max_lag": 1,
+    "max_lag_seconds": null,
+    "alpha": 0.01,
+    "partial": false,
+    "ridge": 1.0,
+    "absolute": false,
+    "threshold": 0.0,
+    "extra": {
+      "n_perm": 0,
+      "beta": 0.005,
+      "seed": 42
+    }
+  },
+  "pooling_start": 10,
+  "evaluation_start": 24,
+  "rollouts": 128,
+  "ridge_alpha": 1.0,
+  "consensus": 0.25,
+  "active_floor": 0.05,
+  "decision_margin": 0.005,
+  "test_level": 0.05,
+  "implementation": "ad641b5a11a86a8a528cb98c2f13b64cda8750789221a62d556dca88a013f833",
+  "entrypoint_sha256": "0c1d9e778007742632f351b37344ab8f7213cc82b647cd99d70acb6ba91bb738",
+  "encoder_worker_sha256": "9cdf47db829c7c2ba1e9cc8227c665eb9f9ed9ea625d2e49ee2177d11e3c5770",
+  "encoder_lock_sha256": "1e2ec4d4a77a34da34c8dada1c93c061320cdfb2a7aaa547296cb040a7f25387",
+  "encoder_runtime": {
+    "torch_version": "2.2.2",
+    "numpy_version": "1.26.4",
+    "python_version": "3.12.8",
+    "platform": "darwin-x86_64",
+    "device": "cpu"
+  },
+  "runtime": {
+    "python": "3.14.7",
+    "platform": "macOS-15.8.3-x86_64-i386-64bit-Mach-O",
+    "numpy": "2.5.4",
+    "scikit-learn": "1.9.0",
+    "scipy": "1.18.1",
+    "fastcgc": "0.1.0"
+  }
+}

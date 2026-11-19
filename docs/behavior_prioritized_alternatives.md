@@ -1,5 +1,10 @@
 # Preserve behavior during compression: alternatives after the PCA bridge
 
+The [continuous-behavior study](behavior_supervised_experiment_plan.md) now
+implements the proposed comparison with a distributed target, a redesigned
+null, and a pointwise BunDLe-inspired encoder. This review records the reasoning
+that led to that design.
+
 Research decision record, 18 November 2026. This review addresses the completed
 notebook-08 development result; it does not alter that experiment or its gates.
 The original plan and completed replication were checkpointed as `fac7ea4`

@@ -1,11 +1,77 @@
 # Four-CSL simulation validation
 
-The latest experiment is
+The [working mechanism-rollout pipeline](../docs/effectome_mechanism_rollout.md)
+uses trailing effectomes to simulate neural trajectories, with a frozen
+behavioral readout and paired outgoing-disconnection effects. The standalone
+`python -m synthetic.effectome_rollout` runner validates this path with pooled,
+fixed-support local and simulator-oracle references. Its outputs are under
+`outputs/effectome-rollout/`.
+
+The [post-switch timing study](../docs/effectome_rollout_timing.md) compares the
+pooled and fixed-support local fits at 11 delays with two history lengths.
+`python -m synthetic.behavior_rollout_timing --profile confirmation --run`
+executes the independent timing panel.
+
+The [19 November checkpoint](results/behavior_rollout_2026-11-19/README.md)
+contains the completed comparisons, seed tables, and the compiled manuscript.
+
+The development comparison is
+[`10_behavior_transition_experiment.ipynb`](10_behavior_transition_experiment.ipynb).
+It compares forecasts of future continuous behavior using recent histories,
+static graphs, trailing dynamic graphs and oracle mechanisms. It tests driver
+pathway switches alongside constant-coupling and nuisance-only controls. Run
+All fits five development seeds with fast c-GC and both history lengths under
+`outputs/behavior-transition/development/recurrent-coupling-01/`. It also saves
+paired intervention effects and training-owned candidate nominations. The
+[cited transition plan](../docs/behavior_supervised_transition_plan.md) explains
+the timing, comparisons and confirmatory decision.
+
+```sh
+.venv/bin/python -u -m synthetic.behavior_transition --run
+.venv/bin/python -m synthetic.behavior_transition --status
+.venv/bin/python -m synthetic.preflight_tail_transition
+```
+
+The fixed-coupling behavioral representation experiment is
+[`09_behavior_supervised_validation.ipynb`](09_behavior_supervised_validation.ipynb).
+It generates two continuous behavioral coordinates from four observed neural
+variables and compares PCA, PLS, full-neural readouts and a jointly trained
+BunDLe-inspired encoder. Run All starts the five-seed development panel and
+writes progress and detailed results under
+`outputs/behavior-supervised/development/distributed-behavior-01/`.
+Notebook 09 runs independently. The
+[study plan and cited rationale](../docs/behavior_supervised_experiment_plan.md)
+explain the generator, objectives and decision rules.
+
+```sh
+uv sync --project tools/behavior-encoder --python 3.12 --locked
+.venv/bin/python -u -m synthetic.behavior_supervised --run --workers 4
+.venv/bin/python -m synthetic.behavior_supervised --status
+```
+
+The report, `behavior-supervised-validation.json`, tracks completed cases.
+`analysis/seed-metrics.csv` contains the effect and decoding metrics.
+The audit command reconstructs effect errors and verifies saved artifact hashes.
+
+```sh
+.venv/bin/python -m synthetic.audit_behavior_supervised \
+  outputs/behavior-supervised/development/distributed-behavior-01 --plot
+```
+
+A complete same-procedure development run enables the separate 99-case
+confirmation profile:
+
+```sh
+.venv/bin/python -u -m synthetic.behavior_supervised --profile confirmation --run --workers 4 \
+  --development-report outputs/behavior-supervised/development/distributed-behavior-01/behavior-supervised-validation.json
+```
+
+The earlier scalar-behavior experiment is
 [`08_learned_manifold_validation.ipynb`](08_learned_manifold_validation.ipynb).
 Run All fits five development seeds (40000–40004), both driver/null scenarios,
 all four native methods and oracle/known/empty controls. Seven frozen endpoint
 arms share each neural fit and its futures. This is the initial **linear PCA
-bridge**; distributed/nonlinear manifold validation remains planned. Read the
+bridge**. Read the
 [plan, justifications and references](../docs/learned_manifold_validation_plan.md).
 Go directly to 08 without rerunning earlier notebooks.
 
@@ -94,7 +160,7 @@ are not loaded or exported by the current notebooks.
 
 ## Environment and run order
 
-From the application repository on the faster machine, restore both locked
+From the application repository on the faster machine, restore the locked
 runtimes (no raw dataset is required for these simulations):
 
 ```bash
@@ -102,6 +168,7 @@ git switch dev
 git pull --ff-only origin dev
 uv sync --python 3.14 --locked --extra dev --extra csl --extra community --extra notebooks
 uv sync --project tools/conventional-cgc --python 3.13.5 --locked
+uv sync --project tools/behavior-encoder --python 3.12 --locked
 ```
 
 Open `synthetic/` in your notebook editor and select `.venv/bin/python` as the
@@ -112,8 +179,7 @@ execute in the separately pinned Python 3.13 CPU environment; see
 extra supplies ipykernel; use your existing notebook editor/frontend.
 
 The filename prefixes now match the recommended order. These are independently
-runnable entrypoints, so you can go directly to **08** for the learned-endpoint
-bridge without rerunning the completed earlier studies.
+runnable entrypoints. Go directly to **10** for the dynamic-effectome forecasts.
 
 1. [00_ground_truth.ipynb](00_ground_truth.ipynb): generating-process controls.
 2. [01_four_csl_sanity.ipynb](01_four_csl_sanity.ipynb): native graph recovery.
@@ -131,9 +197,13 @@ bridge without rerunning the completed earlier studies.
    fresh-seed mechanism replication and independent null calibration/testing.
 9. [08_learned_manifold_validation.ipynb](08_learned_manifold_validation.ipynb):
    training-frozen learned-endpoint bridge and independent behavioral semantics.
+10. [09_behavior_supervised_validation.ipynb](09_behavior_supervised_validation.ipynb):
+    supervised compression, continuous behavioral effects and an oracle-checked null.
+11. [10_behavior_transition_experiment.ipynb](10_behavior_transition_experiment.ipynb)
+    compares prospective behavioral forecasts and context-specific perturbations.
 
 **Run All now starts fitting by default**, as requested for the faster-machine
-rerun. Notebook 01 has sanity enabled; notebooks 02, 04, 05, 06, 07 and 08 have their
+rerun. Notebook 01 has sanity enabled, and notebooks 02 and 04–10 have their
 fitting switches enabled. Notebook 06 also runs the paired 256/1024-history
 comparison. Notebooks 00 and 03 compute their generating-process controls
 directly. Notebook 05 retains its full 140-recording/560-method-run profile with

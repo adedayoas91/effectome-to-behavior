@@ -1,0 +1,71 @@
+{
+  "signature": "bdaff61b16de59743a8ec163374638d8e2af9f39d895edfb31554abdb93059ec",
+  "procedure_fingerprint": "8250c89619672c754bc0a6f636fbb648c570aebaf66f57f3815747edaf919532",
+  "configuration": {
+    "generator": {
+      "n_trials": 32,
+      "history_lengths": [
+        256,
+        1024
+      ],
+      "horizon": 8,
+      "target_length": 4,
+      "fps": 10.0,
+      "washout": 64,
+      "origin_jitter": 64,
+      "gap_jitter": 64
+    },
+    "learning": {
+      "ridge_alphas": [
+        0.001,
+        0.01,
+        0.1,
+        1.0
+      ],
+      "dynamics_weights": [
+        0.05,
+        0.2
+      ],
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "max_epochs": 200,
+      "min_epochs": 20,
+      "patience": 20,
+      "batch_size": 128,
+      "max_pairs_per_trial": 128,
+      "early_samples": 32,
+      "validation_fraction": 0.25,
+      "seed": 20261118,
+      "device": "cpu",
+      "runtime_python": null
+    },
+    "split_sizes": [
+      10,
+      10,
+      4,
+      8
+    ],
+    "ridge_alpha": 1.0,
+    "consensus_frequency": 0.25,
+    "n_rollouts": 128,
+    "active_effect_floor": 0.05,
+    "practical_forecast_gain": 0.005,
+    "primary_method": "fast_cgc"
+  },
+  "profile": "development",
+  "seeds": [
+    81001,
+    81002,
+    81003,
+    81004,
+    81005
+  ],
+  "scenarios": [
+    "driver_switch",
+    "constant",
+    "nuisance_switch"
+  ],
+  "methods": [
+    "fast_cgc"
+  ]
+}

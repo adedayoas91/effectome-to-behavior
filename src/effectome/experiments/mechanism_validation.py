@@ -12,7 +12,7 @@ import json
 import logging
 from dataclasses import asdict, replace
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -36,6 +36,9 @@ from effectome.utils.seed import set_seed
 from effectome.workflows.cross_method import _json_safe, load_cross_method_profile
 from effectome.workflows.resume import content_fingerprint, implementation_fingerprint
 
+if TYPE_CHECKING:
+    from effectome.experiments.behavior_supervised_config import BehaviorSupervisedConfig
+
 logger = logging.getLogger(__name__)
 ORACLE_LANES = ("known_support", "empty_support")
 
@@ -49,7 +52,7 @@ def _write_json(path: Path, value: Any) -> None:
 
 def _discover_support(
     training_trials: np.ndarray,
-    config: MechanismValidationConfig,
+    config: MechanismValidationConfig | BehaviorSupervisedConfig,
     method: ConnectivityConfig,
     artifact_prefix: Path,
 ) -> tuple[np.ndarray, dict[str, Any]]:
