@@ -1,5 +1,11 @@
 # Four-CSL simulation validation
 
+The [learned support comparison](../docs/effectome_rollout_support.md)
+compares the confirmed rollout selector under learned, dense, and shuffled
+support. It also fits a direct neural-history forecast on the same training
+windows. Use `python -m synthetic.behavior_rollout_support --profile smoke --run`
+to exercise all arms.
+
 The [end-to-end effectome-to-behavior benchmark](../docs/effectome_rollout_pipeline.md)
 fits the readout and both mechanisms, chooses forecasts from completed errors,
 and scores paired intervention effects. Run `python -m synthetic.behavior_rollout_pipeline

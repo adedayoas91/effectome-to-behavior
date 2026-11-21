@@ -1,0 +1,20 @@
+policy:
+  lookback: 6
+  margin: 0.0
+  consecutive_losses: 3
+  recovery_forecasts: 1
+  effect_stride_origins: 32
+forecast_margin: 0.005
+effect_margin: 0.005
+level: 0.05
+profiles:
+  smoke:
+    seed_start: 90999
+    seed_count: 1
+    shuffled_masks: 2
+    rollouts: 32
+  confirmation:
+    seed_start: 91000
+    seed_count: 20
+    shuffled_masks: 3
+    rollouts: 128
