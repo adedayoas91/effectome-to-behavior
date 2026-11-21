@@ -50,7 +50,7 @@ def export_run(run_root: Path, output: Path) -> Path:
               repository / "notebooks/_build_notebooks.py", repository / "pyproject.toml",
               repository / "uv.lock", repository / "synthetic/manifold_validation.py",
               repository / "synthetic/_build_manifold_notebook.py", Path(__file__).resolve(),
-              repository / "synthetic/08_learned_manifold_validation.ipynb"]
+              repository / "synthetic/archive/08_learned_manifold_validation.ipynb"]
     with zipfile.ZipFile(output / "implementation-source.zip", "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(set(source)):
             archive.write(path, path.relative_to(repository))

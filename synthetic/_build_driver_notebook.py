@@ -131,7 +131,7 @@ if visual_notes.is_file():
     display(Markdown(visual_notes.read_text()))
 '''),
     ]
-    write_notebook(Path(__file__).resolve().parent / "05_driver_recovery.ipynb", cells)
+    write_notebook(Path(__file__).resolve().parent / "archive" / "05_driver_recovery.ipynb", cells)
 
 
 if __name__ == "__main__":

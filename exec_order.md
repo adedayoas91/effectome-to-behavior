@@ -1,138 +1,27 @@
-# Experiment execution order — shared-transition framework
+# Experiment execution order
 
-Updated 16 November 2026. Run from the application repository on `dev` with
-the project Python 3.14 kernel and the pinned Python 3.13 conventional c-GC runtime.
-The canonical scientific path is four-CSL planted-graph sanity check → synthetic
-framework validation → shared raw preprocessing → one shared cross-method
-transition comparison per recording → candidate replication and reporting.
+Run the current synthetic benchmark before the C. elegans motif rollout.
+See the [synthetic development archive](synthetic/archive/README.md) for
+the original four-CSL checks, manuscript simulation panels and driver studies.
 
-## 1. Environment and protocol inventory
+## 1. Set up the application and encoder runtimes
 
-```bash
-uv sync --python 3.14 --locked --extra dev --extra csl --extra community --extra notebooks
-UV_CACHE_DIR=/tmp/effectome-cgc-uv-cache uv sync \
-  --project tools/conventional-cgc --python 3.13.5 --locked
-.venv/bin/python pipeline/14_csl_sanity.py
-.venv/bin/python pipeline/12_framework_validation.py --profile smoke
-.venv/bin/python pipeline/12_framework_validation.py --profile manuscript
-.venv/bin/python pipeline/13_driver_validation.py --profile smoke
-.venv/bin/python pipeline/13_driver_validation.py --profile confirmatory
-.venv/bin/python pipeline/15_mechanism_validation.py --profile smoke
-```
-
-Without `--run`, these commands only print the declared workload. The manuscript
-matrix is large: inspect its complete cell/method counts and resources before
-execution. Profiles are proposed settings, not retrospective preregistration.
-The current four-method framework manuscript matrix contains 7,680 raw-process
-cells and 30,720 method fits. The driver confirmation contains 140 cells and 560
-method fits. The larger framework matrix remains unexecuted; the driver-study
-execution status is recorded below and in its live artifact.
-
-The scheduled-origin driver confirmation completed at
-`outputs/driver-validation/csl_sanity/scheduled-v2/confirmatory/`.
-It uses fresh seeds300–319/400–459 and one fixed origin per trial: sample303
-to335, history256,target8,N8,PCA1 and half-trial holdout. The560 method/recording
-entries contain71,680 native history fits. Check `driver-validation.json` for
-actual completion and acceptance: all560 runs are numerically available and all
-four methods failed the frozen gates. The finalizer archived complete evidence
-under `synthetic/results/driver_confirmation_v2/` and compiled the manuscript.
-The larger framework sensitivity matrix remains separate.
-
-The subsequent development path is `pipeline/15_mechanism_validation.py` and
-`synthetic/06_mechanism_driver_validation.ipynb`; see the
-[cited rationale](docs/driver_methodology_revision.md). Its fully observed,
-model-matched control compares known support with imported native CSL support
-through learned nonlinear mechanisms and paired outgoing disconnections. It uses
-`outputs/driver-mechanism-validation/`, new development seeds and separate
-probability-effect metrics. It is not revised independent confirmation or a
-replacement for the completed failure. Start with the smoke inventory above,
-then add `--run` for all lanes or `--oracle-only --run` for the readout diagnostic.
-
-## 2. Synthetic framework validation before biological interpretation
-
-Read [the validation guide](synthetic/README.md). Begin with the planted controls
-and native graph sanity check before fitting the larger manifold comparison:
-
-1. `synthetic/00_ground_truth.ipynb`: designed circuit and observation controls.
-2. `synthetic/01_four_csl_sanity.ipynb`: conventional c-GC/c-GC* and
-   fastC-GC/fastC-GC* on identical planted-chain and independent-null recordings;
-   inspect edge recovery, false links and nonempty-graph agreement.
-3. `synthetic/02_shared_transition_comparison.ipynb`: inspect one shared comparison.
-4. `synthetic/03_correspondence_and_controls.ipynb`: inspect graph/manifold relationships.
-5. `synthetic/04_framework_validation.ipynb`: repeated-seed experiment matrix,
-   uncertainty, failure denominators, figures and manuscript exports.
-6. `synthetic/05_driver_recovery.ipynb`: intervention-defined driver truth,
-   transition-specific candidate recovery and proposed acceptance criteria.
-7. `synthetic/06_mechanism_driver_validation.ipynb`: inspect or rerun the separate
-   mechanism revision, three-seed oracle control and paired 256/1024 histories.
-
-The filenames follow this order. Notebook 06 runs independently; follow the
-[fresh-machine setup and run switches](synthetic/README.md#evaluate-the-latest-changes-on-the-faster-machine)
-to evaluate the latest revision without repeating the old confirmation.
-
-The shipped notebooks now enable sanity and fitting for **Run All** on the
-faster machine, including both mechanism histories in 06. Notebook 05 keeps the
-full 560-method-run profile. Their new `faster-machine-02` output directories are
-listed in `synthetic/README.md`; CLI inventory commands still need `--run`.
-This `dev` run includes 00–06; graph comparison remains on its feature branch.
-
-Run the small native graph check first, then the current four-method repeated
-framework check when its workload and interpretation are appropriate:
+From the application repository on `dev`:
 
 ```bash
-.venv/bin/python pipeline/14_csl_sanity.py --run
-.venv/bin/python pipeline/12_framework_validation.py --profile smoke --run \
-  --output-dir outputs/framework-validation/csl_sanity/smoke
+uv sync --python 3.14 --locked --extra notebooks
+uv sync --project tools/behavior-encoder --python 3.12 --locked
 ```
 
-The first command writes to `outputs/csl-sanity/smoke/`. The four variants import
-upstream code and retain unsigned positive-lag support; no VAR estimator or local
-coefficient readout participates. All four belong to one GC family. Agreement
-must be considered alongside recovery and false links; empty agreement is not
-positive-control success. A graph-recovery result does not establish
-transition-driver identification.
+Choose the project Python 3.14 `.venv` notebook kernel.
 
-The smoke profile exercises implementation; it does not calibrate publication
-claims. The development profile expands history, horizon and observation stresses
-with engineering estimator settings. Before scientific interpretation, freeze
-the manuscript profile and run its independent seeds and complete sensitivity
-matrix with frozen upstream estimator configurations. `--max-cells` records partial
-execution, including all unexecuted contrasts; it cannot complete the study.
-Current histories are at least 256 samples for the fast beta=0.005 resolution.
-Driver trials contain512 samples with cue onset288 and offset480; scheduled
-origins end303 and future targets end335, a3.2-second horizon. These
-settings were developed before fresh confirmation. Opposite rotations in the
-matched-marginal control have identical support, so unsigned graphs cannot
-identify their sign changes. A support-changing matched-marginal control is
-needed before claiming this panel discovers circuit/manifold degeneracy.
+## 2. Run the synthetic support comparison
 
-Outputs include `validation.json`, seed-level `run_metrics.csv`, a strict
-`analysis/` bundle, vector figures and generated LaTeX. Use
-`--manuscript-dir ../manuscript-260926` to copy provenance-linked artifacts into
-the active manuscript. Negative, failed and unavailable results remain visible.
-
-The older `pipeline/09_validate.py` and `pipeline/10_state_calibration.py` remain
-complementary estimator/state qualification tools.
-
-Before claiming reliable transition-driver identification, follow
-[the driver-ground-truth protocol](docs/driver_ground_truth_protocol.md).
-Inventory `pipeline/13_driver_validation.py` first, then execute a bounded smoke
-pilot with `--run`. Compare actual simulator outgoing-disconnection effects
-against predictive omission scores. The earlier circuit controls alone do not
-provide this causal recovery target.
-
-The proposed confirmation uses independent seeds disjoint from the pilot,
-requires at least 20 positive-control and 60 null seeds per method, and retains
-failed fits and insufficient event/semantic-alignment support. Do not weaken
-the gates after seeing confirmation outcomes. `--max-cells` and method subsets
-remain explicit partial evaluations; a small pilot stays inconclusive. The
-hidden-confounder challenge reports a failure mode rather than proving causal
-identifiability. Inspect runtime and support before starting the larger study.
-Current driver output defaults to `outputs/driver-validation/csl_sanity/scheduled-v2/<profile>/`;
-framework output defaults to `outputs/framework-validation/csl_sanity/<profile>/`.
-VAR-estimator simulation results and their manuscript figures/tables have been
-removed from the current presentation. Raw output archives remain available for
-audit. The optional VAR backends remain available for the V2a workflow below.
+Follow [00 simulator and sanity, 01 benchmark, and 02 validation](synthetic/README.md).
+Notebook 01 defaults to 20 seeds and 60 cases. Use the same profile and run ID
+in notebooks 01 and 02. The validation stage regenerates the paired decisions
+and exports forecast plots, signed simulation-effect calibration and an
+interactive view of saved interventions.
 
 ## 3. Run the C. elegans motif rollout
 

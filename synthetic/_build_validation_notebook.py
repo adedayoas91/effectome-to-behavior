@@ -131,7 +131,7 @@ else:
     print("No visual bundle exists. After validation, set RENDER_VISUALS=True and run this cell.")
 '''),
     ]
-    write_notebook(Path(__file__).resolve().parent / "04_framework_validation.ipynb", cells)
+    write_notebook(Path(__file__).resolve().parent / "archive" / "04_framework_validation.ipynb", cells)
 
 
 if __name__ == "__main__":

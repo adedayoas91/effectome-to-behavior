@@ -145,7 +145,7 @@ for name in ("calibration.json", "study-protocol.json"):
             "The full run tests 20 fresh positive seeds and 60 untouched null-test seeds after 19 separate calibration-null seeds. Success would establish a bounded result in a fully observed, model-matched control. It would not overwrite the failed 560-run latent benchmark, identify biological necessity, or validate the separate graph-similarity extension. All planned failures and short-history outcomes remain part of the report.",
         ),
     ]
-    write_notebook(Path(__file__).resolve().parent / "07_mechanism_replication.ipynb", cells)
+    write_notebook(Path(__file__).resolve().parent / "archive" / "07_mechanism_replication.ipynb", cells)
 
 
 if __name__ == "__main__":

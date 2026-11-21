@@ -192,7 +192,7 @@ else:
             "Probability-effect error, factual prediction, driver ranking and false nomination answer different questions. Top-k handles ties without favoring low-numbered neurons. The nomination threshold is provisional, not the old omission-nat gate or a calibrated significance test. Keep the frozen 560-run failure, the new 256-sample failure and the limited 1024-sample positive case together; the old and new studies have different processes and endpoints, so their scores are not a matched treatment comparison. Redundancy, observation stresses, mechanism misspecification, independent calibration and fresh confirmation remain future work.",
         ),
     ]
-    write_notebook(Path(__file__).resolve().parent / "06_mechanism_driver_validation.ipynb", cells)
+    write_notebook(Path(__file__).resolve().parent / "archive" / "06_mechanism_driver_validation.ipynb", cells)
 
 
 if __name__ == "__main__":

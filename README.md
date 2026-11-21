@@ -1,22 +1,19 @@
 # effectome
 
-Start with [synthetic framework validation](synthetic/README.md), beginning with
-the four-method planted-graph check in `synthetic/01_four_csl_sanity.ipynb`.
-The current simulation panel uses conventional c-GC, c-GC*, fastC-GC and
-fastC-GC*, imported from pinned upstream packages. It compares native lag support
-without a local VAR readout. Designed controls, independent seeds, observation/history
-sensitivities, statistics, figures and manuscript exports support the larger
-validation workflow. Then use each recording's canonical
-`09_cross_method/shared_transitions.ipynb` after raw preprocessing. The previous
-method notebooks remain explicitly optional. See [execution order](exec_order.md)
-and [the delivery audit](docs/framework_validation_audit.md).
+Run the [numbered synthetic notebooks](synthetic/README.md) first.
+They check the simulator, run the frozen learned-support comparison, then
+audit the results and export paired forecast and intervention visualizations.
+Continue to the [C. elegans workflow](notebooks/README.md#c-elegans-motif-rollout)
+after reviewing the synthetic results. The earlier four-CSL studies are in
+the [development archive](synthetic/archive/README.md).
 
 **From dynamic effectomes to behavior: a causal structure learning framework.** Infer
 time-varying directed neural structures from C. elegans and larval-zebrafish calcium
 imaging, then test whether those structures improve prediction of later manifold or behavioral
 change. The causal interpretation is conditional on the observation, lag, sufficiency, and
-faithfulness assumptions of each estimator. The implemented perturbation-stage output remains
-predictor-feature sensitivity, not a biological intervention or a generative counterfactual.
+faithfulness assumptions of each estimator. The rollout workflow simulates paired outgoing
+disconnections under fitted neural dynamics. Historical feature omission evaluates predictor
+sensitivity.
 Native CSL support is unsigned; historical signed coefficient readouts remain a
 separate optional analysis. Agreement among the four related CSL variants is
 consistency within one method family, not independent causal confirmation.
@@ -286,7 +283,7 @@ latent-bistable benchmark or biological intervention effects.
 .venv/bin/python pipeline/15_mechanism_validation.py --profile smoke --run
 ```
 
-See `synthetic/06_mechanism_driver_validation.ipynb` for enabled fitting and comparison,
+See `synthetic/archive/06_mechanism_driver_validation.ipynb` for enabled fitting and comparison,
 and [the citation audit](docs/driver_methodology_citation_audit.md) for references
 and the limits of their methodological support. Fresh confirmation and nomination
 calibration remain future work.

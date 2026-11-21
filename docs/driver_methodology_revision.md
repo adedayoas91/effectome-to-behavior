@@ -116,7 +116,7 @@ evidence must never be reported as independent confirmation. Any new acceptance
 rules must be documented and frozen before fresh confirmation is evaluated.
 
 The implemented entrypoints are `pipeline/15_mechanism_validation.py` and
-`synthetic/06_mechanism_driver_validation.ipynb`. A paired history-length launcher
+`synthetic/archive/06_mechanism_driver_validation.ipynb`. A paired history-length launcher
 is `python -m synthetic.mechanism_history_diagnostic`; default execution only
 inventories settings. Initial measured outcomes, including the short-history
 failures and the longer-history operating case, are recorded in

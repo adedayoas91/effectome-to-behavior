@@ -128,7 +128,9 @@ if table.is_file():
             "and confirmation uses its separately calibrated cutoffs.",
         ),
     ]
-    write_notebook(Path(__file__).resolve().parent / "09_behavior_supervised_validation.ipynb", cells)
+    write_notebook(
+        Path(__file__).resolve().parent / "archive" / "09_behavior_supervised_validation.ipynb", cells,
+    )
 
 
 if __name__ == "__main__":

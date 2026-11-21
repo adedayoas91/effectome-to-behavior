@@ -55,7 +55,7 @@ discrete states on the same events to see how much of that value they retain.
 
 ## Implementation and decision rules
 
-[Notebook 10](../synthetic/10_behavior_transition_experiment.ipynb) runs the
+[Notebook 10](../synthetic/archive/10_behavior_transition_experiment.ipynb) runs the
 development experiment independently. Each trial visits three episodes in
 alternating order with randomized starting regime and timing. The driver-switch
 scenario swaps which identically parameterized driver controls the behavioral

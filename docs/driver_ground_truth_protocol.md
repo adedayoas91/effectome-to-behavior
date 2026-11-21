@@ -16,7 +16,7 @@ from pinned upstream packages. It excludes VAR estimators and uses native
 unsigned lag support without a VAR coefficient readout. The four variants share
 one discovery family; their agreement supplies consistency evidence rather than
 independent causal replication. Begin with
-[`synthetic/01_four_csl_sanity.ipynb`](../synthetic/01_four_csl_sanity.ipynb)
+[`synthetic/archive/01_four_csl_sanity.ipynb`](../synthetic/archive/01_four_csl_sanity.ipynb)
 and the [runtime guide](../tools/conventional-cgc/README.md).
 
 ## Question and scope
@@ -173,7 +173,7 @@ pilot only after inspecting its scope:
 
 `--max-cells` records a partial run, and `--method` can declare a subset. A subset
 cannot establish validation across the declared four-method panel.
-`synthetic/05_driver_recovery.ipynb` now enables fitting for the requested
+`synthetic/archive/05_driver_recovery.ipynb` now enables fitting for the requested
 faster-machine rerun (16 November 2026). Its shipped profile repeats the existing
 560-method-run study; disable `RUN_DRIVER_VALIDATION` explicitly for inspection.
 

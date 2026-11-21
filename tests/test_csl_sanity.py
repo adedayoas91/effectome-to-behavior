@@ -67,7 +67,7 @@ def test_notebook_configuration_warning_matches_fresh_and_saved_reports(
         report["config"]["n_samples"] *= 2
     (tmp_path / "sanity.json").write_text(json.dumps(report))
     notebook = json.loads((Path(__file__).resolve().parents[1]
-                           / "synthetic/01_four_csl_sanity.ipynb").read_text())
+                           / "synthetic/archive/01_four_csl_sanity.ipynb").read_text())
     source = next("".join(cell["source"]) for cell in notebook["cells"]
                   if cell["cell_type"] == "code" and "report = None" in "".join(cell["source"]))
     namespace = {

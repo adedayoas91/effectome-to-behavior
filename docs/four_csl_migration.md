@@ -28,7 +28,7 @@ permutation randomness is imperfectly seeded; the frozen realization is the
 authoritative record of this pilot.
 
 The current entrypoint is
-[`synthetic/01_four_csl_sanity.ipynb`](../synthetic/01_four_csl_sanity.ipynb),
+[`synthetic/archive/01_four_csl_sanity.ipynb`](../synthetic/archive/01_four_csl_sanity.ipynb),
 after notebook 00 and before notebooks 02–06. The numeric prefixes now match
 the recommended execution order; historical evidence archives retain old paths.
 It compares the four native implementations on identical planted-chain and

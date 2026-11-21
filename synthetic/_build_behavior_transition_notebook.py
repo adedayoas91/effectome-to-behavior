@@ -105,7 +105,9 @@ if metrics.is_file():
             "within-regime history.",
         ),
     ]
-    write_notebook(Path(__file__).resolve().parent / "10_behavior_transition_experiment.ipynb", cells)
+    write_notebook(
+        Path(__file__).resolve().parent / "archive" / "10_behavior_transition_experiment.ipynb", cells,
+    )
 
 
 if __name__ == "__main__":

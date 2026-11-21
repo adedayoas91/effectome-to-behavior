@@ -178,7 +178,7 @@ From the application repository:
 .venv/bin/python -m synthetic.mechanism_replication --profile replication --status
 ```
 
-Notebook `synthetic/07_mechanism_replication.ipynb` is ready to run with fitting
+Notebook `synthetic/archive/07_mechanism_replication.ipynb` is ready to run with fitting
 enabled and the full profile. Notebooks 00–06 and their saved results are left
 unchanged. The final analysis contains primary gate tables, seed-level CSVs,
 paired effects and source/protocol fingerprints. The previous result collation

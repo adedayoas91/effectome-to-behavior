@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Synthetic disconnection validation</title>
+<style>
+:root { color-scheme: light; font: 16px system-ui, sans-serif; color: #18302f; background: #edf2f1; }
+* { box-sizing: border-box; }
+main { max-width: 1100px; margin: auto; padding: 2rem 1.1rem; }
+h1 { margin: 0; font-size: clamp(1.6rem, 4vw, 2.5rem); letter-spacing: -.025em; }
+h2 { margin: 0 0 .7rem; font-size: 1.2rem; }
+p { color: #405b57; line-height: 1.45; }
+.layout { display: grid; grid-template-columns: minmax(210px, .38fr) minmax(0, 1fr); gap: 1rem; }
+.panel { background: white; border: 1px solid #cedbd8; border-radius: 10px; padding: 1rem; }
+label { display: block; font-size: .85rem; font-weight: 600; margin: .8rem 0 .25rem; }
+select { width: 100%; font: inherit; font-size: .92rem; border: 1px solid #9badab; padding: .5rem; border-radius: 5px; color: inherit; background: white; }
+select:focus-visible { outline: 2px solid #176a60; outline-offset: 2px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+td, th { padding: .7rem .35rem; text-align: right; border-bottom: 1px solid #e6edeb; }
+td:first-child, th:first-child { text-align: left; }
+.summary { margin: .8rem 0 1.4rem; font-size: .87rem; }
+canvas { display: block; width: 100%; height: 240px; border: 1px solid #d6e2df; border-radius: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: .6rem 1rem; font-size: .82rem; margin: .7rem 0 0; }
+.legend i { display: inline-block; width: .65rem; height: .65rem; border-radius: 50%; margin-right: .25rem; }
+@media (max-width: 650px) { .layout { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Synthetic disconnection validation</h1>
+<p id="profile"></p>
+<div class="layout">
+  <section class="panel">
+    <h2>Comparison</h2>
+    <label for="scenario">Scenario</label><select id="scenario"></select>
+    <label for="seed">Process seed</label><select id="seed"></select>
+    <label for="arm">Fitted support</label><select id="arm"></select>
+    <label for="unit">Neuron or group</label><select id="unit"></select>
+    <label for="origin">Held-out trial and forecast origin</label><select id="origin"></select>
+  </section>
+  <section class="panel">
+    <h2>Simulator and fitted effects</h2>
+    <table>
+      <thead><tr><th scope="col">Coordinate</th><th scope="col">Simulator</th><th scope="col">Fitted</th><th scope="col">Fitted − simulator</th></tr></thead>
+      <tbody id="values"></tbody>
+    </table>
+    <p class="summary" id="active" role="status"></p>
+    <h2>Effects across the selected trial</h2>
+    <canvas id="curves" role="img" aria-label="Simulator and fitted effects over time for the selected trial"></canvas>
+    <div class="legend" id="legend"></div>
+  </section>
+</div>
+<p>Effects are factual minus disconnected expected behavior in simulator units. The arms share initial states and paired innovations. Regime-crossing horizons are excluded from the saved disconnection comparisons.</p>
+</main>
+<script type="application/json" id="validation-data">__INTERVENTION_DATA__</script>
+<script>
+"use strict";
+const data = JSON.parse(document.getElementById("validation-data").textContent);
+const byId = id => document.getElementById(id);
+const controls = Object.fromEntries(["scenario", "seed", "arm", "unit", "origin"].map(id => [id, byId(id)]));
+const human = value => value.replace("group:", "Group · ").replace("neuron:", "Neuron ").replaceAll("_", " ");
+const scenarioDisplay = value => human(value).replace(/^./, letter => letter.toUpperCase());
+const number = value => (value < 0 ? "−" : value > 0 ? "+" : "") + Math.abs(value).toFixed(4);
+function choices(select, options, fallback) {
+  const old = select.value;
+  select.replaceChildren(...options.map(([value, label]) => new Option(label, String(value))));
+  select.value = [...select.options].some(option => option.value === old) ? old : String(fallback);
+}
+function getCase() {
+  return data.cases.find(entry => entry.scenario === controls.scenario.value && entry.seed === +controls.seed.value);
+}
+function resetOrigins(preserve) {
+  const item = getCase();
+  const unitIndex = item.unit_order.indexOf(controls.unit.value);
+  const first = Math.max(0, item.active.findIndex(active => active[unitIndex]));
+  if (!preserve) controls.origin.value = "";
+  choices(controls.origin, item.origins.map((at, index) =>
+    [index, `Trial ${at.trial} · sample ${at.sample} · ${at.seconds.toFixed(1)} s`]), first);
+}
+function load() {
+  const available = data.cases.filter(item => item.scenario === controls.scenario.value);
+  choices(controls.seed, available.map(item => [item.seed, item.seed]), available[0].seed);
+  const item = getCase();
+  choices(controls.arm, Object.keys(item.arms).map(arm => [arm, scenarioDisplay(arm)]), "learned");
+  choices(controls.unit, item.unit_order.map(unit => [unit, human(unit)]),
+          item.unit_order.includes("group:driver_pair") ? "group:driver_pair" : item.unit_order[0]);
+  resetOrigins(false);
+  draw();
+}
+const series = [
+  { key: "oracle", component: 0, color: "#126d63", dash: [], label: "Simulator 1" },
+  { key: "fitted", component: 0, color: "#126d63", dash: [5, 4], label: "Fitted 1" },
+  { key: "oracle", component: 1, color: "#83538e", dash: [], label: "Simulator 2" },
+  { key: "fitted", component: 1, color: "#83538e", dash: [5, 4], label: "Fitted 2" },
+];
+function chart(records, selected) {
+  const canvas = byId("curves");
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  const density = devicePixelRatio || 1;
+  canvas.width = width * density; canvas.height = height * density;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(density, density);
+  const xmin = records[0].at, xmax = records.at(-1).at;
+  const limit = Math.max(0.01, ...records.flatMap(row => [...row.oracle, ...row.fitted]).map(Math.abs)) * 1.13;
+  const x = at => 50 + (at - xmin) / Math.max(xmax - xmin, 1) * (width - 68);
+  const y = value => 15 + (limit - value) / (2 * limit) * (height - 45);
+  ctx.font = "11px system-ui";
+  ctx.strokeStyle = "#d3dfdc"; ctx.fillStyle = "#405b57";
+  for (const value of [limit, 0, -limit]) {
+    ctx.beginPath(); ctx.moveTo(50, y(value)); ctx.lineTo(width - 16, y(value)); ctx.stroke();
+    ctx.fillText(value.toFixed(3), 4, y(value) + 4);
+  }
+  ctx.strokeStyle = "#536760";
+  ctx.beginPath(); ctx.moveTo(x(selected), y(limit)); ctx.lineTo(x(selected), y(-limit)); ctx.stroke();
+  records.forEach(row => {
+    ctx.beginPath(); ctx.moveTo(x(row.at), y(0) - 2); ctx.lineTo(x(row.at), y(0) + 2); ctx.stroke();
+  });
+  for (const line of series) {
+    ctx.strokeStyle = line.color; ctx.fillStyle = line.color; ctx.lineWidth = 1.6; ctx.setLineDash(line.dash);
+    ctx.beginPath();
+    records.forEach((row, idx) => idx ? ctx.lineTo(x(row.at), y(row[line.key][line.component]))
+      : ctx.moveTo(x(row.at), y(row[line.key][line.component])));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const row of records) {
+      ctx.beginPath(); ctx.arc(x(row.at), y(row[line.key][line.component]), 2.3, 0, 2 * Math.PI); ctx.fill();
+    }
+  }
+  ctx.fillStyle = "#405b57";
+  ctx.fillText(`${xmin.toFixed(1)} s`, 50, height - 9);
+  if (xmax !== xmin) {
+    const text = `${xmax.toFixed(1)} s`;
+    ctx.fillText(text, width - 18 - ctx.measureText(text).width, height - 9);
+  }
+}
+function draw() {
+  const item = getCase();
+  const index = +controls.origin.value;
+  const unit = item.unit_order.indexOf(controls.unit.value);
+  const fitted = item.arms[controls.arm.value];
+  const at = item.origins[index];
+  const oracle = item.oracle[index][unit];
+  const estimate = fitted[index][unit];
+  byId("values").replaceChildren(...oracle.map((value, component) => {
+    const row = document.createElement("tr");
+    for (const text of [`Behavior ${component + 1}`, number(value), number(estimate[component]),
+                        number(estimate[component] - value)]) {
+      const cell = row.insertCell();
+      cell.textContent = text;
+    }
+    return row;
+  }));
+  const active = item.active[index][unit] ? "Oracle-active" : "Below the active-effect threshold";
+  byId("active").textContent = `${active} · source neurons ${item.units[controls.unit.value].join(", ")}`;
+  const records = item.origins.flatMap((origin, j) => origin.trial === at.trial ?
+    [{at: origin.seconds, oracle: item.oracle[j][unit], fitted: fitted[j][unit]}] : []);
+  chart(records, at.seconds);
+}
+byId("profile").textContent = data.profile === "smoke" ? "Smoke run · descriptive check on one process seed"
+  : "Confirmation run · paired comparisons across independent process seeds";
+for (const line of series) {
+  const item = document.createElement("span"), dot = document.createElement("i");
+  dot.style.backgroundColor = line.color;
+  if (line.dash.length) { dot.style.border = `1px dashed ${line.color}`; dot.style.backgroundColor = "white"; }
+  item.append(dot, line.label); byId("legend").append(item);
+}
+const scenarios = [...new Set(data.cases.map(item => item.scenario))];
+choices(controls.scenario, scenarios.map(scenario => [scenario, scenarioDisplay(scenario)]), scenarios.includes("driver_switch") ?
+  "driver_switch" : scenarios[0]);
+controls.scenario.addEventListener("change", load);
+controls.seed.addEventListener("change", load);
+controls.unit.addEventListener("change", () => { resetOrigins(false); draw(); });
+controls.arm.addEventListener("change", draw);
+controls.origin.addEventListener("change", draw);
+window.addEventListener("resize", draw);
+load();
+</script>
+</body>
+</html>

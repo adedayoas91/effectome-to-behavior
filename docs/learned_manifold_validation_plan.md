@@ -316,7 +316,7 @@ replication or its acceptance flags.
 
 ## Implemented first bridge
 
-Notebook [08](../synthetic/08_learned_manifold_validation.ipynb) and
+Notebook [08](../synthetic/archive/08_learned_manifold_validation.ipynb) and
 `python -m synthetic.manifold_validation` run the independent bridge. The default
 development profile uses seeds **40000–40004**, both driver and endpoint-null
 scenarios, the same 24-trial/1,152-sample generator, 1,024-sample native discovery,

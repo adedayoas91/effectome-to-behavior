@@ -94,9 +94,9 @@ def test_invalid_example_design_is_rejected(kwargs):
 
 def test_synthetic_notebook_code_parses_and_run_defaults_remain_enabled():
     root = Path(__file__).resolve().parents[1] / "synthetic"
-    paths = sorted(root.glob("*.ipynb"))
+    paths = sorted((root / "archive").glob("*.ipynb"))
     assert len(paths) == 11
-    assert (root / "06_mechanism_driver_validation.ipynb") in paths
+    assert (root / "archive/06_mechanism_driver_validation.ipynb") in paths
     enabled = {}
     for path in paths:
         notebook = json.loads(path.read_text())
@@ -170,7 +170,7 @@ def test_synthetic_notebooks_inspect_protocols_when_fitting_is_explicitly_disabl
     root = Path(__file__).resolve().parents[1]
     monkeypatch.chdir(root)
     comparison_inventory = None
-    for path in sorted((root / "synthetic").glob("*.ipynb")):
+    for path in sorted((root / "synthetic/archive").glob("*.ipynb")):
         namespace = {"__name__": "__main__"}
         notebook = json.loads(path.read_text())
         for index, cell in enumerate(notebook["cells"]):
@@ -203,9 +203,9 @@ def test_synthetic_notebooks_inspect_protocols_when_fitting_is_explicitly_disabl
     assert not comparison_inventory["report_path"].is_file()
 
 
-def test_synthetic_notebook_prefixes_follow_documented_execution_order():
+def test_archived_notebook_prefixes_preserve_development_order():
     root = Path(__file__).resolve().parents[1] / "synthetic"
-    assert [path.name for path in sorted(root.glob("*.ipynb"))] == [
+    assert [path.name for path in sorted((root / "archive").glob("*.ipynb"))] == [
         "00_ground_truth.ipynb", "01_four_csl_sanity.ipynb",
         "02_shared_transition_comparison.ipynb", "03_correspondence_and_controls.ipynb",
         "04_framework_validation.ipynb", "05_driver_recovery.ipynb",
@@ -220,7 +220,7 @@ def test_synthetic_notebook_prefixes_follow_documented_execution_order():
 def test_mechanism_notebook_runs_oracle_panel_from_nested_working_directory(tmp_path, monkeypatch):
     root = Path(__file__).resolve().parents[1]
     monkeypatch.chdir(root / "synthetic" / "results")
-    notebook = json.loads((root / "synthetic/06_mechanism_driver_validation.ipynb").read_text())
+    notebook = json.loads((root / "synthetic/archive/06_mechanism_driver_validation.ipynb").read_text())
     namespace = {"__name__": "__main__"}
     output = tmp_path / "oracle-only"
     for index, cell in enumerate(notebook["cells"]):

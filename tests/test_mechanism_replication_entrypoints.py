@@ -52,7 +52,7 @@ def test_status_reads_only_the_requested_report(tmp_path):
 
 
 def test_replication_notebook_is_runnable_and_keeps_seed_pool_ownership_visible():
-    path = ROOT / "synthetic/07_mechanism_replication.ipynb"
+    path = ROOT / "synthetic/archive/07_mechanism_replication.ipynb"
     payload = json.loads(path.read_text())
     code = []
     for index, cell in enumerate(payload["cells"]):

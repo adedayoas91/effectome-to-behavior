@@ -108,7 +108,7 @@ if metrics_path.is_file():
             "Each raw process seed is one replicate. Keep the two scenarios, endpoint arms and methods as paired diagnostic conditions. Training-envelope excursions are reported and never removed. The source is instantaneous and the target averages the last four future samples, so no temporal encoder is allowed to borrow future context. Actual nonlinear BunDLe/CEBRA validation, a distributed behavioral readout, and fresh calibration/confirmation remain subsequent experiments described in the plan.",
         ),
     ]
-    write_notebook(Path(__file__).resolve().parent / "08_learned_manifold_validation.ipynb", cells)
+    write_notebook(Path(__file__).resolve().parent / "archive" / "08_learned_manifold_validation.ipynb", cells)
 
 
 if __name__ == "__main__":

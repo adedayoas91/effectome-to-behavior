@@ -76,3 +76,8 @@ The smoke run completed all three scenarios and produced 12 matched
 arm-by-scenario rows. Replay reproduced the frozen selector's choices and
 the saved forecast and intervention scores. The 20-seed confirmation
 remains pending. [Smoke report](../outputs/effectome-rollout-support/smoke/support-01/support-report.json)
+
+The numbered synthetic notebooks run this benchmark and produce the audited
+forecast figures and the offline intervention comparison. Notebook 02 also
+accepts completed runs created by the CLI above.
+[Notebook run order and output guide](../synthetic/README.md)
