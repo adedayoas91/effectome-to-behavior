@@ -1,0 +1,5 @@
+lookback: 16
+margin: 0.0
+consecutive_losses: 2
+recovery_forecasts: 4
+effect_stride_origins: 32

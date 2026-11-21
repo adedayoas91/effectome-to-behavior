@@ -1,0 +1,16 @@
+lookbacks: [4, 6, 8, 12, 16, 24]
+margins: [0.0, 0.002, 0.005]
+consecutive_losses: [1, 2, 3]
+recovery_forecasts: [1, 2, 3, 4, 6]
+development:
+  - path: outputs/effectome-rollout-online/confirmation/forecast-selection-01
+    seed_start: 88000
+    seed_count: 20
+    protocol: online-protocol.json
+  - path: outputs/effectome-rollout-pipeline/confirmation/fast-fallback-01
+    seed_start: 89000
+    seed_count: 20
+    protocol: pipeline-protocol.json
+confirmation:
+  seed_start: 90000
+  seed_count: 20

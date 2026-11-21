@@ -1,5 +1,10 @@
 # Four-CSL simulation validation
 
+The [end-to-end effectome-to-behavior benchmark](../docs/effectome_rollout_pipeline.md)
+fits the readout and both mechanisms, chooses forecasts from completed errors,
+and scores paired intervention effects. Run `python -m synthetic.behavior_rollout_pipeline
+--profile confirmation --run` from the application repository.
+
 The [working mechanism-rollout pipeline](../docs/effectome_mechanism_rollout.md)
 uses trailing effectomes to simulate neural trajectories, with a frozen
 behavioral readout and paired outgoing-disconnection effects. The standalone
