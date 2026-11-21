@@ -515,15 +515,21 @@ def load_bundle_net_c_elegans(cfg: dict) -> NeuralRecording:
         raise ValueError("ClassIDs_279 and Order279 must have matching lengths")
 
     state_names = [str(name) for name in cfg.get("state_names", [])]
+    trace_field = cfg.get("trace_field", "deltaFOverF_bc")
+    if trace_field not in ("deltaFOverF_bc", "deltaFOverF"):
+        raise ValueError("bundle_net_c_elegans trace_field must identify a supplied dF/F trace")
 
     with h5py.File(recordings_path, "r") as handle:
         root = handle["NoStim_Data"]
         worm_index = int(cfg.get("worm_index", 0))
-        n_worms = int(root["deltaFOverF_bc"].shape[0])
+        if trace_field not in root:
+            raise KeyError(f"bundle_net_c_elegans missing trace field: {trace_field}")
+        trace_references = root[trace_field]
+        n_worms = int(trace_references.shape[0])
         if worm_index < 0 or worm_index >= n_worms:
             raise IndexError(f"worm_index {worm_index} outside available range [0, {n_worms})")
 
-        traces = np.asarray(handle[root["deltaFOverF_bc"][worm_index, 0]], dtype=np.float32)
+        traces = np.asarray(handle[trace_references[worm_index, 0]], dtype=np.float32)
         time = np.asarray(handle[root["tv"][worm_index, 0]], dtype=np.float64).reshape(-1)
         fps = float(np.asarray(handle[root["fps"][worm_index, 0]]).squeeze())
         raw_neuron_names = _load_matlab_string_vector(handle, root["NeuronNames"][worm_index, 0])
@@ -615,6 +621,7 @@ def load_bundle_net_c_elegans(cfg: dict) -> NeuralRecording:
         {
             "bundle_dataset_name": dataset_name,
             "worm_index": worm_index,
+            "trace_field": trace_field,
             "state_names": state_names,
             "state_name_to_id": {name: idx for idx, name in enumerate(state_names)},
             "state_indicators": state_indicators,

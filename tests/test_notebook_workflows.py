@@ -18,6 +18,12 @@ from effectome.data_module.schema import WindowedSegments
 from effectome.dynamics import GraphStateConfig, ProbabilisticStateConfig, TransitionConfig
 from effectome.manifold import ManifoldConfig
 from effectome.utils.io import save_artifact
+from notebooks._build_notebooks import (
+    DatasetSpec,
+    datasetize_cells,
+    notebook_attribution,
+    notebook_preprocessing,
+)
 from notebooks._shared import (
     make_run,
     run_bundle_net_reference_preprocessing,
@@ -26,6 +32,23 @@ from notebooks._shared import (
     run_graph_states_and_transitions,
     run_preprocessing,
     run_probabilistic_states,
+)
+
+NOTEBOOKS = Path(__file__).resolve().parents[1] / "notebooks"
+V2A_REFERENCE = NOTEBOOKS / "v2a_rsns" / "220119_F2_run11"
+WORM_ROLLOUT = NOTEBOOKS / "c_elegans"
+LEGACY_WORM_SPEC = DatasetSpec(
+    slug="c_elegans",
+    label="C. elegans",
+    config_name="c_elegans",
+    relative_directory=Path("c_elegans"),
+    dataset_id="bundle-net-c-elegans",
+    recording_id="bundle-net-worm-0",
+    behavior_keys=("motif",),
+    primary_behavior="motif",
+    endpoint_type="categorical",
+    feature_sensitivity_endpoint="manifold",
+    bundle_net_reference=True,
 )
 
 
@@ -68,7 +91,6 @@ def test_method_notebook_files_are_flattened():
         },
     }
     dataset_directories = [
-        root / "c_elegans",
         root / "v2a_rsns" / "220119_F2_run11",
         root / "v2a_rsns" / "220127_F4_run2",
     ]
@@ -81,10 +103,34 @@ def test_method_notebook_files_are_flattened():
             assert not any(path.is_dir() for path in stage_directory.iterdir())
 
 
-def test_all_notebooks_bootstrap_repository_imports():
+def test_worm_rollout_has_three_ordered_notebooks_using_one_run():
+    expected_workflow = {
+        "00_data_and_timing.ipynb": (
+            "preflight(REPO, OUTPUT_ROOT, worm_indices=WORM_INDICES, data_root=DATA_ROOT)"
+        ),
+        "01_fit_and_forecast.ipynb": "run_forecasts(REPO, OUTPUT_ROOT)",
+        "02_score_and_disconnections.ipynb": "summarize(REPO, OUTPUT_ROOT, disconnect_rois=DISCONNECT_ROIS)",
+    }
+    paths = sorted(WORM_ROLLOUT.rglob("*.ipynb"))
+    assert paths == [WORM_ROLLOUT / name for name in expected_workflow]
+    for path in paths:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        cells = [cell for cell in payload["cells"] if cell["cell_type"] == "code"]
+        assert all(cell["execution_count"] is None and cell["outputs"] == [] for cell in cells)
+        code = "\n".join("".join(cell["source"]) for cell in cells)
+        assert 'RUN_ID = "motif-rollout-01"' in code
+        assert 'OUTPUT_ROOT = REPO / "outputs" / "celegans-rollout" / RUN_ID' in code
+        assert expected_workflow[path.name] in code
+        assert "from effectome.workflows.celegans_rollout import" in code
+    assert "WORM_INDICES = (0, 1, 2, 3, 4)" in paths[0].read_text(encoding="utf-8")
+
+
+def test_legacy_notebooks_bootstrap_repository_imports():
     root = Path(__file__).resolve().parents[1] / "notebooks"
 
     for path in sorted(root.rglob("*.ipynb")):
+        if path.parent == WORM_ROLLOUT:
+            continue
         payload = json.loads(path.read_text(encoding="utf-8"))
         first_code_cell = next(
             cell for cell in payload["cells"] if cell["cell_type"] == "code"
@@ -96,10 +142,12 @@ def test_all_notebooks_bootstrap_repository_imports():
         assert "str(_REPOSITORY_ROOT)" in source, path
 
 
-def test_all_notebooks_explain_live_and_resumed_progress():
+def test_legacy_notebooks_explain_live_and_resumed_progress():
     root = Path(__file__).resolve().parents[1] / "notebooks"
 
     for path in sorted(root.rglob("*.ipynb")):
+        if path.parent == WORM_ROLLOUT:
+            continue
         payload = json.loads(path.read_text(encoding="utf-8"))
         markdown = "\n".join(
             "".join(cell["source"])
@@ -110,10 +158,12 @@ def test_all_notebooks_explain_live_and_resumed_progress():
         assert "Reused, failed, running, and missing checkpoints are reported explicitly" in markdown, path
 
 
-def test_all_notebooks_print_resume_header():
+def test_legacy_notebooks_print_resume_header():
     root = Path(__file__).resolve().parents[1] / "notebooks"
 
     for path in sorted(root.rglob("*.ipynb")):
+        if path.parent == WORM_ROLLOUT:
+            continue
         payload = json.loads(path.read_text(encoding="utf-8"))
         code = "\n".join(
             "".join(cell.get("source", []))
@@ -126,10 +176,10 @@ def test_all_notebooks_print_resume_header():
 
 
 def test_notebook_setup_imports_from_nested_directories():
-    root = Path(__file__).resolve().parents[1]
     paths = [
-        root / "notebooks" / "c_elegans" / "00_preprocessing" / "preprocess.ipynb",
-        root / "notebooks" / "c_elegans" / "01_effectomes" / "cgc.ipynb",
+        V2A_REFERENCE / "00_preprocessing" / "preprocess.ipynb",
+        V2A_REFERENCE / "01_effectomes" / "cgc.ipynb",
+        *sorted(WORM_ROLLOUT.glob("*.ipynb")),
     ]
 
     for path in paths:
@@ -152,11 +202,6 @@ def test_notebook_setup_imports_from_nested_directories():
 def test_preprocess_notebooks_use_configured_output_ids():
     root = Path(__file__).resolve().parents[1] / "notebooks"
     expectations = {
-        root / "c_elegans" / "00_preprocessing" / "preprocess.ipynb": (
-            'DATASET_OUTPUT_ID = "bundle-net-c-elegans"',
-            'RECORDING_ID = "bundle-net-worm-0"',
-            'EXPECTED_BEHAVIOR_KEYS = ["motif"]',
-        ),
         root / "v2a_rsns" / "220119_F2_run11" / "00_preprocessing" / "preprocess.ipynb": (
             'DATASET_OUTPUT_ID = "v2a-rsns"',
             'RECORDING_ID = "220119_F2_run11"',
@@ -182,14 +227,12 @@ def test_preprocess_notebooks_use_configured_output_ids():
         ) in text
         assert "WINDOW_CFG = WindowConfig(**WINDOWING_CFG)" in text
 
+
+def test_legacy_worm_preprocessing_template_keeps_retrospective_reference():
     c_elegans_text = "\n".join(
-        "".join(cell.get("source", []))
-        for cell in json.loads(
-            (root / "c_elegans" / "00_preprocessing" / "preprocess.ipynb").read_text(
-                encoding="utf-8"
-            )
-        )["cells"]
-        if cell.get("cell_type") == "code"
+        "".join(cell["source"])
+        for cell in notebook_preprocessing(LEGACY_WORM_SPEC)
+        if cell["cell_type"] == "code"
     )
     assert "run_bundle_net_reference_preprocessing" in c_elegans_text
     assert "bundle_net_reference_recording" in c_elegans_text
@@ -202,18 +245,11 @@ def test_preprocess_notebooks_use_configured_output_ids():
     assert "source -> {recording.n_neurons} analysis" in c_elegans_text
 
 
-def test_c_elegans_counterfactual_targets_manifold_not_motif_codes():
-    root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans"
-    for method in ("cgc", "cgc_star"):
-        path = root / "07_counterfactuals" / f"{method}.ipynb"
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        text = "\n".join(
-            "".join(cell.get("source", []))
-            for cell in payload["cells"]
-            if cell.get("cell_type") == "code"
-        )
-        assert 'BEHAVIOR_KEY = "motif"' in text
-        assert 'endpoint="manifold"' in text
+def test_legacy_worm_counterfactual_template_targets_manifold():
+    cells = datasetize_cells(notebook_attribution("cgc", "fastC-GC"), LEGACY_WORM_SPEC)
+    text = "\n".join("".join(cell["source"]) for cell in cells if cell["cell_type"] == "code")
+    assert 'BEHAVIOR_KEY = "motif"' in text
+    assert 'endpoint="manifold"' in text
 
 
 def test_counterfactual_notebooks_label_feature_sensitivity_claim_boundary():
@@ -240,8 +276,8 @@ def test_counterfactual_notebooks_label_feature_sensitivity_claim_boundary():
         assert "biological_intervention_identified" in code, path
 
 
-def test_c_elegans_manifold_notebooks_load_supported_pca_profile():
-    root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans" / "05_manifolds"
+def test_v2a_manifold_notebooks_load_supported_pca_profile():
+    root = V2A_REFERENCE / "05_manifolds"
     for method in ("cgc", "cgc_star", "correlation_partial"):
         payload = json.loads((root / f"{method}.ipynb").read_text(encoding="utf-8"))
         text = "\n".join(
@@ -250,7 +286,7 @@ def test_c_elegans_manifold_notebooks_load_supported_pca_profile():
             if cell.get("cell_type") == "code"
         )
         assert 'MANIFOLD_CONFIG_NAME = "classical"' in text
-        assert 'MANIFOLD_BEHAVIOR_KEY = "motif"' in text
+        assert 'MANIFOLD_BEHAVIOR_KEY = "continuous"' in text
         assert "OmegaConf.load(MANIFOLD_CONFIG_PATH)" in text
 
 
@@ -325,7 +361,7 @@ def test_bunddle_notebook_manifold_uses_target_window_indexing(
 
 
 def test_effectome_notebooks_load_canonical_connectivity_profiles():
-    root = Path(__file__).resolve().parents[1] / "notebooks" / "c_elegans" / "01_effectomes"
+    root = V2A_REFERENCE / "01_effectomes"
     expected = {
         "cgc": "cgc.yaml",
         "cgc_star": "cgc_star.yaml",
@@ -351,9 +387,9 @@ def test_effectome_notebooks_load_canonical_connectivity_profiles():
         assert f'/ "{config_name}"' in text
         assert "ConnectivityConfig(**CONNECTIVITY_YAML)" in text
         if method in {"cgc", "cgc_star"}:
-            assert "CHECKPOINT_CHUNK_SIZE = 16" in text
-            assert "chunk_size=CHECKPOINT_CHUNK_SIZE" in text
-            assert "one model is fit per window" in markdown
+            assert "CHUNK_SIZE = 16" in text
+            assert "chunk_size=CHUNK_SIZE" in text
+            assert "`shared/windows` checkpoint must exist" in markdown
 
 
 def test_attribution_helper_uses_window_aligned_behavior(monkeypatch, tmp_path):
@@ -412,8 +448,7 @@ def test_attribution_helper_uses_window_aligned_behavior(monkeypatch, tmp_path):
 
 
 def test_method_notebooks_reference_shared_artifacts_under_dataset_output_root():
-    root = Path(__file__).resolve().parents[1] / "notebooks"
-    notebook = root / "c_elegans" / "01_effectomes" / "cgc.ipynb"
+    notebook = V2A_REFERENCE / "01_effectomes" / "cgc.ipynb"
     payload = json.loads(notebook.read_text(encoding="utf-8"))
     text = "\n".join(
         "".join(cell.get("source", [])) for cell in payload["cells"] if cell.get("cell_type") == "code"

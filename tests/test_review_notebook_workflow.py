@@ -33,8 +33,8 @@ def _keyword_calls(payload, function):
 
 
 def test_state_notebooks_use_nested_prospective_selection_instead_of_forced_states():
-    paths = sorted(NOTEBOOKS.glob("**/02_clustering/*.ipynb"))
-    assert len(paths) == 24
+    paths = sorted(NOTEBOOKS.glob("v2a_rsns/*/02_clustering/*.ipynb"))
+    assert len(paths) == 16
     for path in paths:
         payload = json.loads(path.read_text())
         graph, = _keyword_calls(payload, "GraphStateConfig")

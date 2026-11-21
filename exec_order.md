@@ -132,13 +132,20 @@ Current driver output defaults to `outputs/driver-validation/csl_sanity/schedule
 framework output defaults to `outputs/framework-validation/csl_sanity/<profile>/`.
 VAR-estimator simulation results and their manuscript figures/tables have been
 removed from the current presentation. Raw output archives remain available for
-audit; current synthetic notebooks neither load nor export them. VAR backends
-and real-data notebooks remain unchanged.
+audit. The optional VAR backends remain available for the V2a workflow below.
 
-## 3. Prepare each biological recording independently
+## 3. Run the C. elegans motif rollout
 
-Recording roots are `notebooks/c_elegans/`,
-`notebooks/v2a_rsns/220119_F2_run11/`, and
+Use the [C. elegans notebooks](notebooks/README.md#c-elegans-motif-rollout)
+in their numbered order. Notebook 00 verifies the NoStim files and freezes a
+chronological plan for each selected worm. Notebook 01 fits and forecasts
+motif probabilities. Notebook 02 scores held-out forecasts and can compute
+paired model-based disconnections. The default processes all five worms.
+See the [adaptation and provenance notes](docs/celegans_rollout.md).
+
+## 4. Prepare each V2a recording independently
+
+The recording roots are `notebooks/v2a_rsns/220119_F2_run11/` and
 `notebooks/v2a_rsns/220127_F4_run2/`.
 
 Run `00_preprocessing/preprocess.ipynb` in each recording. Retain its
@@ -147,7 +154,7 @@ comparison rebuilds identity-preprocessed windows from that raw artifact and
 disables descriptive per-window scaling. Preserve acquisition gaps, invalid
 intervals and the original neuron IDs.
 
-## 4. Run the canonical shared comparison
+## 5. Run the V2a shared comparison
 
 Run `09_cross_method/shared_transitions.ipynb` for the same recording.
 Its only biological prerequisite is the raw preprocessing checkpoint; individual
@@ -166,7 +173,7 @@ before execution. Keep `FORCE=False` for content-checked resume. Nonfinite raw
 histories or insufficient purged support produce explicit errors; do not weaken
 purging or invent missing-data handling to obtain a result.
 
-## 5. Optional complementary analyses
+## 6. Optional V2a analyses
 
 | Notebook/stage | Purpose and prerequisites |
 |---|---|
@@ -184,7 +191,7 @@ reproduction is optional and needs a supported PyTorch platform. Structural
 Leiden and temporal roles answer different questions. Endpoint-directed graph
 selection remains a separately declared sensitivity in copied raw manifests.
 
-## 6. Candidate replication and manuscript reporting
+## 7. Candidate replication and manuscript reporting
 
 Inspect calibration, effect sizes, controls, graph/state uncertainty, time-window
 sensitivity and availability before selecting candidate neurons or groups.

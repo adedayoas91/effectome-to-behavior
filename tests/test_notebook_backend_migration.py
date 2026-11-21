@@ -22,14 +22,20 @@ def test_all_notebooks_validate_the_migrated_environment_and_compile():
     notebooks = sorted(NOTEBOOK_ROOT.rglob("*.ipynb"))
     assert notebooks
     for path in notebooks:
+        is_worm_rollout = path.parent.name == "c_elegans"
         payload = json.loads(path.read_text())
         assert payload["metadata"]["language_info"]["version"].startswith("3.14"), path
         first_code = next(cell for cell in payload["cells"] if cell["cell_type"] == "code")
-        assert BACKEND_ENVIRONMENT_CHECK.strip() in "".join(first_code["source"]), path
+        bootstrap = "".join(first_code["source"])
+        if is_worm_rollout:
+            assert "if sys.version_info[:2] != (3, 14):" in bootstrap, path
+        else:
+            assert BACKEND_ENVIRONMENT_CHECK.strip() in bootstrap, path
         markdown = "\n".join(
             "".join(cell["source"]) for cell in payload["cells"] if cell["cell_type"] == "markdown"
         )
-        assert ENVIRONMENT_NOTE in markdown, path
+        if not is_worm_rollout:
+            assert ENVIRONMENT_NOTE in markdown, path
         assert not re.search(r"^#.*(?<![A-Za-z])c-GC", markdown, re.MULTILINE), path
         for cell_index, cell in enumerate(payload["cells"]):
             if cell["cell_type"] == "code":

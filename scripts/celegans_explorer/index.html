@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>C. elegans intervention explorer</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="page-header">
+      <div>
+        <h1><i>C. elegans</i> intervention explorer</h1>
+        <p>Compare all-on and disconnected motor motif forecasts.</p>
+      </div>
+      <p id="run-label" class="run-label"></p>
+    </header>
+
+    <div class="workspace">
+      <aside class="panel controls" aria-labelledby="controls-heading">
+        <h2 id="controls-heading">Forecast controls</h2>
+        <div class="field">
+          <label for="worm">Worm</label>
+          <select id="worm" disabled></select>
+        </div>
+        <div class="field origin-field">
+          <label for="origin">Forecast origin</label>
+          <div class="origin-controls">
+            <button id="previous" type="button" aria-label="Previous forecast origin" disabled>‹</button>
+            <input id="origin" type="range" min="0" max="0" value="0" disabled>
+            <button id="next" type="button" aria-label="Next forecast origin" disabled>›</button>
+          </div>
+          <output id="origin-label" for="origin">No origin selected</output>
+        </div>
+
+        <section class="neuron-controls" aria-labelledby="neurons-heading">
+          <div class="section-head">
+            <h3 id="neurons-heading">Neuron outputs</h3>
+            <button id="restore" type="button" disabled>Turn all on</button>
+          </div>
+          <p class="hint">Each switch controls a neuron's outgoing connections. Its own dynamics and incoming connections from neurons that stay on are preserved.</p>
+          <div class="field">
+            <label for="search">Find a neuron</label>
+            <input id="search" type="search" autocomplete="off" placeholder="Name or ROI ID" disabled>
+          </div>
+          <label class="filter" for="linked-only">
+            <input id="linked-only" type="checkbox" disabled>
+            Show neurons with outgoing links
+          </label>
+          <p id="selection-count" class="selection-count" role="status"></p>
+          <ul id="neurons" class="neuron-list" aria-label="Neuron outputs"></ul>
+        </section>
+
+        <details id="groups-panel" class="groups">
+          <summary>Saved groups</summary>
+          <form id="save-group" class="group-actions">
+            <label class="visually-hidden" for="group-name">Group name</label>
+            <input id="group-name" type="text" maxlength="60" placeholder="Name this selection" required disabled>
+            <button id="save" type="submit" disabled>Save</button>
+          </form>
+          <div class="group-actions">
+            <label class="visually-hidden" for="groups">Saved group</label>
+            <select id="groups" disabled></select>
+            <button id="apply" type="button" disabled>Apply</button>
+            <button id="delete" type="button" disabled>Delete</button>
+          </div>
+          <p id="group-status" class="hint" role="status"></p>
+        </details>
+      </aside>
+
+      <div class="results">
+        <section class="panel probabilities" aria-labelledby="probabilities-heading">
+          <div class="section-head">
+            <h2 id="probabilities-heading">Motor motif probabilities</h2>
+            <span id="model" class="model-label" hidden></span>
+          </div>
+          <p class="hint">Change is the disconnected forecast minus the all-on forecast, in percentage points.</p>
+          <p id="forecast-status" class="forecast-status" role="status">Loading run…</p>
+          <div id="forecast-table" aria-busy="true" hidden>
+            <table>
+              <caption class="visually-hidden">Paired motif forecast comparison</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Motif</th>
+                  <th scope="col"><span class="swatch factual"></span>All on</th>
+                  <th scope="col"><span class="swatch disconnected"></span>Disconnected</th>
+                  <th scope="col">Change</th>
+                </tr>
+              </thead>
+              <tbody id="probabilities"></tbody>
+            </table>
+            <p id="forecast-details" class="hint forecast-details"></p>
+          </div>
+        </section>
+
+        <section class="panel trajectory" aria-labelledby="trajectory-heading">
+          <div class="section-head">
+            <h2 id="trajectory-heading">Motif-supervised trajectory</h2>
+            <p id="observed-motif" class="hint"></p>
+          </div>
+          <canvas id="trajectory" aria-label="Two-dimensional neural trajectory colored by recorded motif. The forecast origin is circled." role="img">
+            Use the forecast slider to browse the trajectory.
+          </canvas>
+          <ul id="motif-legend" class="motif-legend" aria-label="Recorded motif colors"></ul>
+        </section>
+
+        <p class="scope">This compares paired simulations from one observed state using the same noise draws. The readout predicts recorded fictive motor motifs.</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

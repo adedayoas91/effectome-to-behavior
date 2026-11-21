@@ -10,7 +10,13 @@ from sklearn.preprocessing import StandardScaler
 from effectome.workflows.effectome_rollout import _validate_origins
 
 from .continuous_behavior_rollouts import _OUTPUT_DIMENSION, ContinuousBehaviorReadout, _artifact, _predict
-from .structural_mechanism import AdditiveMechanism, MechanismRolloutConfig, _positive, _support
+from .structural_mechanism import (
+    AdditiveMechanism,
+    MechanismRolloutConfig,
+    _disconnected,
+    _positive,
+    _support,
+)
 
 
 def fit_timing_mechanisms(
@@ -83,10 +89,15 @@ def timing_forecasts(
     origin_ids: np.ndarray,
     readout: ContinuousBehaviorReadout,
     config: MechanismRolloutConfig,
+    *,
+    output_width: int = _OUTPUT_DIMENSION,
+    disconnected: Sequence[int] = (),
 ) -> np.ndarray:
-    """Average decoded factual futures over the declared terminal window and draws."""
+    """Average decoded futures, optionally removing specified outgoing cross terms."""
     if not isinstance(config, MechanismRolloutConfig):
         raise ValueError("config must be a MechanismRolloutConfig")
+    if type(output_width) is not int or output_width < 1:
+        raise ValueError("output_width must be a positive integer")
     initial = np.asarray(states, dtype=float)
     if initial.ndim != 2 or not initial.size or len(mechanisms) != len(initial):
         raise ValueError("every origin needs one observed state and one fitted mechanism")
@@ -94,6 +105,7 @@ def timing_forecasts(
         raise ValueError("origin states must be finite")
     ids = np.asarray(origin_ids)
     n_origins, n_nodes = initial.shape
+    removed = _disconnected(disconnected, n_nodes)
     _validate_origins(ids, n_origins)
     if any(model.intercept.shape != (n_nodes,) for model in mechanisms):
         raise ValueError("every fitted mechanism must match the observed node axis")
@@ -111,9 +123,11 @@ def timing_forecasts(
     intercept = np.stack([model.intercept for model in mechanisms])[:, None, :]
     self_weights = np.stack([model.self_weights for model in mechanisms])[:, None, :]
     cross = np.stack([model.cross_weights for model in mechanisms])
+    if removed:
+        cross[:, list(removed), :] = 0.0
     noise = np.stack([model.noise_scale for model in mechanisms])[:, None, :]
     simulated = np.repeat(initial[:, None, :], config.n_rollouts, axis=1)
-    target_sum = np.zeros((n_origins, config.n_rollouts, _OUTPUT_DIMENSION))
+    target_sum = np.zeros((n_origins, config.n_rollouts, output_width))
     try:
         with np.errstate(over="raise", invalid="raise"):
             for step, innovation in enumerate(innovations):
@@ -121,7 +135,7 @@ def timing_forecasts(
                 simulated += innovation * noise
                 if step >= config.horizon - config.target_length:
                     simulated.setflags(write=False)
-                    target_sum += _predict(readout, simulated, "behavior")
+                    target_sum += _predict(readout, simulated, "behavior", output_width=output_width)
             forecast = (target_sum / config.target_length).mean(axis=1)
     except FloatingPointError as error:
         raise ValueError("mechanism forecast became nonfinite; no clipping is applied") from error

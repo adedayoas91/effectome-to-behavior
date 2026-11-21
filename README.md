@@ -54,6 +54,15 @@ notebook dependencies and run order.
 Each stage is a registry-backed module under `src/effectome/`, configured via a Hydra config
 group under `conf/`, and exposed as a numbered entry point under `pipeline/`.
 
+## C. elegans quick start
+
+Run the three [C. elegans motif-rollout notebooks](notebooks/README.md#c-elegans-motif-rollout)
+in numeric order. They preflight the pinned NoStim recordings, fit the tuned
+pooled/local pipeline on each worm, and score held-out motor-motif probabilities.
+The [pilot workflow](docs/celegans_rollout.md) documents the categorical endpoint
+and native sampling adaptations. The [intervention explorer](docs/celegans_intervention_explorer.md)
+replays forecasts with outgoing connections switched off for selected neurons.
+
 ## Install
 
 ```bash

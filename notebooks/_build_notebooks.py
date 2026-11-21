@@ -1315,19 +1315,6 @@ def main() -> None:
     )
     datasets = [
         DatasetSpec(
-            slug="c_elegans",
-            label="C. elegans",
-            config_name="c_elegans",
-            relative_directory=Path("c_elegans"),
-            dataset_id="bundle-net-c-elegans",
-            recording_id="bundle-net-worm-0",
-            behavior_keys=("motif",),
-            primary_behavior="motif",
-            endpoint_type="categorical",
-            feature_sensitivity_endpoint="manifold",
-            bundle_net_reference=True,
-        ),
-        DatasetSpec(
             slug="220119_F2_run11",
             label="V2a-RSN 220119_F2_run11",
             config_name="220119_F2_run11",

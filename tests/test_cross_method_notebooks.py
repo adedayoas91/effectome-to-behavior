@@ -17,10 +17,9 @@ from notebooks._build_notebooks import SHARED_TRANSITION_NOTICE_MARKER, migrate_
 from notebooks._shared import make_run, run_shared_transition_comparison
 
 
-def test_every_recording_has_canonical_entrypoint_and_every_old_stage_points_to_it():
+def test_v2a_recordings_have_canonical_entrypoint_and_each_stage_points_to_it():
     root = Path(__file__).resolve().parents[1] / "notebooks"
     for recording in (
-        root / "c_elegans",
         root / "v2a_rsns/220119_F2_run11",
         root / "v2a_rsns/220127_F4_run2",
     ):

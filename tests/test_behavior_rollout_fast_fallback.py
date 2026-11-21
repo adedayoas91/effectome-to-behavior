@@ -2,7 +2,11 @@
 
 import numpy as np
 
-from effectome.experiments.behavior_rollout_online_policy import fast_refit_decisions, refit_decisions
+from effectome.experiments.behavior_rollout_online_policy import (
+    fast_refit_decisions,
+    fast_refit_loss_decisions,
+    refit_decisions,
+)
 
 
 def _forecasts(gains: list[int]) -> tuple[np.ndarray, ...]:
@@ -37,3 +41,17 @@ def test_maturing_multiple_forecasts_between_origins_does_not_skip_losses():
     slow = refit_decisions(origins, pooled, local, observed, horizon=6, lookback=6, margin=0)
     fast = fast_refit_decisions(origins, pooled, local, observed, horizon=6, lookback=6)
     assert slow[0, -1] and not fast[0, -1]
+
+
+def test_custom_loss_has_the_same_maturity_and_fallback_rule():
+    origins, pooled, local, target = _forecasts([1] * 6 + [-1] * 3 + [1] * 5)
+    settings = dict(horizon=2, lookback=3, margin=0.0, consecutive_losses=3, recovery_forecasts=1)
+    pool_loss = np.abs(pooled - target).mean(axis=-1)
+    local_loss = np.abs(local - target).mean(axis=-1)
+    reference = fast_refit_decisions(origins, pooled, local, target, **settings)
+    replay = fast_refit_loss_decisions(origins, pool_loss, local_loss, **settings)
+    np.testing.assert_array_equal(replay, reference)
+    changed = local_loss.copy()
+    changed[:, 6:] += 5
+    future = fast_refit_loss_decisions(origins, pool_loss, changed, **settings)
+    np.testing.assert_array_equal(future[:, :8], replay[:, :8])

@@ -1,44 +1,70 @@
-# Dataset-grouped resumable analysis notebooks
+# Empirical analysis notebooks
 
-The canonical adopted path is now `00_preprocessing/preprocess.ipynb` followed by
-`09_cross_method/shared_transitions.ipynb` for each recording. It rebuilds raw
-identity windows, fits one shared training-owned manifold, and compares all eight
-methods on the same held-out events. Start with
-[framework validation](../synthetic/README.md) before interpreting real recordings.
-The existing method notebooks carry scope notices and remain optional individual
-method analyses; they are not silently converted into shared-reference results.
+## C. elegans motif rollout
 
-The executable notebooks are grouped by independently analysed recording:
+Run these notebooks in order with the project Python 3.14 `.venv` kernel.
 
-```text
-notebooks/
-├── c_elegans/
-│   ├── 00_preprocessing/preprocess.ipynb
-│   ├── 01_effectomes/<method>.ipynb
-│   ├── 02_clustering/<method>.ipynb
-│   ├── 03_probabilistic_states/<method>.ipynb
-│   ├── 04_communities/<method>.ipynb
-│   ├── 05_manifolds/<method>.ipynb
-│   ├── 06_linking/<method>.ipynb
-│   ├── 07_counterfactuals/<directed-method>.ipynb
-│   └── 08_evaluation/primary_m0_m1.ipynb
-└── v2a_rsns/
-    ├── 220119_F2_run11/
-    └── 220127_F4_run2/
-```
+1. [00 · Data and timing](c_elegans/00_data_and_timing.ipynb) verifies the
+   pinned input files and freezes the chronological partitions and forecast timing.
+   The default uses all five worms. Set `WORM_INDICES = (0,)` for a quick pilot.
+2. [01 · Fit and forecast](c_elegans/01_fit_and_forecast.ipynb) trains the
+   motif-probability readout, learns fastC-GC support on training windows, and
+   compares pooled and trailing local rollouts with the tuned selector.
+3. [02 · Score and disconnections](c_elegans/02_score_and_disconnections.ipynb)
+   compares held-out multiclass Brier scores against pooled, local, decoded
+   persistence, and training-prevalence forecasts. A nonempty
+   `DISCONNECT_ROIS` requests paired model-based motif-probability shifts.
 
-Every recording repeats the numbered stage structure shown under `c_elegans`.
-Method identity lives in the notebook filename, not another directory level.
-The generated surface retains all eight implemented notebook lanes: fastC-GC,
-fastC-GC*, partial correlation, constant and windowed sparse VAR, switching VAR,
-and smooth/fused TVVAR. The numbered stage directory supplies the run order; the
-method filename supplies the estimator identity. PCMCI+ and JPCMCI+ remain
-registry-backed causal-structure-learning configurations, with JPCMCI+ reserved
-for explicitly scoped pooled/context-aware workflows. V2a-RSN datasets 03 and 04
-are intentionally not generated yet; add their source recording names to
-`_build_notebooks.py` after their paths and schemas have been confirmed.
+From the application repository, install the locked environment with
+`uv sync --python 3.14 --locked --extra notebooks`. The three notebooks use
+the installed fastC-GC backend and the categorical readout.
 
-## Output layout
+The default inputs are `NoStim_Data.mat`, `ClassIDs_279.mat`, and
+`Order279.mat` in `data/c_elegans/bundle_net_raw/`. Set `DATA_ROOT` in
+notebook 00 if the same files are stored elsewhere. The source and checksums
+are pinned in [the C. elegans data configuration](../conf/data/c_elegans.yaml).
+
+The workflow uses the source `deltaFOverF` traces before the added BunDLe-Net
+filter. Each worm has its own readout, support, and forecast evaluation.
+The targets are supplied neural-derived fictive motor motifs, and the
+forecasts give probabilities for those motifs. Forecast scores describe
+held-out annotation prediction. Optional disconnections describe probability
+shifts in the fitted model.
+
+Set the same `RUN_ID` in all three notebooks. The default output directory
+is `outputs/celegans-rollout/motif-rollout-01/`, with `preflight.json` and
+`summary.json` at the run level. Each `worm-<index>/` directory contains
+`forecasts.json`, `scores.csv`, and `disconnections.json` when requested.
+Use a fresh `RUN_ID` for changes to input settings, selected worms, or
+the workflow configuration.
+
+Open the [intervention explorer](../docs/celegans_intervention_explorer.md)
+after notebook 01 to compare motif forecasts while switching outgoing
+connections off or on for individual neurons or groups.
+
+The older worm estimator, clustering, and visualization lanes remain in Git
+history. Regenerate the three active notebooks with
+`python -m notebooks._build_celegans_rollout`.
+
+## V2a-RSN shared-transition notebooks
+
+For each V2a recording, the shared-transition path is
+`00_preprocessing/preprocess.ipynb` followed by
+`09_cross_method/shared_transitions.ipynb`. It rebuilds raw identity windows,
+fits one shared training-owned manifold, and compares all eight methods on
+the same held-out events. Start with
+[framework validation](../synthetic/README.md) before interpreting results.
+Estimation and descriptive notebooks remain available per recording in
+`v2a_rsns/220119_F2_run11/` and `v2a_rsns/220127_F4_run2/`.
+
+The generated V2a notebooks retain fastC-GC, fastC-GC*, partial correlation,
+constant and windowed sparse VAR, switching VAR, and smooth and fused TVVAR.
+The numbered stage directory supplies execution order and the filename
+identifies the estimator. PCMCI+ and JPCMCI+ remain registry-backed
+configurations. V2a-RSN datasets 03 and 04 are deferred until their paths and
+schemas have been confirmed.
+
+### Output layout
 
 Every useful stage artifact is stored beneath the dataset and recording that
 produced it:
@@ -75,7 +101,7 @@ with tangent arrows showing direction. They stop across recording gaps,
 bad-frame boundaries, and cross-fit fold boundaries. Black rings mark behavior
 or state changes.
 
-From the package root, generate motif, graph-state, and HMM-state views with:
+From the package root, a saved legacy C. elegans checkpoint can still generate motif, graph-state, and HMM-state views:
 
 ```bash
 uv run python scripts/plot_manifold_trajectory.py \
@@ -91,43 +117,6 @@ every arrow is visually too dense; the default is one arrow per step. GIF speed
 and smoothness are controlled by `--frames`, `--fps`, and `--dpi`. The smoothing
 is visual interpolation only; it does not create additional observations or
 establish continuous-time dynamics.
-
-The C. elegans suite currently analyses Bundle-Net worm 0 from the downloaded
-`NoStim_Data.mat`; its endpoint is the eight-class locomotor motif. The source
-commit and SHA-256 checksums are pinned in `conf/data/c_elegans.yaml`. The source
-file contains five worms with different recorded neuron sets, so the remaining
-four worms require separate recording namespaces rather than pooling.
-Because locomotor motifs are categorical, their feature-sensitivity notebook
-fits a manifold-dynamics surrogate and reports latent displacement; it does not
-regress arbitrary motif integer codes as though their distances were
-quantitative.
-
-The C. elegans loader matches the eight published exclusions against the raw
-per-worm `NeuronNames` before creating any analysis checkpoint. As in the
-upstream BunDLe-Net code, unidentified numeric labels are retained. For worm 0,
-six requested names are present, so all downstream methods use 103 of the 109
-recorded neurons. The preprocessing notebook also checkpoints an exact
-Bundle-Net reference lane. It starts from the upstream `deltaFOverF_bc` (already
-bleach-corrected) field, applies the pinned fourth-order Butterworth filter once
-forward and once on the reversed full recording without padding, and creates the
-published paired inputs from overlapping 15-sample slices. The pairing uses each
-16-sample block as `X[t:t+15]` and `X[t+1:t+16]`, with behavior at `t+15`, so a
-recording of length `T` produces `T-15` pairs. These are saved as
-`bundle_net_reference_recording` and `bundle_net_training_pairs`.
-All manifold notebooks default to cross-fitted classical PCA on the main
-recording. The pinned faithful BunDLe architecture and reference preprocessing
-remain available for an optional retrospective reproduction: use
-`conf/manifold/bunddle.yaml` with `bundle_net_reference_recording` in a separate
-output namespace. That full-fit/noncausally filtered chart is not prospective.
-Install the `bundle` extra on a platform supported by PyTorch. Python 3.14 on
-Intel macOS has no published PyTorch wheel; use the PCA default there.
-
-That exact filter is global and noncausal: every filtered time point can depend
-on future samples, and its unpadded reversal retains endpoint transients. It is
-therefore a retrospective reproduction/sensitivity artifact, not the input to
-prospective c-GC claims. The main `recording` and `windows` checkpoints use the
-same selected neuron cohort but retain the bleach-corrected signal without that
-noncausal filter.
 
 The first two V2a-RSN suites are bound to `220119_F2_run11` and
 `220127_F4_run2`. Their configs use fluorescence, registered coordinates, tail
@@ -145,15 +134,15 @@ rejected by these revised entry points.
 
 The primary notebook contract is 120 seconds of history and a 5.164-second
 target/stride, resolved from each recording's sampling frequency. It yields
-`349/15/15` frames and 186 windows for C. elegans, `723/31/31` and 94 windows
-for V2a-01, and `636/27/27` and 95 windows for V2a-02. Adjacent histories still
+`723/31/31` frames and 94 windows for V2a-01, and `636/27/27` frames and 95
+windows for V2a-02. Adjacent histories still
 share about 96% of their samples and are not independent replicates. Sparse V2a
 bad frames remain on the native clock: c-GC/c-GC* mask only contaminated VAR
 rows, while state/community/manifold transitions reset across their intervals.
 The explicit `500/15/15` profile and strict all-bad-frames-as-boundaries policy
 remain labeled sensitivities.
 
-## Order and parallelism for each dataset
+### Order and parallelism for each V2a recording
 
 1. Run `00_preprocessing/preprocess.ipynb`. This is the only writer to the shared
    recording and raw-window checkpoints.
@@ -184,12 +173,12 @@ remain labeled sensitivities.
    Partial correlation stops at `06` because an undirected baseline cannot support
    directional candidate-driver claims.
 
-The three recording-level `00_preprocessing/preprocess.ipynb` notebooks are independent and may
+The two V2a recording-level `00_preprocessing/preprocess.ipynb` notebooks are independent and may
 also run in parallel. Afterward, any ready stage in one recording is independent
 of stages writing to another recording because each notebook writes under its own
 `outputs/analysis/<dataset_id>/<recording_id>/...` namespace.
 
-## Resume contract
+### Resume contract
 
 - Keep `FORCE=False` for normal execution and resume. Every generated notebook
   starts by printing its `run_dir`, expected stages, current `completed`,
@@ -211,7 +200,7 @@ of stages writing to another recording because each notebook writes under its ow
   stale `.lock` remains from a still-running process. Remove a lock only after
   confirming the original process has stopped.
 
-## Faster-machine run checklist
+### Faster-machine run checklist
 
 1. Copy the repository, `data/`, and any wanted `outputs/analysis/` checkpoints.
 2. Install the locked environment with the `dev`, `csl`, `community`, and
@@ -223,7 +212,7 @@ of stages writing to another recording because each notebook writes under its ow
 5. For parallel execution, use different method or recording namespaces. Do not
    run two notebooks that write the same `run_id/method/stage`.
 
-## Method boundaries
+### Method boundaries
 
 - The `c-GC` / `c-GC-star` directories now use installed fastC-GC / fastC-GC*
   with complete FFT circular-shift enumeration. Restart kernels on the Python
@@ -239,9 +228,9 @@ of stages writing to another recording because each notebook writes under its ow
   from the current anchor to the next valid anchor; its magnitude is invariant
   to fold-chart rotation/reflection. The exact BunDLe reference is descriptive.
 
-## Installed backend environment — updated 14 November 2026
+### Installed backend environment
 
-All 176 notebooks and the generator use Python 3.14 kernel metadata and a
+The V2a and shared legacy notebooks use Python 3.14 kernel metadata and a
 shared setup check for fastcgc, Tigramite, scikit-learn, kmedoids, igraph, and
 leidenalg. From the package root, run:
 

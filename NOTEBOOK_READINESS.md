@@ -1,8 +1,16 @@
 # Notebook run readiness
 
+The active C. elegans workflow uses three [numbered motif-rollout
+notebooks](notebooks/README.md#c-elegans-motif-rollout). It handles the five
+NoStim animals independently with frozen categorical readouts and trained
+fastC-GC support. Read the [pilot protocol](docs/celegans_rollout.md) for
+split, timing and artifact details.
+
+## Historical backend migration
+
 The 173 pre-existing notebooks passed bootstrap and configuration-cell execution
-from their own directories during the backend migration. The current collection
-has 176 recording/diagnostic notebooks after adding one canonical shared-transition
+from their own directories during the backend migration. That collection
+had 176 recording/diagnostic notebooks after adding one canonical shared-transition
 entrypoint per recording. All code cells parse in the locked Python 3.14
 environment. This revision preserves all previous code, local metadata and stored
 outputs, including user-generated errors. Stored outputs may predate the current
@@ -15,7 +23,7 @@ Then follow raw preprocessing with `09_cross_method/shared_transitions.ipynb`.
 All 173 earlier notebooks contain scope notices; independent method/manifold
 analyses remain complementary to the canonical shared comparison.
 
-## Changes needed for execution
+## Historical changes for execution
 
 - All manifold notebooks explicitly default to cross-fitted classical PCA.
   Faithful BunDLe reproduction remains optional, with its original model and
@@ -29,7 +37,7 @@ analyses remain complementary to the canonical shared comparison.
 - Explicit UMAP requests fail clearly if its dependency is missing; they do not
   silently produce PCA results.
 
-## Supplied data preflight
+## Historical shared-transition preflight
 
 Actual loaders, preprocessing and temporal split construction were checked
 without fitting biological connectivity models.
@@ -45,7 +53,7 @@ all three recordings. Keep the raw-history purge; an unavailable result is not
 evidence for or against discrete states. The primary endpoint comparison and
 owned feature sensitivity do not require the graph-state analysis.
 
-## Scope of verification
+## Historical scope of verification
 
 The complete regression suite passes **519 tests with one optional skip** after
 the final provenance/ownership refinements. The verification record is in

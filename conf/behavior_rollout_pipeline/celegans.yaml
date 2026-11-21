@@ -1,0 +1,26 @@
+timing:
+  readout_fraction: 0.35
+  training_end_fraction: 0.65
+  history_seconds: 25.6
+  discovery_seconds: 102.4
+  discovery_stride_seconds: 25.6
+  horizon_seconds: 0.8
+  target_seconds: 0.4
+  stride_seconds: 1.6
+readout:
+  seed: 20261121
+  hidden_width: 32
+  alpha: 1.0
+  max_iter: 1000
+rollout:
+  support_frequency: 0.25
+  ridge_alpha: 1.0
+  draws: 128
+  batch_size: 24
+  seed: 20261121
+selector:
+  lookback: 6
+  margin: 0.0
+  consecutive_losses: 3
+  recovery_forecasts: 1
+effect_stride_origins: 32

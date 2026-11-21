@@ -42,13 +42,45 @@ def fast_refit_decisions(
     recovery_forecasts: int = 4,
 ) -> np.ndarray:
     """Suspend the trailing-average rule on recent losses and require new evidence to resume."""
+    gains, matured = _matured_gains(origins, pooled, local, observed_targets, horizon=horizon)
+    return _fast_choices(gains, matured, lookback, margin, consecutive_losses, recovery_forecasts)
+
+
+def fast_refit_loss_decisions(
+    origins: np.ndarray,
+    pooled_loss: np.ndarray,
+    local_loss: np.ndarray,
+    *,
+    horizon: int,
+    lookback: int,
+    margin: float,
+    consecutive_losses: int,
+    recovery_forecasts: int,
+) -> np.ndarray:
+    """Apply the same online rule to a declared loss on completed forecasts."""
+    matured = _matured_counts(origins, horizon)
+    values = [np.asarray(loss, dtype=float) for loss in (pooled_loss, local_loss)]
+    if any(loss.shape != matured.shape or not np.all(np.isfinite(loss) & (loss >= 0)) for loss in values):
+        raise ValueError("losses must be finite nonnegative values on the trial-by-origin grid")
+    return _fast_choices(
+        values[0] - values[1], matured, lookback, margin, consecutive_losses, recovery_forecasts,
+    )
+
+
+def _fast_choices(
+    gains: np.ndarray,
+    matured: np.ndarray,
+    lookback: int,
+    margin: float,
+    consecutive_losses: int,
+    recovery_forecasts: int,
+) -> np.ndarray:
     for name, count in (
         ("consecutive_losses", consecutive_losses),
         ("recovery_forecasts", recovery_forecasts),
     ):
         if isinstance(count, bool) or not isinstance(count, Integral) or count < 1:
             raise ValueError(f"{name} must be a positive forecast count")
-    gains, matured = _matured_gains(origins, pooled, local, observed_targets, horizon=horizon)
     choose = _rolling_choice(gains, matured, lookback, margin)
     for trial, (history, counts) in enumerate(zip(gains, matured, strict=True)):
         blocked = False
@@ -94,6 +126,23 @@ def _matured_gains(
     *,
     horizon: int,
 ) -> tuple[np.ndarray, np.ndarray]:
+    matured = _matured_counts(origins, horizon)
+    values = []
+    for name, array in (("pooled", pooled), ("local", local), ("observed_targets", observed_targets)):
+        data = np.asarray(array)
+        if data.shape != (*matured.shape, 2) or data.dtype.kind not in "iuf" or not np.isfinite(data).all():
+            raise ValueError(f"{name} must be finite real values with shape {(*matured.shape, 2)}")
+        values.append(data.astype(float, copy=False))
+    pooled_values, local_values, targets = values
+    with np.errstate(over="raise", invalid="raise"):
+        try:
+            gains = np.abs(pooled_values - targets).mean(axis=2) - np.abs(local_values - targets).mean(axis=2)
+        except FloatingPointError as error:
+            raise ValueError("forecast loss calculation must be finite") from error
+    return gains, matured
+
+
+def _matured_counts(origins: np.ndarray, horizon: int) -> np.ndarray:
     max_sample = np.iinfo(np.int64).max
     if isinstance(horizon, bool) or not isinstance(horizon, Integral) or not 0 < horizon <= max_sample:
         raise ValueError("horizon must be a positive sample count")
@@ -111,19 +160,5 @@ def _matured_gains(
     if np.any(times[:, 1:] <= times[:, :-1]):
         raise ValueError("origins must increase strictly within every trial")
 
-    values = []
-    for name, array in (("pooled", pooled), ("local", local), ("observed_targets", observed_targets)):
-        data = np.asarray(array)
-        if data.shape != (*times.shape, 2) or data.dtype.kind not in "iuf" or not np.isfinite(data).all():
-            raise ValueError(f"{name} must be finite real values with shape {(*times.shape, 2)}")
-        values.append(data.astype(float, copy=False))
-    pooled_values, local_values, targets = values
-    with np.errstate(over="raise", invalid="raise"):
-        try:
-            gains = np.abs(pooled_values - targets).mean(axis=2) - np.abs(local_values - targets).mean(axis=2)
-        except FloatingPointError as error:
-            raise ValueError("forecast loss calculation must be finite") from error
-
     # Searching for the cutoff avoids adding the horizon to a large origin.
-    matured = np.stack([np.searchsorted(row, row - int(horizon), side="right") for row in times])
-    return gains, matured
+    return np.stack([np.searchsorted(row, row - int(horizon), side="right") for row in times])

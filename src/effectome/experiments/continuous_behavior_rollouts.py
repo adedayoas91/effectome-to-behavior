@@ -49,8 +49,14 @@ def _artifact(readout: ContinuousBehaviorReadout) -> dict[str, Any]:
     return artifact
 
 
-def _predict(readout: ContinuousBehaviorReadout, states: np.ndarray, name: str) -> np.ndarray:
-    shape = (*states.shape[:-1], _OUTPUT_DIMENSION)
+def _predict(
+    readout: ContinuousBehaviorReadout,
+    states: np.ndarray,
+    name: str,
+    *,
+    output_width: int = _OUTPUT_DIMENSION,
+) -> np.ndarray:
+    shape = (*states.shape[:-1], output_width)
     # A copy prevents a readout's scratch buffer from changing earlier summaries.
     return _finite(readout.predict(states), shape, f"{name} prediction").copy()
 

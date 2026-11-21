@@ -2,11 +2,12 @@
 
 import numpy as np
 import pytest
+from scipy.special import softmax
 
 from effectome.experiments.behavior_readout import FrozenBehaviorMap, FrozenDenseLayer
 from effectome.experiments.behavior_rollout_timing_kernels import fit_timing_mechanisms, timing_forecasts
 from effectome.experiments.behavior_transition_graphs import fit_transition_mechanism
-from effectome.experiments.structural_mechanism import MechanismRolloutConfig
+from effectome.experiments.structural_mechanism import AdditiveMechanism, MechanismRolloutConfig
 from effectome.workflows.effectome_rollout import forecast_mechanisms
 
 
@@ -74,3 +75,29 @@ def test_timing_inputs_preserve_window_and_origin_contracts():
         timing_forecasts(fitted, histories[:, -1], np.array([4, 4]), _readout(), config)
     with pytest.raises(ValueError, match="match the observed node axis"):
         timing_forecasts(fitted, histories[:, -1, :2], np.array([4, 5]), _readout(), config)
+
+
+def test_categorical_disconnect_matches_source_row_deletion_with_paired_innovations():
+    class MotifProbabilities:
+        def predict(self, states: np.ndarray) -> np.ndarray:
+            return softmax(states, axis=-1)
+
+        def to_dict(self) -> dict[str, str]:
+            return {"type": "test_softmax"}
+
+    histories = np.random.default_rng(777).normal(size=(3, 45, 3))
+    models = fit_timing_mechanisms(histories, _support(), 1.0)
+    cut_models = []
+    for model in models:
+        cross = model.cross_weights.copy()
+        cross[1, :] = 0.0
+        cut_models.append(AdditiveMechanism(model.intercept, model.self_weights, cross,
+                                            model.noise_scale, model.support))
+    config = MechanismRolloutConfig(horizon=2, target_length=1, n_rollouts=12, seed=29)
+    states, ids, readout = histories[:, -1], np.array([10, 15, 20]), MotifProbabilities()
+    cut = timing_forecasts(models, states, ids, readout, config, output_width=3, disconnected=(1,))
+    expected = timing_forecasts(cut_models, states, ids, readout, config, output_width=3)
+    factual = timing_forecasts(models, states, ids, readout, config, output_width=3)
+    np.testing.assert_array_equal(cut, expected)
+    np.testing.assert_allclose(cut.sum(axis=1), 1.0)
+    assert not np.allclose(cut, factual)
