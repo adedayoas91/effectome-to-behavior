@@ -26,9 +26,14 @@ const ui = {
   model: byId("model"),
   details: byId("forecast-details"),
   canvas: byId("trajectory"),
+  view3d: byId("trajectory-3d"),
+  view2d: byId("trajectory-2d"),
+  resetView: byId("trajectory-reset"),
+  trajectoryHint: byId("trajectory-hint"),
   observedMotif: byId("observed-motif"),
   legend: byId("motif-legend"),
 };
+const defaultCamera = { yaw: 0.72, pitch: 0.50 };
 const state = {
   run: null,
   worm: null,
@@ -39,6 +44,10 @@ const state = {
   forecastRequest: null,
   forecastTimer: null,
   plottedPoints: [],
+  trajectoryView: "3d",
+  camera: { ...defaultCamera },
+  rotation: null,
+  rotated: false,
 };
 const palette = ["#187566", "#81488c", "#947025", "#3f628f", "#a55044", "#497137", "#786050", "#a24a72"];
 
@@ -292,26 +301,10 @@ function renderLegend() {
   ui.legend.replaceChildren(...markers);
 }
 
-function drawTrajectory() {
-  const rect = ui.canvas.getBoundingClientRect();
-  const width = rect.width;
-  const height = rect.height;
-  const ratio = window.devicePixelRatio || 1;
-  ui.canvas.width = Math.round(width * ratio);
-  ui.canvas.height = Math.round(height * ratio);
-  const ctx = ui.canvas.getContext("2d");
-  const points = state.worm?.origins;
-  state.plottedPoints = [];
-  ui.canvas.classList.toggle("has-data", Boolean(points));
-  if (!ctx || !points?.length || width < 85 || height < 70) return;
-  ctx.scale(ratio, ratio);
-  const xs = points.map((point) => point.code[0]);
-  const ys = points.map((point) => point.code[1]);
-  const xMin = Math.min(...xs), xMax = Math.max(...xs);
-  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+function plotTwoDimensions(ctx, points, width, height, xMin, xMax, yMin, yMax) {
   const left = 36, right = width - 18, top = 18, bottom = height - 30;
   const scale = Math.min((right - left) / (xMax - xMin || 1), (bottom - top) / (yMax - yMin || 1));
-  state.plottedPoints = points.map((point) => [
+  const positions = points.map((point) => [
     (left + right) / 2 + (point.code[0] - (xMin + xMax) / 2) * scale,
     (top + bottom) / 2 - (point.code[1] - (yMin + yMax) / 2) * scale,
   ]);
@@ -330,6 +323,96 @@ function drawTrajectory() {
   ctx.rotate(-Math.PI / 2);
   ctx.fillText("Code 2", 0, 0);
   ctx.restore();
+  return positions;
+}
+
+function plotThreeDimensions(ctx, points, width, height, xMin, xMax, yMin, yMax) {
+  const { yaw, pitch } = state.camera;
+  const cosine = Math.cos(yaw), sine = Math.sin(yaw);
+  const tiltCos = Math.cos(pitch), tiltSin = Math.sin(pitch);
+  // Rotate around the time axis, then tilt the view for an orthographic projection.
+  const rotate = (x, y, time) => {
+    const depth = sine * x + cosine * y;
+    return [cosine * x - sine * y, tiltCos * time + tiltSin * depth, tiltCos * depth - tiltSin * time];
+  };
+  const sides = [-0.5, 0.5];
+  const corners = sides.flatMap((x) => sides.flatMap((y) => sides.map((time) => rotate(x, y, time))));
+  const halfWidth = Math.max(...corners.map(([x]) => Math.abs(x)));
+  const halfHeight = Math.max(...corners.map(([, y]) => Math.abs(y)));
+  const scale = Math.min((width - 106) / (2 * halfWidth), (height - 63) / (2 * halfHeight));
+  const project = (...coordinates) => {
+    const [x, y, depth] = rotate(...coordinates);
+    return [width / 2 + 12 + x * scale, height / 2 - y * scale, depth];
+  };
+  const first = points[0].seconds, last = points.at(-1).seconds;
+  const connector = (from, to) => {
+    ctx.beginPath();
+    ctx.moveTo(...project(...from).slice(0, 2));
+    ctx.lineTo(...project(...to).slice(0, 2));
+    ctx.stroke();
+  };
+  ctx.strokeStyle = "#dbe6df";
+  for (const tick of [-0.5, 0, 0.5]) {
+    connector([tick, -0.5, -0.5], [tick, 0.5, -0.5]);
+    connector([-0.5, tick, -0.5], [0.5, tick, -0.5]);
+  }
+  const base = [-0.5, -0.5, -0.5];
+  const xAxis = [0.5, -0.5, -0.5];
+  const yAxis = [-0.5, 0.5, -0.5];
+  ctx.strokeStyle = "#8ca69a";
+  for (const end of [xAxis, yAxis]) connector(base, end);
+  ctx.fillStyle = "#516560";
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  for (const [label, axis] of [["Code 1", xAxis], ["Code 2", yAxis]]) {
+    const [x, y] = project(...axis);
+    ctx.fillText(label, x, y + 16);
+  }
+  // Place the time scale beside the trajectory to keep its labels clear as the view rotates.
+  const railX = width / 2 - halfWidth * scale;
+  const [, topY] = project(0, 0, 0.5);
+  const [, bottomY] = project(0, 0, -0.5);
+  ctx.beginPath();
+  ctx.moveTo(railX, topY);
+  ctx.lineTo(railX, bottomY);
+  ctx.textAlign = "right";
+  ctx.fillText("Time (s)", railX, topY - 14);
+  for (const [y, seconds] of [[bottomY, first], [topY, last]]) {
+    ctx.moveTo(railX - 4, y);
+    ctx.lineTo(railX, y);
+    ctx.fillText(seconds.toFixed(1), railX - 7, y + 4);
+  }
+  ctx.stroke();
+
+  // Both code axes use the same scale. The time axis spans the observed elapsed seconds.
+  const span = Math.max(xMax - xMin, yMax - yMin) || 1;
+  const midX = (xMin + xMax) / 2, midY = (yMin + yMax) / 2;
+  return points.map((point) => project(
+    (point.code[0] - midX) / span,
+    (point.code[1] - midY) / span,
+    (point.seconds - first) / (last - first || 1) - 0.5,
+  ));
+}
+
+function drawTrajectory() {
+  const points = state.worm?.origins;
+  const hasData = Boolean(points?.length);
+  const threeDimensions = state.trajectoryView === "3d";
+  state.plottedPoints = [];
+  ui.canvas.classList.toggle("has-data", hasData);
+  ui.canvas.classList.toggle("is-3d", threeDimensions);
+  ui.resetView.disabled = !hasData || !threeDimensions;
+  const { width, height } = ui.canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  ui.canvas.width = Math.round(width * ratio);
+  ui.canvas.height = Math.round(height * ratio);
+  const ctx = ui.canvas.getContext("2d");
+  if (!ctx || !hasData || width < 120 || height < 95) return;
+  ctx.scale(ratio, ratio);
+  const xs = points.map((point) => point.code[0]);
+  const ys = points.map((point) => point.code[1]);
+  const plot = threeDimensions ? plotThreeDimensions : plotTwoDimensions;
+  state.plottedPoints = plot(ctx, points, width, height, Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys));
 
   ctx.strokeStyle = "#b0c3b8";
   ctx.beginPath();
@@ -338,7 +421,12 @@ function drawTrajectory() {
     else ctx.lineTo(x, y);
   });
   ctx.stroke();
-  state.plottedPoints.forEach(([x, y], i) => {
+  const drawOrder = state.plottedPoints.map((_, index) => index);
+  if (threeDimensions) {
+    drawOrder.sort((a, b) => state.plottedPoints[a][2] - state.plottedPoints[b][2]);
+  }
+  drawOrder.forEach((i) => {
+    const [x, y] = state.plottedPoints[i];
     ctx.fillStyle = palette[points[i].observed_motif % palette.length];
     ctx.beginPath();
     ctx.arc(x, y, 2.8, 0, Math.PI * 2);
@@ -352,7 +440,54 @@ function drawTrajectory() {
   ctx.stroke();
 }
 
+function setTrajectoryView(view) {
+  state.trajectoryView = view;
+  const threeDimensions = view === "3d";
+  ui.view3d.setAttribute("aria-pressed", threeDimensions);
+  ui.view2d.setAttribute("aria-pressed", !threeDimensions);
+  ui.trajectoryHint.textContent = threeDimensions
+    ? "Drag or use arrow keys to rotate. Select a point to choose an origin."
+    : "Select a point to choose a forecast origin.";
+  ui.canvas.setAttribute("aria-label", threeDimensions
+    ? "Motif trajectory with time as the third axis. The forecast origin is circled."
+    : "Two-dimensional trajectory colored by recorded motif. The forecast origin is circled.");
+  drawTrajectory();
+}
+
+function rotateTrajectory(yaw, pitch) {
+  state.camera = { yaw, pitch: Math.max(0.12, Math.min(1.25, pitch)) };
+  drawTrajectory();
+}
+
+function startRotation(event) {
+  if (!event.isPrimary || event.button !== 0) return;
+  state.rotated = false;
+  if (state.trajectoryView !== "3d" || !state.worm) return;
+  state.rotation = { id: event.pointerId, x: event.clientX, y: event.clientY, ...state.camera };
+  ui.canvas.setPointerCapture(event.pointerId);
+}
+
+function moveRotation(event) {
+  const start = state.rotation;
+  if (!start || start.id !== event.pointerId) return;
+  const dx = event.clientX - start.x, dy = event.clientY - start.y;
+  if (!state.rotated && Math.hypot(dx, dy) < 4) return;
+  state.rotated = true;
+  ui.canvas.classList.add("is-rotating");
+  rotateTrajectory(start.yaw + 0.012 * dx, start.pitch + 0.012 * dy);
+}
+
+function stopRotation(event) {
+  if (state.rotation?.id !== event.pointerId) return;
+  state.rotation = null;
+  ui.canvas.classList.remove("is-rotating");
+}
+
 function pickOrigin(event) {
+  if (state.rotated) {
+    state.rotated = false;
+    return;
+  }
   const rect = ui.canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
@@ -435,7 +570,22 @@ ui.apply.addEventListener("click", () => {
   if (group) setOff(group.ids);
 });
 ui.delete.addEventListener("click", deleteGroup);
+ui.view3d.addEventListener("click", () => setTrajectoryView("3d"));
+ui.view2d.addEventListener("click", () => setTrajectoryView("2d"));
+ui.resetView.addEventListener("click", () => rotateTrajectory(defaultCamera.yaw, defaultCamera.pitch));
+ui.canvas.addEventListener("pointerdown", startRotation);
+ui.canvas.addEventListener("pointermove", moveRotation);
+ui.canvas.addEventListener("lostpointercapture", stopRotation);
 ui.canvas.addEventListener("click", pickOrigin);
+ui.canvas.addEventListener("keydown", (event) => {
+  if (state.trajectoryView !== "3d" || !state.worm) return;
+  const direction = {
+    ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+  }[event.key];
+  if (!direction) return;
+  event.preventDefault();
+  rotateTrajectory(state.camera.yaw + direction[0] * 0.12, state.camera.pitch + direction[1] * 0.12);
+});
 if ("ResizeObserver" in window) new ResizeObserver(drawTrajectory).observe(ui.canvas);
 else window.addEventListener("resize", drawTrajectory);
 

@@ -99,7 +99,14 @@
             <h2 id="trajectory-heading">Motif-supervised trajectory</h2>
             <p id="observed-motif" class="hint"></p>
           </div>
-          <canvas id="trajectory" aria-label="Two-dimensional neural trajectory colored by recorded motif. The forecast origin is circled." role="img">
+          <div class="trajectory-controls" role="group" aria-label="Trajectory view">
+            <button id="trajectory-3d" type="button" aria-pressed="true">3D</button>
+            <button id="trajectory-2d" type="button" aria-pressed="false">2D</button>
+            <button id="trajectory-reset" type="button" disabled>Reset view</button>
+          </div>
+          <p id="trajectory-hint" class="hint">Drag or use arrow keys to rotate. Select a point to choose an origin.</p>
+          <canvas id="trajectory" tabindex="0" aria-describedby="trajectory-hint"
+            aria-label="Motif trajectory with time as the third axis. The forecast origin is circled." role="img">
             Use the forecast slider to browse the trajectory.
           </canvas>
           <ul id="motif-legend" class="motif-legend" aria-label="Recorded motif colors"></ul>

@@ -138,7 +138,9 @@ progress.disconnected::-moz-progress-bar { background: var(--disconnect); }
 .change.negative { color: #933638; font-weight: 650; }
 .forecast-details { margin-top: 12px; }
 
-canvas {
+.trajectory-controls { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 6px; }
+.trajectory-controls button[aria-pressed="true"] { background: #e4f3eb; color: var(--accent); border-color: #9cbfb1; }
+#trajectory {
   display: block;
   width: 100%;
   height: 245px;
@@ -147,7 +149,9 @@ canvas {
   border: 1px solid var(--line);
   border-radius: 8px;
 }
-canvas.has-data { cursor: crosshair; }
+#trajectory.has-data { cursor: crosshair; }
+#trajectory.is-3d.has-data { cursor: grab; touch-action: none; height: clamp(245px, 34vw, 355px); }
+#trajectory.is-3d.is-rotating { cursor: grabbing; }
 .motif-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 10px 0 0; padding: 0; list-style: none; }
 .motif-legend li { display: flex; gap: 5px; align-items: center; font-size: .75rem; color: var(--muted); }
 .motif-legend canvas { width: 10px; height: 10px; margin: 0; border: 0; border-radius: 0; background: transparent; }
@@ -178,5 +182,5 @@ canvas.has-data { cursor: crosshair; }
   .probability-entry { grid-template-columns: 1fr; gap: 3px; }
   .probability-entry span { text-align: left; }
   .swatch { display: none; }
-  canvas { height: 210px; }
+  #trajectory { height: 210px; }
 }

@@ -7,8 +7,10 @@ switches to disconnect or restore individual ROIs. Multiple switches form
 one joint intervention. Search by recording-local ROI ID, recorded label,
 or canonical name. The outgoing-links filter shows ROIs with fitted targets.
 Saved groups belong to the selected run and worm and are stored in the
-browser. The two-dimensional trajectory shows where the selected origin
-falls in the motif-supervised representation.
+browser. The trajectory displays the two learned coordinates and uses
+elapsed seconds as the third axis. Drag the 3D plot or focus it and use
+the arrow keys to rotate. Select **2D** for a flat view of the learned
+coordinates. In either view, selecting a point changes the forecast origin.
 
 ## Launch
 
